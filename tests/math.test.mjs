@@ -17,23 +17,28 @@ test("key only: engine carries the whole shift, video untouched", () => {
   assert.equal(p.attached, true);
 });
 
-test("tempo with key lock: video resamples, engine undoes the pitch change", () => {
-  const p = plan({ ...DEFAULT_PARAMS, tempo: 4 });
+test("tempo with key lock (opt-in): video resamples, engine undoes the pitch change", () => {
+  const p = plan({ ...DEFAULT_PARAMS, tempo: 4, keyLock: true });
   assert.ok(close(p.rate, 1.04));
   assert.ok(close(p.engineRatio, 1 / 1.04));
   // net pitch = resampler (×1.04) × engine (÷1.04) = 1.0
   assert.ok(close(p.rate * p.engineRatio, 1));
 });
 
-test("tempo with vinyl (key lock off): resampler only, nothing attached", () => {
-  const p = plan({ ...DEFAULT_PARAMS, tempo: -12, keyLock: false });
+test("default is vinyl: speed alone is resampler only, pitch rides along, nothing attached", () => {
+  const p = plan({ ...DEFAULT_PARAMS, tempo: -12 });
   assert.ok(close(p.rate, 0.88)); assert.equal(p.engineRatio, 1); assert.equal(p.attached, false);
 });
 
-test("key + tempo: one engine pass with 2^(k/12) ÷ r", () => {
-  const p = plan({ ...DEFAULT_PARAMS, st: -5, tempo: 10 });
+test("key + tempo with key lock: one engine pass with 2^(k/12) ÷ r", () => {
+  const p = plan({ ...DEFAULT_PARAMS, st: -5, tempo: 10, keyLock: true });
   assert.ok(close(p.engineRatio, Math.pow(2, -5 / 12) / 1.1));
   assert.ok(close(p.rate * p.engineRatio, Math.pow(2, -5 / 12))); // net pitch is exactly the key change
+});
+
+test("vinyl + pitch buttons: engine applies only the key, speed pitch rides free", () => {
+  const p = plan({ ...DEFAULT_PARAMS, st: 2, tempo: 20 });
+  assert.ok(close(p.rate, 1.2)); assert.ok(close(p.engineRatio, Math.pow(2, 2 / 12))); assert.equal(p.attached, true);
 });
 
 test("cents feed the engine ratio", () => {

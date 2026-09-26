@@ -13,6 +13,7 @@ export type Settings = {
   fullControl: boolean;
   engine: EngineTier;
   defaultRange: 8 | 16 | 50;
+  keyLockDefault: boolean;
   rememberPerVideo: boolean;
   seenIntro: boolean;
 };
@@ -20,7 +21,7 @@ export type Settings = {
 export const DEFAULT_SETTINGS: Settings = {
   skin: "org", mimiColor: "blue", cap: false, shades: false, shoes: false,
   plush: true, collapsed: false, fullControl: false, engine: "auto",
-  defaultRange: 50, rememberPerVideo: true, seenIntro: false,
+  defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: false,
 };
 
 const KEY = "mimi.settings";

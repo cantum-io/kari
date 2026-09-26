@@ -26,8 +26,8 @@ const CTL = `
   </div>
   <div class="full">
     <div class="pills">
-      <button class="pill" data-a="lock" aria-pressed="true">Key lock</button>
-      <button class="pill" data-a="vinyl" aria-pressed="false">Vinyl</button>
+      <button class="pill" data-a="vinyl" aria-pressed="true">Vinyl</button>
+      <button class="pill" data-a="lock" aria-pressed="false">Key lock</button>
       <span class="rng"><button data-a="range" data-v="8">±8</button><button data-a="range" data-v="16">±16</button><button data-a="range" data-v="50">±50</button></span>
     </div>
     <div class="pills">
@@ -126,7 +126,7 @@ const TEMPLATE = `
     </div>
     <div class="cons-ctl absorb">${CTL}</div>
   </section>
-  <div class="intro" data-el="intro" hidden>slide to slow down or speed up the music · pitch changes the key<br><button data-a="intro-ok" style="margin-top:6px;text-decoration:underline">got it</button></div>
+  <div class="intro" data-el="intro" hidden>slide to slow down or speed up the music (pitch moves with it, like a record) · pitch buttons change the key<br><button data-a="intro-ok" style="margin-top:6px;text-decoration:underline">got it</button></div>
   <div class="fault" data-el="fault" hidden></div>
   <button class="gear" data-el="gear" aria-label="Mimi settings" aria-expanded="false">${GEAR}</button>
   <aside class="settings" data-el="settings" hidden>

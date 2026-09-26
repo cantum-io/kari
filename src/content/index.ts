@@ -33,7 +33,7 @@ async function mount() {
   if (id !== currentId) {
     currentId = id;
     const mem = settings.rememberPerVideo ? await loadVideo(id) : null;
-    params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange };
+    params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange, keyLock: settings.keyLockDefault };
   }
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);

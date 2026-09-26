@@ -3,8 +3,8 @@
 Real-time pitch and speed for music on YouTube, with studio-grade accuracy, fronted by a small animated character.
 By **YGG HOMME**, powered by **Cantum**. Free software under the GPL-2.0.
 
-- Slide left to slow the song down, right to speed it up. Tap Pitch −/+ to change the key. Everything starts at 0.
-- Nothing touches the audio until you change something. At 0 st / 1.00× the path is a straight wire.
+- Slide left to slow the song down, right to speed it up; pitch moves with it, like a record. Tap Pitch −/+ to change the key. Everything starts at 0. Key lock (pitch held while speed changes) is under Full control.
+- Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
 - Accuracy: ≤1 cent across 55 Hz–1 kHz and ±12 semitones (Rubber Band R3), 22 ms engine delay. See `docs/SPRINT-0-BENCH.md`.
 - YouTube `/watch` pages only. No data leaves your browser. No accounts.
 
@@ -42,4 +42,4 @@ Signalsmith Stretch © Geraint Luff, MIT — https://signalsmith-audio.co.uk/cod
 `rubberband-wasm` and `signalsmith-stretch` npm builds by their respective authors.
 
 ## Licence
-GPL-2.0-only. See `LICENSE`. If this project is ever distributed under a proprietary licence, the Rubber Band commercial licence must be obtained first.
+GPL-2.0-only. See `LICENSE`. Free, no paid tier.

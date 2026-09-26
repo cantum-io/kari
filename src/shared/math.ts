@@ -9,7 +9,7 @@ export type Params = {
   cents: number;     // -50..50
   tempo: number;     // percent, -range..range  (0 = 1.00×)
   range: 8 | 16 | 50;
-  keyLock: boolean;  // true: pitch independent of tempo (engine corrects). false: vinyl (pitch rides tempo)
+  keyLock: boolean;  // false (default, "vinyl"): pitch rides speed like a turntable. true: pitch held while speed changes.
 };
 
 export const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
@@ -48,4 +48,4 @@ export function setRange(p: Params, range: Params["range"]): Params {
 }
 export const isNeutral = (p: Params) => p.st === 0 && p.cents === 0 && p.tempo === 0;
 
-export const DEFAULT_PARAMS: Params = { st: 0, cents: 0, tempo: 0, range: 50, keyLock: true };
+export const DEFAULT_PARAMS: Params = { st: 0, cents: 0, tempo: 0, range: 50, keyLock: false };

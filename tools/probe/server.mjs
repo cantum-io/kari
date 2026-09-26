@@ -33,7 +33,7 @@ const SHOTS = path.join(process.cwd(), "shots"); fs.mkdirSync(SHOTS, { recursive
 
 const context = await chromium.launchPersistentContext(UDD, {
   headless: HEADLESS, channel: HEADLESS ? "chromium" : undefined,
-  viewport: null,
+  viewport: process.env.VIEW ? { width: +process.env.VIEW.split('x')[0], height: +process.env.VIEW.split('x')[1] } : null,
   ignoreDefaultArgs: MUTE ? [] : ["--mute-audio"],
   args: [
     `--disable-extensions-except=${EXT}`,
@@ -105,6 +105,7 @@ http.createServer(async (req, res) => {
     if (u.pathname === "/key") { await rec.page.keyboard.press(b.key, { delay: b.delay || 0 }); return json(res, 200, { ok: true }); }
     if (u.pathname === "/click") { if (b.selector) await rec.page.click(b.selector, { timeout: 10000, force: !!b.force }); else await rec.page.mouse.click(+b.x, +b.y); return json(res, 200, { ok: true }); }
     if (u.pathname === "/mouse") { await rec.page.mouse.move(+b.x, +b.y); return json(res, 200, { ok: true }); }
+    if (u.pathname === "/viewport") { await rec.page.setViewportSize({ width: +b.width, height: +b.height }); return json(res, 200, { ok: true }); }
     if (u.pathname === "/emulate") { await rec.page.emulateMedia({ reducedMotion: b.reducedMotion || null }); return json(res, 200, { ok: true }); }
     if (u.pathname === "/cdp") { const v = await rec.cdp.send(b.method, b.params || {}); return json(res, 200, { value: v }); }
     if (u.pathname === "/reload-ext") { const sw = context.serviceWorkers().find((w) => w.url().startsWith("chrome-extension://")); if (!sw) return json(res, 500, { error: "no extension sw" }); await sw.evaluate(() => chrome.runtime.reload()); await new Promise((r) => setTimeout(r, 1500)); return json(res, 200, { ok: true }); }

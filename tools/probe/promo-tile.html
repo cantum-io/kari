@@ -1,0 +1,51 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+html,body{margin:0;width:440px;height:280px;background:#07070b;overflow:hidden;font-family:"Instrument Sans",system-ui,-apple-system,sans-serif;color:#efece4}
+.org{position:absolute;right:26px;top:30px;width:150px;height:170px;--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}
+.org svg{width:100%;height:100%;overflow:visible}
+.org .blob{fill:url(#mimi-blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#mimi-goo) drop-shadow(0 0 14px var(--mg))}
+.org .shine{fill:rgba(255,255,255,.55)} .org .eye{fill:#03141a} .org .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))} .org .acc{display:none} .org .zz{display:none} .bubble{display:none}
+h1{position:absolute;left:28px;top:34px;margin:0;font-size:44px;font-weight:700;letter-spacing:-.02em}
+p{position:absolute;left:28px;top:96px;margin:0;width:230px;font-size:16px;line-height:1.35;color:#b9b6ad}
+.k{position:absolute;left:28px;top:172px;line-height:1.7;font-family:"Space Mono",ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:#5cf2ff}
+.c{position:absolute;left:28px;bottom:22px;font-family:"Space Mono",ui-monospace,Menlo,monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#6d6c76}
+</style></head><body><h1>Mimi</h1><p>Key and speed for music. Studio-accurate. Free.</p><div class="k">pitch ±12 st · speed ±50 %<br>key lock · vinyl · compare</div><div class="c">YGG HOMME · powered by Cantum</div><div class="org">
+<svg viewBox="0 0 160 180" aria-hidden="true">
+  <defs>
+    <radialGradient id="mimi-blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
+    <filter id="mimi-goo"><feGaussianBlur stdDeviation="2" result="b"/><feColorMatrix in="b" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
+  </defs>
+  <g class="beat" data-el="beat">
+    <g class="blob" style="transform-origin:80px 90px">
+      <ellipse cx="80" cy="95" rx="54" ry="60"/><circle cx="40" cy="40" r="14"/><circle cx="118" cy="46" r="11"/>
+      <ellipse cx="34" cy="120" rx="22" ry="14" transform="rotate(-30 34 120)"/><ellipse cx="128" cy="126" rx="22" ry="14" transform="rotate(30 128 126)"/>
+      <ellipse cx="62" cy="158" rx="16" ry="12"/><ellipse cx="102" cy="158" rx="16" ry="12"/>
+    </g>
+    <ellipse class="shine" cx="52" cy="58" rx="12" ry="7" transform="rotate(-25 52 58)"/>
+    <g class="acc shoes">
+      <path d="M34 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
+      <path d="M30 176 h40 M32 172 l3 3 M38 171 l3 4 M44 171 l3 4 M50 171 l3 4 M56 171 l3 4 M62 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
+      <path d="M40 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
+      <path d="M90 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
+      <path d="M86 176 h40 M88 172 l3 3 M94 171 l3 4 M100 171 l3 4 M106 171 l3 4 M112 171 l3 4 M118 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
+      <path d="M96 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
+    </g>
+    <g class="lid l"><ellipse class="eye" cx="62" cy="86" rx="10" ry="13"/></g>
+    <g class="lid r"><ellipse class="eye" cx="98" cy="86" rx="10" ry="13"/></g>
+    <g class="lid l"><circle class="iris" data-el="i1" cx="64" cy="88" r="4"/></g>
+    <g class="lid r"><circle class="iris" data-el="i2" cx="100" cy="88" r="4"/></g>
+    <path class="mouth" d="M70 112 q10 8 20 0" fill="none" stroke="#03141a" stroke-width="2" stroke-linecap="round"/>
+    <text class="zz" x="118" y="60">zz</text>
+    <g class="acc shades">
+      <rect x="47" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+      <rect x="83" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+      <path d="M77 85 h6" stroke="#050507" stroke-width="2"/><path d="M47 84 l-10 -4 M113 84 l10 -4" stroke="#050507" stroke-width="1.6"/>
+      <path d="M52 83 h10 M88 83 h10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+    </g>
+    <g class="acc cap">
+      <path d="M46 46 q34 -30 68 0 v6 h-68z" fill="#0d0d12"/><path d="M40 52 h84 q-4 -6 -8 -6 h-68 q-4 0 -8 6z" fill="#0d0d12"/>
+      <path d="M104 50 q22 -2 30 6 q-14 0 -30 -2z" fill="#0d0d12"/><path d="M46 46 q34 -30 68 0" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+      <text x="80" y="40" font-size="8.5" text-anchor="middle" font-family="Space Mono,monospace" font-weight="700" fill="#efece4" letter-spacing="1">YGG</text>
+    </g>
+  </g>
+  <circle class="bubble" data-el="bubble" cx="118" cy="76" r="14"/>
+</svg></div></body></html>

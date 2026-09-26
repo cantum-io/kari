@@ -104,9 +104,10 @@ export class AudioController {
     const v = this.video;
     (v as any).preservesPitch = false; // YouTube may re-assert its own; ours wins
     if (Math.abs(v.playbackRate - this.lastSetRate) > 1e-3) {
-      // Someone else (YouTube's speed menu) changed it: adopt as the new base, keep our multiplier.
-      const pl = plan(this.params);
-      this.baseRate = v.playbackRate / (this.adActive ? 1 : pl.rate);
+      // Someone else (YouTube's speed menu, or a new video loading) set an ABSOLUTE rate. Adopt it as the new base
+      // and re-apply our multiplier on top. (Live probe 2026-09-26: dividing by our multiplier read 1.5× as "yt 1.44×"
+      // and dropped our +4% when the menu went back to 1×.)
+      this.baseRate = v.playbackRate;
       this.emit({ baseRate: this.baseRate });
       this.apply(this.params, true);
     }

@@ -194,7 +194,12 @@ export class AudioController {
     switch (m.type) {
       case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; break;
       case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.updateDelay(); break;
-      case "warm": this.engineWarm = true; this.route(this.wetWanted, true); break;
+      case "warm": {
+        // The worklet measured the real stream latency of the engine (zeros emitted before its first full block).
+        // Live probe 2026-09-26: 2855 frames at 44.1 kHz where rubberband_get_start_delay said 1280.
+        if (typeof m.latency === "number" && m.engine !== "bypass") { this.latencyFrames[m.engine as "r3" | "ss"] = m.latency; this.emit({ engineLatencyMs: Math.round(m.latency / (this.ctx?.sampleRate || 48000) * 1000) }); }
+        this.engineWarm = true; this.route(this.wetWanted, true); break;
+      }
       case "stats": {
         const load = m.budgetMs ? m.avgBlockMs / m.budgetMs : 0;
         this.lastRing = m.ringFrames || 0;

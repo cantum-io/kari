@@ -3,6 +3,7 @@ import { build, context } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 
 const root = fileURLToPath(new URL("..", import.meta.url)); // not .pathname: "~" in a folder name is %7E there
 const out = path.join(root, "extension");
@@ -21,7 +22,9 @@ fs.mkdirSync(gen, { recursive: true });
 // 2) Rubber Band wasm → extension root (web_accessible_resource)
 fs.copyFileSync(path.join(root, "node_modules/rubberband-wasm/dist/rubberband.wasm"), path.join(out, "rubberband.wasm"));
 
-const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "none", logLevel: "info", define: { "process.env.NODE_ENV": '"production"' } };
+let stamp = "dev"; try { stamp = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim() + (execSync("git status --porcelain -- src scripts", { cwd: root }).toString().trim() ? "+" : ""); } catch (_) { /* no git */ }
+stamp += "." + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "none", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __MIMI_BUILD__: JSON.stringify(stamp) } };
 const entries = [
   { entryPoints: [path.join(root, "src/content/index.ts")], outfile: path.join(out, "content.js"), format: "iife" },
   { entryPoints: [path.join(root, "src/worklet/processor.js")], outfile: path.join(out, "worklet.js"), format: "iife" },

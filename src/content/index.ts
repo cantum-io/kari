@@ -24,12 +24,13 @@ async function applyParams(p: Params) {
 }
 
 async function mount() {
-  if (!isWatchPage()) { unmount(); return; }
+  // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Mimi alone) and keep the video id.
+  if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
   const video = await waitForVideo(); const host = player();
   if (!video || !host) return;
   if (getComputedStyle(host).position === "static") host.style.position = "relative";
   settings = settings || await loadSettings();
-  const id = videoId();
+  const id = videoId() || (isMiniplayer() ? currentId : "");
   if (id !== currentId) {
     currentId = id;
     const mem = settings.rememberPerVideo ? await loadVideo(id) : null;
@@ -38,6 +39,7 @@ async function mount() {
   }
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);
+  if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; } // player was re-created (miniplayer ↔ watch)
   if (!dock) {
     dock = new Dock(host, {
       getParams: () => params,

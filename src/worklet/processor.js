@@ -33,6 +33,8 @@ class MimiProcessor extends AudioWorkletProcessor {
     this.ring = new Ring(this.channels);
     this.dropRemaining = 0;
     this.warm = false; this.framesSinceSwitch = 0; // 'warm' = the selected engine is producing real output (main thread crossfades only then)
+    this.deficit = 0;            // zeros emitted between an engine switch and 'warm' = the real stream latency of the wet path
+    this.dropStart = po.dropStart === undefined ? "auto" : po.dropStart; // 'auto' = rubberband_get_start_delay(); a number overrides (probe knob)
     this.port.onmessage = (e) => this.onMessage(e.data);
     this.initR3(po.rbWasm || po.rbModule).catch(err => this.post({ type: "error", where: "r3-init", message: String(err) }));
     if (po.signalsmith !== false) this.initSS().catch(err => this.post({ type: "error", where: "ss-init", message: String(err) }));
@@ -75,7 +77,8 @@ class MimiProcessor extends AudioWorkletProcessor {
       rb.rubberband_process(st, this.rbInPtrs, n, 0);
     }
     this.drainR3(true);
-    this.dropRemaining = rb.rubberband_get_start_delay(st);
+    this.dropRemaining = this.dropStart === "auto" ? rb.rubberband_get_start_delay(st) : +this.dropStart;
+    this.lastDrop = this.dropRemaining;
     this.ring.clear();
   }
   drainR3(discard) {
@@ -99,8 +102,8 @@ class MimiProcessor extends AudioWorkletProcessor {
     rb.rubberband_process(st, this.rbInPtrs, n, 0);
     this.drainR3(false);
     const have = this.ring.pop(output, n);
-    if (have < n) this.underruns++;
-    else if (!this.warm) { this.warm = true; this.post({ type: "warm", engine: "r3" }); }
+    if (have < n) { this.underruns++; if (!this.warm) this.deficit += n - have; }
+    else if (!this.warm) { this.warm = true; this.latency.r3 = this.deficit; this.post({ type: "warm", engine: "r3", latency: this.deficit, startDelay: this.rb.rubberband_get_start_delay(this.rbState), startPad: this.rb.rubberband_get_preferred_start_pad(this.rbState), dropped: this.lastDrop }); }
   }
   _zero(n) { if (!this._z || this._z.length !== n) this._z = new Float32Array(n); return this._z; }
 
@@ -131,7 +134,7 @@ class MimiProcessor extends AudioWorkletProcessor {
     m._process(n, n);
     for (let c = 0; c < this.channels; c++) output[c].set(new Float32Array(mem, this.ssOut[c], n));
     this.framesSinceSwitch += n;
-    if (!this.warm && this.framesSinceSwitch >= this.ssLen + n) { this.warm = true; this.post({ type: "warm", engine: "ss" }); }
+    if (!this.warm && this.framesSinceSwitch >= this.ssLen + n) { this.warm = true; this.post({ type: "warm", engine: "ss", latency: this.latency.ss }); }
   }
 
   /* ---------- control ---------- */
@@ -144,11 +147,11 @@ class MimiProcessor extends AudioWorkletProcessor {
     else if (want === "r3" && this.ready.ss) next = "ss";
     else if (want === "ss" && this.ready.r3) next = "r3";
     if (next !== this.engine) {
-      this.engine = next; this.warm = false; this.framesSinceSwitch = 0;
+      this.engine = next; this.warm = false; this.framesSinceSwitch = 0; this.deficit = 0;
       if (next === "r3") this.primeR3(); if (next === "ss") this.ss._reset();
       this.post({ type: "engine", engine: next, latency: this.latency[next] || 0 });
-      if (next === "bypass") { this.warm = true; this.post({ type: "warm", engine: "bypass" }); }
-    } else if (this.warm) this.post({ type: "warm", engine: this.engine }); // already there: tell the main thread it can route now
+      if (next === "bypass") { this.warm = true; this.post({ type: "warm", engine: "bypass", latency: 0 }); }
+    } else if (this.warm) this.post({ type: "warm", engine: this.engine, latency: this.latency[this.engine] || 0 }); // already there: tell the main thread it can route now
   }
   onMessage(m) {
     switch (m.type) {
@@ -159,6 +162,7 @@ class MimiProcessor extends AudioWorkletProcessor {
         break;
       }
       case "engine": this.wanted = m.engine; this.pickEngine(); break;
+      case "config": if (m.dropStart !== undefined) this.dropStart = m.dropStart; break;
       case "reset": if (this.engine === "r3") this.primeR3(); if (this.engine === "ss" && this.ss) this.ss._reset(); this.underruns = 0; break;
       case "stats": this.sendStats(true); break;
     }

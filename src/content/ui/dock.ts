@@ -1,5 +1,6 @@
 // Mimi — in-player dock (Shadow DOM). Ported from docs/playground.html.
 import { DOCK_CSS } from "./dock.css";
+declare const __MIMI_BUILD__: string; // stamped by scripts/build.mjs
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
 import type { Settings, Skin, MimiColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
@@ -152,6 +153,7 @@ const CX = 330, CY = 200, RX = 120, RY = 52, BASE_KEY = 8; // A♭m shown as the
 
 export class Dock {
   private root: HTMLElement; private shadow: ShadowRoot; private wrap: HTMLElement;
+  get hostEl() { return this.wrap; }
   private el = (name: string) => this.shadow.querySelector(`[data-el="${name}"]`) as HTMLElement;
   private $$ = (sel: string) => Array.from(this.shadow.querySelectorAll(sel)) as HTMLElement[];
   private status: AudioStatus | null = null;
@@ -161,6 +163,7 @@ export class Dock {
     const wrap = document.createElement("div");
     this.wrap = wrap;
     wrap.id = "mimi-dock";
+    wrap.dataset.build = __MIMI_BUILD__;
     wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:60";
     this.shadow = wrap.attachShadow({ mode: "open" });
     const style = document.createElement("style"); style.textContent = DOCK_CSS;

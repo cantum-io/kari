@@ -58,7 +58,11 @@ button:active{transform:scale(.97)}
 .anchor{cursor:pointer;pointer-events:auto}
 
 /* ORGANISM */
-.org{position:absolute;right:3%;top:5%;width:min(250px,44%);display:grid;grid-template-columns:1fr 96px;gap:4px 8px;align-items:start}
+/* 250px left the controls column at 146px: the two step blocks (28+label+28 each) overlapped and the + buttons sat under the − of the next block (live probe 2026-09-26). 330px gives the column 234px. */
+.org{position:absolute;right:3%;top:5%;width:min(330px,52%);display:grid;grid-template-columns:1fr 96px;gap:4px 8px;align-items:start}
+/* the grid container itself must not swallow clicks meant for the video: only the control box and Mimi are targets */
+.skin > .org,.skin > .cons{pointer-events:none}
+.org > .ctl,.org > .body,.cons-ctl{pointer-events:auto}
 .org .ctl{grid-column:1;padding:10px 12px;background:rgba(3,3,8,.72);border-radius:12px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);--ax:100%;--ay:60%;--tx:30px;--ty:20px}
 .org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
 .org .body svg{width:100%;height:100%;overflow:visible}

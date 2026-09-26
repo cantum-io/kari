@@ -37,7 +37,7 @@ button:active{transform:scale(.97)}
 .rng{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .rng button{padding:4px 7px;font-family:var(--mono);font-size:9px;color:var(--bone-2)}
 .rng button[aria-pressed="true"]{background:var(--bone);color:var(--ink)}
-.meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em}
+.meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em;flex-wrap:wrap;gap:2px 12px}
 .meta em{font-style:normal;color:var(--bone-2)}
 .meta em.warn{color:var(--amber)}
 .rowend{display:flex;justify-content:space-between;align-items:center;gap:8px}

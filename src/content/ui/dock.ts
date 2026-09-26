@@ -255,12 +255,23 @@ export class Dock {
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
       }
     });
+    // Keys: only swallow what the focused control itself consumes (Enter/Space on buttons, arrows/Home/End on the
+    // slider); everything else still reaches YouTube's shortcuts. A blanket stopPropagation killed k/j/l/f/space after
+    // any click in the dock (review finding 2026-09-26).
+    const consumes = (ke: KeyboardEvent) => {
+      const t = ke.target as HTMLElement;
+      if (t.matches('input[type="range"]')) return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(ke.key);
+      if (t.matches('button, [role="button"], input[type="checkbox"], a')) return ke.key === "Enter" || ke.key === " ";
+      return false;
+    };
     sh.addEventListener("keydown", (e: Event) => {
       const ke = e as KeyboardEvent; const el = (ke.target as HTMLElement).closest('[role="button"][data-a]') as HTMLElement | null;
       if (el && (ke.key === "Enter" || ke.key === " ")) { ke.preventDefault(); el.click(); }
-      ke.stopPropagation(); // keep YouTube's shortcuts (k, j, l, space…) from firing while typing in the dock
+      if (consumes(ke)) ke.stopPropagation();
     });
-    sh.addEventListener("keyup", (e) => e.stopPropagation());
+    sh.addEventListener("keyup", (e: Event) => { if (consumes(e as KeyboardEvent)) e.stopPropagation(); });
+    // Mouse clicks must not leave a dock button focused (Space would re-fire it and YouTube would lose its keys).
+    sh.addEventListener("mousedown", (e) => { const t = (e.target as HTMLElement).closest("button, [role=\"button\"]"); if (t) e.preventDefault(); });
     sh.addEventListener("input", (e) => { const t = e.target as HTMLInputElement; if (t.matches('input[data-a="tempo"]')) { const p = this.deps.getParams(); this.deps.apply({ ...p, tempo: +t.value }); this.render(); } });
     sh.addEventListener("change", (e) => {
       const t = e.target as HTMLInputElement;

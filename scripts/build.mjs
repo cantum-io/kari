@@ -19,12 +19,16 @@ fs.mkdirSync(gen, { recursive: true });
   fs.writeFileSync(path.join(gen, "signalsmith-core.js"), "// generated from signalsmith-stretch@1.3.2 (MIT). Do not edit.\nvar module = {}, exports = {};\n" + body + "\nexport default SignalsmithStretch;\n");
 }
 
-// 2) Rubber Band wasm → extension root (web_accessible_resource)
+// 2) Licence texts ship inside the package (GPL-2.0 §1: keep notices with every copy)
+fs.copyFileSync(path.join(root, "LICENSE"), path.join(out, "LICENSE"));
+fs.copyFileSync(path.join(root, "THIRD-PARTY-NOTICES.txt"), path.join(out, "THIRD-PARTY-NOTICES.txt"));
+
+// 3) Rubber Band wasm → extension root (web_accessible_resource)
 fs.copyFileSync(path.join(root, "node_modules/rubberband-wasm/dist/rubberband.wasm"), path.join(out, "rubberband.wasm"));
 
 let stamp = "dev"; try { stamp = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim() + (execSync("git status --porcelain -- src scripts", { cwd: root }).toString().trim() ? "+" : ""); } catch (_) { /* no git */ }
 stamp += "." + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "none", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __MIMI_BUILD__: JSON.stringify(stamp) } };
+const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __MIMI_BUILD__: JSON.stringify(stamp) } };
 const entries = [
   { entryPoints: [path.join(root, "src/content/index.ts")], outfile: path.join(out, "content.js"), format: "iife" },
   { entryPoints: [path.join(root, "src/worklet/processor.js")], outfile: path.join(out, "worklet.js"), format: "iife" },

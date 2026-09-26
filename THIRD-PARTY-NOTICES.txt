@@ -1,0 +1,40 @@
+Mimi — third-party notices
+==========================
+
+Mimi itself is © 2026 Cantum Marketing LLC (cantum.io) for YGG HOMME and is released under the
+GNU General Public License, version 2 only (see LICENSE).
+
+This package contains the following third-party software:
+
+1. Rubber Band Library
+   © 2005–2024 Particular Programs Ltd — https://breakfastquay.com/rubberband/
+   Licence: GNU General Public License v2 (or later, at your option). Text: LICENSE.
+   Shipped as rubberband.wasm (compiled by the rubberband-wasm project, below).
+
+2. rubberband-wasm (WebAssembly build and JavaScript wrapper of Rubber Band Library)
+   © Dani Biro — https://github.com/DanielBiro/rubberband-wasm (npm: rubberband-wasm 3.3.0)
+   Licence: GNU General Public License v2. Text: LICENSE.
+   Bundled into worklet.js.
+
+3. Signalsmith Stretch (time-stretching and pitch-shifting library, WebAssembly build)
+   © 2023 Geraint Luff / Signalsmith Audio Ltd — https://signalsmith-audio.co.uk/code/stretch/
+   (npm: signalsmith-stretch 1.3.2). Bundled into worklet.js.
+   Licence: MIT —
+
+   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+   associated documentation files (the "Software"), to deal in the Software without restriction,
+   including without limitation the rights to use, copy, modify, merge, publish, distribute,
+   sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+   furnished to do so, subject to the following conditions:
+
+   The above copyright notice and this permission notice shall be included in all copies or
+   substantial portions of the Software.
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+   NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+   NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+   DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Complete corresponding source for Mimi, including the build scripts that produce worklet.js and
+rubberband.wasm from the packages above, is available at https://github.com/cantum-io/mimi.

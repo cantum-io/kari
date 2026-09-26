@@ -97,7 +97,7 @@ const TEMPLATE = `
   <section class="skin" data-skin="org">
     <div class="org" data-mimi="blue" data-cap="0" data-shades="0" data-shoes="0" data-fault="0">
       ${CTL}
-      <div class="body anchor" data-el="mimi" data-a="show" role="button" tabindex="0" aria-label="Show controls">${MIMI_SVG}</div>
+      <div class="body anchor" data-el="mimi" data-a="show" role="button" tabindex="0" aria-label="Show or hide controls">${MIMI_SVG}</div>
     </div>
   </section>
   <section class="skin" data-skin="void" hidden>
@@ -248,7 +248,7 @@ export class Dock {
         case "range": commit(setRange(p, +el.dataset.v! as 8 | 16 | 50)); break;
         case "full": this.deps.saveSettings({ fullControl: !this.deps.settings.fullControl }); break;
         case "hide": this.deps.saveSettings({ collapsed: true }); this.react(); break;
-        case "show": if (this.deps.settings.collapsed) { this.deps.saveSettings({ collapsed: false }); } this.react(); break;
+        case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Mimi is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
       }
     });

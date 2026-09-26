@@ -39,6 +39,8 @@ export class AudioController {
   private listeners = new Set<(s: AudioStatus) => void>();
   private adActive = false;
   private wetWanted = false;    // the routing we asked for (never read a mid-ramp gain value back)
+  private engineWarm = false;   // worklet reported real output from the selected engine (else the wet path is still silent)
+  private lastWantedEngine: EngineName | null = null;
   private lastRing = 0;
 
   constructor(private video: HTMLVideoElement, private urls: { worklet: string; wasm: string }) {
@@ -78,7 +80,11 @@ export class AudioController {
     const ratio = this.adActive ? 1 : pl.engineRatio;
     this.node?.port.postMessage({ type: "ratio", ratio });
     this.applyEngine(pl.engineActive && !this.adActive);
-    this.route(pl.engineActive && !this.adActive && !this.compare, force);
+    const wantWet = pl.engineActive && !this.adActive && !this.compare;
+    this.wetWanted = wantWet;
+    // Going dry is instant; going wet waits for the worklet's 'warm' (live probe 2026-09-26: crossfading at once left a
+    // ~70 ms hole while Rubber Band filled its first window).
+    if (!wantWet || this.engineWarm) this.route(wantWet, force);
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */
@@ -162,12 +168,17 @@ export class AudioController {
     }
   }
 
+  /** Delay-match the dry path to the engine that is actually running (for hold-to-compare and the attach crossfade). */
+  private updateDelay() {
+    if (!this.ctx) return;
+    const lat = this.latencyFrames[this._status.engine as "r3" | "ss"] || 0;
+    this.dryDelay.delayTime.setTargetAtTime(this._status.engine === "bypass" ? 0 : lat / this.ctx.sampleRate, this.ctx.currentTime, 0.01);
+  }
   private route(wet: boolean, force: boolean) {
     this.wetWanted = wet;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const lat = this.latencyFrames[this._status.engine as "r3" | "ss"] || 0;
-    this.dryDelay.delayTime.setTargetAtTime(this._status.engine === "bypass" ? 0 : lat / this.ctx.sampleRate, t, 0.01);
+    this.updateDelay();
     const target = wet ? 1 : 0;
     this.wet.gain.setTargetAtTime(target, t, XFADE / 3);
     this.dry.gain.setTargetAtTime(1 - target, t, XFADE / 3);
@@ -176,12 +187,14 @@ export class AudioController {
   private applyEngine(active = true) {
     if (!this.node) return;
     const want: EngineName = !active ? "bypass" : this.tier;
+    if (want !== this.lastWantedEngine) { this.engineWarm = false; this.lastWantedEngine = want; }
     this.node.port.postMessage({ type: "engine", engine: want });
   }
   private onWorklet(m: any) {
     switch (m.type) {
       case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; break;
-      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.route(this.wetWanted, true); break;
+      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.updateDelay(); break;
+      case "warm": this.engineWarm = true; this.route(this.wetWanted, true); break;
       case "stats": {
         const load = m.budgetMs ? m.avgBlockMs / m.budgetMs : 0;
         this.lastRing = m.ringFrames || 0;

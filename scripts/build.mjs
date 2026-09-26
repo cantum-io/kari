@@ -2,8 +2,9 @@
 import { build, context } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
-const root = path.resolve(new URL("..", import.meta.url).pathname);
+const root = fileURLToPath(new URL("..", import.meta.url)); // not .pathname: "~" in a folder name is %7E there
 const out = path.join(root, "extension");
 const gen = path.join(root, "src/worklet/generated");
 fs.mkdirSync(gen, { recursive: true });

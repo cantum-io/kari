@@ -5,8 +5,9 @@ export const DOCK_CSS = `
 .root{position:absolute;inset:0;z-index:60;pointer-events:none;font-family:"Instrument Sans",system-ui,-apple-system,"Helvetica Neue",sans-serif;color:#efece4;
   --ink:#07070b;--bone:#efece4;--bone-2:#b9b6ad;--mute:#6d6c76;--cyan:#5cf2ff;--amber:#ffb454;--rose:#ff7ad9;--line:rgba(239,236,228,.14);
   --ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--mono:"Space Mono",ui-monospace,Menlo,monospace;
-  transition:opacity 200ms ease}
-.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]){opacity:0;pointer-events:none}
+  transition:opacity 200ms ease,visibility 0s linear 0s}
+/* fade with YouTube's controls: visibility (not just opacity) so faded controls cannot take clicks meant for the player */
+.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
 .root[data-hidden-with-controls="1"] .anchor{opacity:1}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;touch-action:manipulation;pointer-events:auto}
 button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}

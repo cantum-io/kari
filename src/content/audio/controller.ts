@@ -19,13 +19,16 @@ export type AudioStatus = {
 export type Stepdown = "r3" | "ss" | "bypass";
 
 const XFADE = 0.04; // 40 ms attach crossfade
+// Chrome's DynamicsCompressor applies makeup gain even below threshold: +0.57 dB at threshold −1 dB / ratio 20
+// (measured live on youtube.com, 2026-09-26). The wet path runs through it for peak safety, so trim it back to unity.
+const LIMITER_TRIM = Math.pow(10, -0.57 / 20);
 
 export class AudioController {
   private ctx: AudioContext | null = null;
   private src: MediaElementAudioSourceNode | null = null;
   private node: AudioWorkletNode | null = null;
   private dry!: GainNode; private wet!: GainNode; private dryDelay!: DelayNode;
-  private analyser!: AnalyserNode; private limiter!: DynamicsCompressorNode;
+  private analyser!: AnalyserNode; private limiter!: DynamicsCompressorNode; private trim!: GainNode;
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
@@ -35,6 +38,8 @@ export class AudioController {
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
   private listeners = new Set<(s: AudioStatus) => void>();
   private adActive = false;
+  private wetWanted = false;    // the routing we asked for (never read a mid-ramp gain value back)
+  private lastRing = 0;
 
   constructor(private video: HTMLVideoElement, private urls: { worklet: string; wasm: string }) {
     video.addEventListener("ratechange", this.onRateChange);
@@ -134,15 +139,16 @@ export class AudioController {
       this.dry = ctx.createGain(); this.wet = ctx.createGain(); this.dryDelay = ctx.createDelay(1);
       this.limiter = ctx.createDynamicsCompressor();
       this.limiter.threshold.value = -1; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.001; this.limiter.release.value = 0.05;
+      this.trim = ctx.createGain(); this.trim.gain.value = LIMITER_TRIM;
       this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 512;
       this.node = new AudioWorkletNode(ctx, "mimi-processor", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { rbWasm: wasmBytes, engine: this.tier } });
       this.node.port.onmessage = (e) => this.onWorklet(e.data);
       this.node.onprocessorerror = () => { this.emit({ fault: "worklet-failed", engine: "bypass" }); this.route(false, true); };
-      // graph: src → dry(delay) ─┐
-      //        src → worklet → wet ┴→ limiter → analyser → out
-      src.connect(this.dryDelay); this.dryDelay.connect(this.dry); this.dry.connect(this.limiter);
-      src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter);
-      this.limiter.connect(this.analyser); this.analyser.connect(ctx.destination);
+      // graph: src → dry(delay) ────────────────────┐   (dry is a true straight wire: no limiter)
+      //        src → worklet → wet → limiter → trim ┴→ analyser → out
+      src.connect(this.dryDelay); this.dryDelay.connect(this.dry); this.dry.connect(this.analyser);
+      src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter); this.limiter.connect(this.trim); this.trim.connect(this.analyser);
+      this.analyser.connect(ctx.destination);
       this.dry.gain.value = 1; this.wet.gain.value = 0;
       if (ctx.state !== "running") { try { await ctx.resume(); } catch (_) { /* needs gesture */ } }
       if (ctx.state !== "running") { const kick = () => { ctx.resume(); window.removeEventListener("pointerdown", kick, true); window.removeEventListener("keydown", kick, true); }; window.addEventListener("pointerdown", kick, true); window.addEventListener("keydown", kick, true); }
@@ -155,6 +161,7 @@ export class AudioController {
   }
 
   private route(wet: boolean, force: boolean) {
+    this.wetWanted = wet;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const lat = this.latencyFrames[this.status.engine as "r3" | "ss"] || 0;
@@ -172,10 +179,12 @@ export class AudioController {
   private onWorklet(m: any) {
     switch (m.type) {
       case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; break;
-      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.route(this.wet.gain.value > 0.5, true); break;
+      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.route(this.wetWanted, true); break;
       case "stats": {
         const load = m.budgetMs ? m.avgBlockMs / m.budgetMs : 0;
+        this.lastRing = m.ringFrames || 0;
         this.emit({ underruns: m.underruns, load });
+        this.updateAv();
         this.stepdown(load, m.underruns);
         break;
       }
@@ -195,9 +204,11 @@ export class AudioController {
     }
   }
   private updateAv() {
-    const out = this.status.outputLatencyMs, eng = this.status.engine === "bypass" ? 0 : this.status.engineLatencyMs;
+    // outputLatency is 0 at context creation and only settles once the audio thread runs: read it live every time.
+    const out = this.ctx ? Math.round(((this.ctx as any).outputLatency || 0) * 1000) : 0;
+    const eng = this.status.engine === "bypass" ? 0 : this.status.engineLatencyMs;
     const base = this.ctx ? Math.round(this.ctx.baseLatency * 1000) : 0;
-    this.emit({ avOffsetMs: out + eng + base });
+    this.emit({ outputLatencyMs: out, avOffsetMs: out + eng + base });
   }
   private watchSilence() {
     const tick = () => {

@@ -151,7 +151,7 @@ const TEMPLATE = `
 const CX = 330, CY = 200, RX = 120, RY = 52, BASE_KEY = 8; // A♭m shown as the reference key until detection exists
 
 export class Dock {
-  private root: HTMLElement; private shadow: ShadowRoot;
+  private root: HTMLElement; private shadow: ShadowRoot; private wrap: HTMLElement;
   private el = (name: string) => this.shadow.querySelector(`[data-el="${name}"]`) as HTMLElement;
   private $$ = (sel: string) => Array.from(this.shadow.querySelectorAll(sel)) as HTMLElement[];
   private status: AudioStatus | null = null;
@@ -159,6 +159,7 @@ export class Dock {
 
   constructor(private host: HTMLElement, private deps: DockDeps) {
     const wrap = document.createElement("div");
+    this.wrap = wrap;
     wrap.id = "mimi-dock";
     wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:60";
     this.shadow = wrap.attachShadow({ mode: "open" });
@@ -283,8 +284,9 @@ export class Dock {
     svg.addEventListener("pointerdown", (e) => { if (this.deps.settings.collapsed) return; if ((e.target as Element).closest(".hit,.moon")) { this.consDrag = true; svg.setPointerCapture(e.pointerId); const v = toSt(e); const p = this.deps.getParams(); if (v !== p.st) { this.deps.apply({ ...p, st: v }); this.render(); } } });
     svg.addEventListener("pointermove", (e) => { if (!this.consDrag) return; const v = toSt(e); const p = this.deps.getParams(); if (v !== p.st) { this.deps.apply({ ...p, st: v }); this.render(); } });
     ["pointerup", "pointercancel"].forEach(t => svg.addEventListener(t, () => { if (this.consDrag) { this.consDrag = false; this.react(); } }));
-    // stop clicks reaching YouTube's player (which toggles play/pause on click)
-    ["click", "dblclick", "pointerdown", "pointerup", "mousedown", "mouseup", "wheel", "contextmenu"].forEach(t => this.root.addEventListener(t, (e) => { if ((e.target as HTMLElement) !== this.root) e.stopPropagation(); }));
+    // Stop clicks reaching YouTube's player (which toggles play/pause on click). Listen on the HOST, not inside the
+    // shadow tree: events bubble through the dock's own handlers first, then retarget to the host, then we stop them.
+    ["click", "dblclick", "pointerdown", "pointerup", "mousedown", "mouseup", "wheel", "contextmenu"].forEach(t => this.wrap.addEventListener(t, (e) => e.stopPropagation()));
   }
   private holding = false;
   private hold(on: boolean) { this.holding = on; this.deps.setCompare(on); this.$$('[data-a="compare"]').forEach(b => b.dataset.held = on ? "1" : "0"); }

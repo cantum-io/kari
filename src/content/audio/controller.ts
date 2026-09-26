@@ -74,13 +74,16 @@ export class AudioController {
     const pl = plan(p);
     const rate = this.adActive ? this.baseRate : this.baseRate * pl.rate;
     this.setVideoRate(rate);
-    const wantAttach = (pl.engineActive && !this.adActive) || this.compare;
+    // Key lock holds the pitch against YouTube's own speed menu too (baseRate), not only against Mimi's slider.
+    const engineRatio = p.keyLock ? pl.engineRatio / this.baseRate : pl.engineRatio;
+    const engineActive = Math.abs(engineRatio - 1) > 1e-6;
+    const wantAttach = (engineActive && !this.adActive) || this.compare;
     if (wantAttach && !this.src) await this.attach();
     if (!this.src) return;
-    const ratio = this.adActive ? 1 : pl.engineRatio;
+    const ratio = this.adActive ? 1 : engineRatio;
     this.node?.port.postMessage({ type: "ratio", ratio });
-    this.applyEngine(pl.engineActive && !this.adActive);
-    const wantWet = pl.engineActive && !this.adActive && !this.compare;
+    this.applyEngine(engineActive && !this.adActive);
+    const wantWet = engineActive && !this.adActive && !this.compare;
     this.wetWanted = wantWet;
     // Going dry is instant; going wet waits for the worklet's 'warm' (live probe 2026-09-26: crossfading at once left a
     // ~70 ms hole while Rubber Band filled its first window).
@@ -187,7 +190,7 @@ export class AudioController {
   private applyEngine(active = true) {
     if (!this.node) return;
     const want: EngineName = !active ? "bypass" : this.tier;
-    if (want !== this.lastWantedEngine) { this.engineWarm = false; this.lastWantedEngine = want; }
+    if (want !== this.lastWantedEngine) { this.engineWarm = false; this.lastWantedEngine = want; this.hotBlocks = 0; }
     this.node.port.postMessage({ type: "engine", engine: want });
   }
   private onWorklet(m: any) {

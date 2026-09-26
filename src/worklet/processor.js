@@ -102,7 +102,7 @@ class MimiProcessor extends AudioWorkletProcessor {
     rb.rubberband_process(st, this.rbInPtrs, n, 0);
     this.drainR3(false);
     const have = this.ring.pop(output, n);
-    if (have < n) { this.underruns++; if (!this.warm) this.deficit += n - have; }
+    if (have < n) { if (this.warm) this.underruns++; else this.deficit += n - have; } // warm-up zeros are the engine's latency, not trouble
     else if (!this.warm) { this.warm = true; this.latency.r3 = this.deficit; this.post({ type: "warm", engine: "r3", latency: this.deficit, startDelay: this.rb.rubberband_get_start_delay(this.rbState), startPad: this.rb.rubberband_get_preferred_start_pad(this.rbState), dropped: this.lastDrop }); }
   }
   _zero(n) { if (!this._z || this._z.length !== n) this._z = new Float32Array(n); return this._z; }

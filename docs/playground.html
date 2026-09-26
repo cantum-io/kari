@@ -1,0 +1,548 @@
+<title>Mimi Dock</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  color-scheme:dark;
+  --ink:#07070b;--ink-2:#0f1016;--frame:#000;
+  --bone:#efece4;--bone-2:#b9b6ad;--mute:#6d6c76;
+  --cyan:#5cf2ff;--lime:#c8ff5a;--amber:#ffb454;--rose:#ff7ad9;
+  --line:rgba(239,236,228,.14);
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);
+  --mono:"Space Mono",ui-monospace,Menlo,monospace;
+  --sans:"Instrument Sans",system-ui,-apple-system,"Helvetica Neue",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--bone);font-family:var(--sans);padding-inline:16px;padding-block:14px 32px;min-height:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;touch-action:manipulation}
+button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+button:active{transform:scale(.97)}
+.wrap{max-width:1180px;margin:0 auto}
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px}
+.brand{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-2)}
+.brand b{color:var(--bone)}
+.brand i{font-style:normal;color:var(--mute)}
+.chip{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2);transition:color 150ms ease,border-color 150ms ease,background 150ms ease}
+.chip[aria-pressed="true"]{color:var(--ink);background:var(--bone);border-color:var(--bone)}
+@media (hover:hover) and (pointer:fine){.chip:hover{color:var(--bone);border-color:var(--bone-2)}}
+
+/* ---------- mock YouTube frame ---------- */
+.stage{position:relative;aspect-ratio:16/9;max-width:100%;background:var(--frame);border-radius:12px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6);isolation:isolate}
+.crowd{position:absolute;inset:0;overflow:hidden;background:radial-gradient(120% 90% at 50% 110%,#1b2b6e 0%,#0a0e2a 45%,#000 100%)}
+.crowd i{position:absolute;border-radius:50%;filter:blur(38px);opacity:.75}
+.crowd .b1{width:38%;height:60%;left:5%;top:5%;background:#2f5cff}
+.crowd .b2{width:34%;height:52%;left:58%;top:0;background:#7a5cff}
+.crowd .b3{width:26%;height:40%;left:34%;top:18%;background:#ff7ab8;opacity:.45}
+.crowd .b4{width:60%;height:26%;left:20%;top:64%;background:#8fb4ff;opacity:.35}
+.crowd .heads{position:absolute;left:0;right:0;bottom:0;height:26%;background:radial-gradient(ellipse at 50% 100%,rgba(0,0,0,.95),rgba(0,0,0,.7) 60%,transparent)}
+.crowd .beam{position:absolute;top:-10%;width:8%;height:120%;background:linear-gradient(180deg,rgba(255,255,255,.28),transparent 70%);transform-origin:top;filter:blur(6px);opacity:.5}
+.crowd .beam.l{left:22%;transform:rotate(14deg)} .crowd .beam.r{left:70%;transform:rotate(-16deg)}
+.ytbar{position:absolute;left:0;right:0;bottom:0;padding:0 14px 8px;background:linear-gradient(transparent,rgba(0,0,0,.7));z-index:2}
+.ytbar .prog{height:3px;background:rgba(255,255,255,.25);border-radius:2px;margin:0 0 8px;position:relative}
+.ytbar .prog::after{content:"";position:absolute;left:0;top:0;bottom:0;width:38%;background:#f03;border-radius:2px}
+.ytbar .row{display:flex;align-items:center;gap:14px;font-size:12px;color:#fff}
+.ytbar svg{width:20px;height:20px;fill:#fff}
+.ytbar .time{font-variant-numeric:tabular-nums;opacity:.9}
+.ytbar .sp{flex:1}
+.ytbar .glyph{width:22px;height:22px;border-radius:6px;display:grid;place-items:center;border:1px solid rgba(255,255,255,.5);font-family:var(--mono);font-size:10px;color:#fff;transition:box-shadow 150ms ease,color 150ms ease,border-color 150ms ease}
+.ytbar .glyph.on{border-color:var(--cyan);color:var(--cyan);box-shadow:0 0 12px rgba(92,242,255,.6)}
+
+/* ---------- shared control block (every skin uses it) ---------- */
+.skin{position:absolute;inset:0;z-index:3;pointer-events:none}
+.skin[hidden]{display:none!important}
+.skin > *{pointer-events:auto}
+.ro{font-variant-numeric:tabular-nums}
+.ctl{display:grid;gap:8px;font-family:var(--mono)}
+.ctl .read{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font-size:11px;color:var(--bone-2)}
+.ctl .read b{font-size:16px;font-weight:700;color:var(--bone);font-family:var(--sans)}
+.ctl .read .p{font-size:11px;color:var(--bone-2)}
+.slider{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:8px;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.range{-webkit-appearance:none;appearance:none;width:100%;height:3px;background:linear-gradient(90deg,var(--rose),var(--line) 50%,var(--cyan));border-radius:2px;outline:0;cursor:pointer}
+.range::-webkit-slider-thumb{-webkit-appearance:none;width:20px;height:20px;border-radius:50%;background:var(--bone);border:3px solid var(--ink);box-shadow:0 0 0 1px var(--line),0 2px 8px rgba(0,0,0,.6)}
+.range:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 3px var(--cyan)}
+.range::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--bone);border:3px solid var(--ink)}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.step{display:grid;grid-template-columns:28px 1fr 28px;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:rgba(0,0,0,.35)}
+.step button{height:32px;font-size:15px;font-family:var(--mono);transition:background 150ms ease}
+.step button:active{transform:none;background:rgba(255,255,255,.14)}
+@media (hover:hover) and (pointer:fine){.step button:hover{background:rgba(255,255,255,.08)}}
+.step span{text-align:center;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-2)}
+.full{display:none;gap:8px}
+.ctl[data-full="1"] .full{display:grid}
+.pills{display:flex;flex-wrap:wrap;gap:6px}
+.pill{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;transition:background 150ms ease,color 150ms ease,border-color 150ms ease;background:rgba(0,0,0,.3)}
+.pill[aria-pressed="true"]{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+.pill.hold[data-held="1"]{background:var(--amber);color:var(--ink);border-color:var(--amber)}
+@media (hover:hover) and (pointer:fine){.pill:hover{border-color:var(--bone-2)}}
+.rng{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.rng button{padding:4px 7px;font-family:var(--mono);font-size:9px;color:var(--bone-2)}
+.rng button[aria-pressed="true"]{background:var(--bone);color:var(--ink)}
+.meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em}
+.meta em{font-style:normal;color:var(--bone-2)}
+.fulltog{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-2);display:inline-flex;align-items:center;gap:6px;justify-self:end}
+.fulltog .sw{width:26px;height:14px;border-radius:999px;background:#2a2b36;position:relative;transition:background 150ms ease}
+.fulltog .sw::after{content:"";position:absolute;top:2px;left:2px;width:10px;height:10px;border-radius:50%;background:var(--bone);transition:transform 160ms var(--ease-out)}
+.fulltog[aria-pressed="true"] .sw{background:var(--cyan)}
+.fulltog[aria-pressed="true"] .sw::after{transform:translateX(12px)}
+
+/* ===== ORGANISM (default) ===== */
+.org{position:absolute;right:3%;top:5%;width:min(250px,44%);display:grid;grid-template-columns:1fr 96px;gap:4px 8px;align-items:start}
+.org .ctl{grid-column:1;padding:10px 12px;background:rgba(3,3,8,.72);border-radius:12px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
+.org .body svg{width:100%;height:100%;overflow:visible}
+.org{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}
+.org[data-mimi="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
+.org[data-mimi="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
+.org .blob{fill:url(#blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#goo) drop-shadow(0 0 12px var(--mg))}
+.org .shine{fill:rgba(255,255,255,.55)}
+.org .eye{fill:#03141a}
+.org[data-mimi="black"] .eye{fill:#0b0b10}
+.org .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))}
+.org .iris.lit{fill:#fff!important;filter:drop-shadow(0 0 8px #fff)!important}
+.org .bubble{fill:rgba(160,255,255,.18);stroke:rgba(200,255,255,.7);stroke-width:1;opacity:0;transform-origin:118px 76px}
+.org .bubble.go{animation:bub 1600ms var(--ease-out) forwards}
+@keyframes bub{0%{opacity:0;transform:scale(.2)}15%{opacity:1}100%{opacity:0;transform:translate(26px,-70px) scale(1.4)}}
+.org .acc{display:none}
+.org[data-cap="1"] .acc.cap,.org[data-shades="1"] .acc.shades,.org[data-shoes="1"] .acc.shoes{display:block}
+.org .beat{transform-origin:80px 100px}
+.org .beat.hit{animation:beat 220ms var(--ease-out)}
+@keyframes beat{30%{transform:scale(1.06,.95)}}
+@media (prefers-reduced-motion:no-preference){
+  .org .body{animation:bob 6s ease-in-out infinite}
+  @keyframes bob{50%{transform:translateY(-5px) rotate(-2deg)}}
+  .org .lid{animation:blink 5s ease-in-out infinite;transform-origin:center}
+  @keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+}
+
+/* ===== VOID SIGNAL ===== */
+.void{position:absolute;right:3%;top:8%;width:min(230px,42%);padding:12px 12px 10px;background:rgba(3,3,6,.92);border-radius:14px;border:1.5px solid var(--cyan);box-shadow:0 0 0 1px rgba(92,242,255,.25),0 0 24px rgba(92,242,255,.45),inset 0 0 40px rgba(92,242,255,.05)}
+.void .glow{position:absolute;right:-20px;bottom:-20px;width:70px;height:70px;border-radius:50%;background:radial-gradient(var(--cyan),transparent 70%);filter:blur(14px);opacity:.55;pointer-events:none}
+@media (prefers-reduced-motion:no-preference){
+  .void{animation:voidbreathe 4s ease-in-out infinite}
+  @keyframes voidbreathe{50%{box-shadow:0 0 0 1px rgba(92,242,255,.35),0 0 36px rgba(92,242,255,.6),inset 0 0 40px rgba(92,242,255,.08)}}
+}
+
+/* ===== ALIEN WEATHER ===== */
+.pod{position:absolute;right:3%;top:7%;width:min(240px,44%);padding:14px 16px;border-radius:44px 44px 36px 60px;background:linear-gradient(160deg,rgba(210,225,255,.28),rgba(120,140,190,.14));backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.35);box-shadow:inset 0 1px 0 rgba(255,255,255,.4),0 18px 40px rgba(0,0,0,.35);color:#fff;will-change:transform}
+.pod .ctl .read b,.pod .ctl .read,.pod .step span,.pod .slider,.pod .meta{color:#fff}
+.pod .pill{background:rgba(0,0,0,.25);border-color:rgba(255,255,255,.4)}
+.pod .step{background:rgba(0,0,0,.2);border-color:rgba(255,255,255,.35)}
+.suncap{position:absolute;right:calc(3% + 200px);top:5%;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:14px solid var(--amber);transform:rotate(-20deg);filter:drop-shadow(0 0 8px var(--amber))}
+.cloudlet{position:absolute;right:calc(3% + 20px);top:calc(7% + 150px);width:54px;height:30px;border-radius:999px;background:rgba(210,225,255,.22);border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(6px)}
+@media (prefers-reduced-motion:no-preference){
+  .pod{animation:drift 7s ease-in-out infinite}
+  .cloudlet{animation:drift 9s ease-in-out -3s infinite}
+  @keyframes drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-6px)}}
+}
+
+/* ===== CONSTELLATION ===== */
+.cons{position:absolute;right:0;top:0;width:52%;height:64%}
+.cons svg{width:100%;height:100%;display:block}
+.cons .orbit{fill:none;stroke:rgba(255,255,255,.45);stroke-width:1}
+.cons .tick{stroke:rgba(255,255,255,.35);stroke-width:1}
+.cons .arc{fill:none;stroke:rgba(255,255,255,.6);stroke-width:1.2}
+.cons .star{fill:none;stroke:rgba(255,255,255,.55);stroke-width:1}
+.cons .star.lit{fill:#fff;stroke:#fff;filter:drop-shadow(0 0 6px #fff)}
+.cons .ray{stroke:var(--cyan);stroke-width:1.2;filter:drop-shadow(0 0 4px var(--cyan))}
+.cons .moon{fill:#e9e9f2;filter:drop-shadow(0 0 8px rgba(255,255,255,.7))}
+.cons .sun{fill:#57585f}
+.cons text{font-family:var(--sans);fill:#fff}
+.cons .lab{font-size:24px;font-weight:600}
+.cons .lab2{font-size:14px;fill:rgba(255,255,255,.8);font-family:var(--mono)}
+.cons .hit{fill:transparent;cursor:pointer}
+.cons-ctl{position:absolute;right:3%;top:50%;width:min(240px,42%);padding:10px 12px;background:rgba(0,0,0,.45);border-radius:12px;border:1px solid rgba(255,255,255,.1)}
+@media (prefers-reduced-motion:no-preference){
+  .cons .star{animation:twinkle 3s ease-in-out infinite}
+  .cons .star:nth-child(odd){animation-delay:-1.4s}
+  @keyframes twinkle{50%{opacity:.35}}
+  .cons .moon,.cons .ray{transition:all 400ms var(--ease-out)}
+}
+
+/* ===== PLUSH ===== */
+.plush{position:absolute;left:14px;bottom:44px;width:70px;height:78px;z-index:4;cursor:pointer;transform-origin:50% 100%}
+.plush svg{width:100%;height:100%;overflow:visible}
+.plush[hidden]{display:none!important}
+@media (prefers-reduced-motion:no-preference){
+  .plush{animation:sway 4.5s ease-in-out infinite}
+  @keyframes sway{50%{transform:rotate(-3deg) translateY(-2px)}}
+  .plush.poke{animation:poke 600ms var(--ease-out)}
+  @keyframes poke{20%{transform:scale(1.1,.9)}50%{transform:scale(.94,1.08) rotate(6deg)}}
+}
+
+/* ===== gear + settings ===== */
+.gear{position:absolute;right:12px;bottom:46px;z-index:5;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);display:grid;place-items:center;transition:background 150ms ease}
+.gear svg{width:16px;height:16px;fill:var(--bone-2)}
+.gear[aria-expanded="true"]{background:var(--bone)} .gear[aria-expanded="true"] svg{fill:var(--ink)}
+@media (hover:hover) and (pointer:fine){.gear:hover{background:rgba(255,255,255,.12)}}
+.settings{position:absolute;right:12px;bottom:84px;z-index:6;width:min(250px,80%);max-height:78%;overflow:auto;background:rgba(7,7,11,.94);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:12px;box-shadow:0 20px 50px rgba(0,0,0,.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+.settings[hidden]{display:none!important}
+.settings .sh{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone)}
+.settings .x{width:24px;height:24px;color:var(--bone-2)}
+.settings .sg{display:grid;gap:6px}
+.settings .sg>b{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
+.settings .row{display:flex;flex-wrap:wrap;gap:6px}
+.settings .row.col{flex-direction:column;gap:2px}
+.swatch{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;padding:5px 9px 5px 6px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2)}
+.swatch::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c),inset 0 0 0 1px rgba(255,255,255,.35)}
+.swatch[aria-pressed="true"]{border-color:var(--bone);color:var(--bone)}
+.ul{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--bone);padding:5px 6px;border-radius:6px}
+.ul input{accent-color:var(--cyan);width:14px;height:14px}
+.ul em{font-style:normal;margin-left:auto;font-family:var(--mono);font-size:9px;color:var(--mute)}
+.settings .more{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);text-decoration:underline;justify-self:start}
+@media (prefers-reduced-motion:no-preference){
+  .settings{animation:setin 200ms var(--ease-out)}
+  @keyframes setin{from{opacity:0;transform:translateY(6px) scale(.97)}}
+}
+
+/* ===== collapse: everything absorbs into the skin's own anchor ===== */
+.absorb{transition:transform 260ms var(--ease-in-out),opacity 200ms ease;transform-origin:var(--ax,100%) var(--ay,0%)}
+.stage[data-collapsed="1"] .absorb{transform:scale(.6) translate(var(--tx,0),var(--ty,0));opacity:0;pointer-events:none}
+.anchor{cursor:pointer}
+.stage[data-collapsed="1"] .anchor{transition:filter 200ms ease}
+@media (hover:hover) and (pointer:fine){.stage[data-collapsed="1"] .anchor:hover{filter:brightness(1.25)}}
+/* organism: controls fold into Mimi */
+.org .ctl{--ax:100%;--ay:60%;--tx:30px;--ty:20px}
+.stage[data-collapsed="1"] .org .body{animation-duration:4s}
+/* void: card folds into a neon orb */
+.void-orb{position:absolute;right:3%;top:8%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,var(--cyan) 45%,#0b3a44);box-shadow:0 0 18px var(--cyan),0 0 40px rgba(92,242,255,.5);opacity:0;pointer-events:none;transition:opacity 200ms ease 120ms;z-index:4}
+.stage[data-collapsed="1"] .void-orb{opacity:1;pointer-events:auto}
+.void.absorb{--ax:100%;--ay:0%}
+@media (prefers-reduced-motion:no-preference){.stage[data-collapsed="1"] .void-orb{animation:orbbreathe 3s ease-in-out infinite}@keyframes orbbreathe{50%{box-shadow:0 0 26px var(--cyan),0 0 56px rgba(92,242,255,.6)}}}
+/* weather: pod folds into the cloudlet */
+.pod.absorb{--ax:60%;--ay:120%;--tx:0;--ty:40px}
+.cloudlet{transition:transform 260ms var(--ease-in-out);cursor:pointer;pointer-events:auto}
+.stage[data-collapsed="1"] .cloudlet{transform:translate(0,-120px) scale(1.15)}
+.stage[data-collapsed="1"] .suncap{opacity:0;transition:opacity 200ms ease}
+/* constellation: labels + panel fold into the moon */
+.cons-ctl.absorb{--ax:50%;--ay:0%;--ty:-40px}
+.cons .lab,.cons .lab2,.cons .orbit,.cons .tick,.cons .arc,.cons .sun,.cons .ray{transition:opacity 220ms ease}
+.stage[data-collapsed="1"] .cons .lab,.stage[data-collapsed="1"] .cons .lab2,.stage[data-collapsed="1"] .cons .orbit,.stage[data-collapsed="1"] .cons .tick,.stage[data-collapsed="1"] .cons .arc,.stage[data-collapsed="1"] .cons .sun,.stage[data-collapsed="1"] .cons .ray{opacity:0}
+.stage[data-collapsed="1"] .cons .hit{pointer-events:none}
+.cons .moon{cursor:pointer}
+/* hide/show buttons */
+.hidebtn{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);justify-self:start;padding:2px 0;text-decoration:underline dotted}
+.settings .showrow{display:none}
+.stage[data-collapsed="1"] .settings .showrow{display:flex}
+.stage[data-collapsed="1"] .settings .hiderow{display:none}
+.settings .big{width:100%;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.settings .big.pri{background:var(--bone);color:var(--ink);border-color:var(--bone)}
+
+/* ---------- notes ---------- */
+.notes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.note{border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;gap:4px;background:var(--ink-2)}
+.note b{font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone-2)}
+.note span{font-size:13px;color:var(--bone);line-height:1.4}
+.note em{font-style:normal;color:var(--cyan)}
+.hint{font-family:var(--mono);font-size:11px;color:var(--mute);letter-spacing:.04em;line-height:1.5}
+@media (max-width:640px){
+  .org{width:66%;right:2%;top:2%;grid-template-columns:1fr 64px}
+  .org .body{width:64px;height:74px}
+  .org .ctl{padding:8px}
+  .void,.pod,.cons-ctl{width:64%;right:2%}
+  .cons{width:60%;height:50%}
+  .plush{width:50px;height:56px;bottom:38px}
+  .settings{width:min(240px,90%)}
+}
+</style>
+
+<div class="wrap">
+  <div class="stage" id="stage">
+    <div class="crowd" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i><i class="b4"></i><i class="beam l"></i><i class="beam r"></i><i class="heads"></i></div>
+
+    <template id="ctl-tpl">
+      <div class="ctl" data-full="0">
+        <div class="read"><b class="ro"><span data-b="speed">1.00×</span></b><span class="p ro">pitch <span data-b="st">0</span> · <span data-b="bpm">124.6 BPM</span></span></div>
+        <div class="slider"><span>slow</span><input class="range" type="range" min="-50" max="50" step="0.5" value="0" data-a="tempo" aria-label="Speed: left slower, right faster"><span>fast</span></div>
+        <div class="btns">
+          <div class="step"><button data-a="st-" aria-label="Pitch down">−</button><span>Pitch</span><button data-a="st+" aria-label="Pitch up">+</button></div>
+          <div class="step"><button data-a="tempo-" aria-label="Tempo down">−</button><span>Tempo</span><button data-a="tempo+" aria-label="Tempo up">+</button></div>
+        </div>
+        <div class="full">
+          <div class="pills">
+            <button class="pill" data-a="lock" aria-pressed="true">Key lock</button>
+            <button class="pill" data-a="vinyl" aria-pressed="false">Vinyl</button>
+            <span class="rng"><button data-a="range" data-v="8" aria-pressed="false">±8</button><button data-a="range" data-v="16" aria-pressed="false">±16</button><button data-a="range" data-v="50" aria-pressed="true">±50</button></span>
+          </div>
+          <div class="pills">
+            <button class="pill hold" data-a="compare">Hold to compare</button>
+            <button class="pill" data-a="reset">Reset</button>
+          </div>
+          <div class="meta"><span>key <em class="ro" data-b="keypair">A♭m → A♭m</em></span><span>a/v <em class="ro" data-b="av">48 ms</em></span></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px"><button class="hidebtn" data-a="hide">Hide</button><button class="fulltog" data-a="full" aria-pressed="false">Full control <span class="sw"></span></button></div>
+      </div>
+    </template>
+
+    <!-- ORGANISM -->
+    <section class="skin" data-skin="org">
+      <div class="org" data-mimi="blue" data-cap="0" data-shades="0" data-shoes="0">
+        <div class="ctl-slot"></div>
+        <div class="body anchor" id="mimi" data-a="show" role="button" tabindex="0" aria-label="Show controls">
+          <svg viewBox="0 0 160 180" aria-hidden="true">
+            <defs>
+              <radialGradient id="blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
+              <filter id="goo"><feGaussianBlur stdDeviation="2" result="b"/><feColorMatrix in="b" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
+            </defs>
+            <g class="beat" id="beat">
+              <g class="blob" style="transform-origin:80px 90px">
+                <ellipse cx="80" cy="95" rx="54" ry="60"/>
+                <circle cx="40" cy="40" r="14"/><circle cx="118" cy="46" r="11"/>
+                <ellipse cx="34" cy="120" rx="22" ry="14" transform="rotate(-30 34 120)"/>
+                <ellipse cx="128" cy="126" rx="22" ry="14" transform="rotate(30 128 126)"/>
+                <ellipse cx="62" cy="158" rx="16" ry="12"/><ellipse cx="102" cy="158" rx="16" ry="12"/>
+              </g>
+              <ellipse class="shine" cx="52" cy="58" rx="12" ry="7" transform="rotate(-25 52 58)"/>
+              <g class="acc shoes">
+                <path d="M34 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
+                <path d="M30 176 h40 M32 172 l3 3 M38 171 l3 4 M44 171 l3 4 M50 171 l3 4 M56 171 l3 4 M62 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
+                <path d="M40 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
+                <path d="M90 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
+                <path d="M86 176 h40 M88 172 l3 3 M94 171 l3 4 M100 171 l3 4 M106 171 l3 4 M112 171 l3 4 M118 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
+                <path d="M96 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
+              </g>
+              <g class="lid"><ellipse class="eye" cx="62" cy="86" rx="10" ry="13"/><ellipse class="eye" cx="98" cy="86" rx="10" ry="13"/></g>
+              <g class="lid"><circle class="iris" id="i1" cx="64" cy="88" r="4"/><circle class="iris" id="i2" cx="100" cy="88" r="4"/></g>
+              <path d="M70 112 q10 8 20 0" fill="none" stroke="#03141a" stroke-width="2" stroke-linecap="round"/>
+              <g class="acc shades">
+                <rect x="47" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+                <rect x="83" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+                <path d="M77 85 h6" stroke="#050507" stroke-width="2"/>
+                <path d="M47 84 l-10 -4 M113 84 l10 -4" stroke="#050507" stroke-width="1.6"/>
+                <path d="M52 83 h10 M88 83 h10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
+              </g>
+              <g class="acc cap">
+                <path d="M46 46 q34 -30 68 0 v6 h-68z" fill="#0d0d12"/>
+                <path d="M40 52 h84 q-4 -6 -8 -6 h-68 q-4 0 -8 6z" fill="#0d0d12"/>
+                <path d="M104 50 q22 -2 30 6 q-14 0 -30 -2z" fill="#0d0d12"/>
+                <path d="M46 46 q34 -30 68 0" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
+                <text x="80" y="40" font-size="8.5" text-anchor="middle" font-family="Space Mono,monospace" font-weight="700" fill="#efece4" letter-spacing="1">YGG</text>
+              </g>
+            </g>
+            <circle class="bubble" id="bubble" cx="118" cy="76" r="14"/>
+          </svg>
+        </div>
+      </div>
+    </section>
+
+    <!-- VOID SIGNAL -->
+    <section class="skin" data-skin="void" hidden>
+      <div class="void absorb"><div class="ctl-slot"></div><div class="glow"></div></div>
+      <button class="void-orb anchor" data-a="show" aria-label="Show controls"></button>
+    </section>
+
+    <!-- ALIEN WEATHER -->
+    <section class="skin" data-skin="weather" hidden>
+      <div class="suncap" aria-hidden="true"></div>
+      <button class="cloudlet anchor" data-a="show" aria-label="Show controls"></button>
+      <div class="pod absorb"><div class="ctl-slot"></div></div>
+    </section>
+
+    <!-- CONSTELLATION -->
+    <section class="skin" data-skin="cons" hidden>
+      <div class="cons">
+        <svg viewBox="0 0 640 360" aria-label="Key and tempo constellation">
+          <g id="starfield"></g>
+          <ellipse class="orbit" cx="330" cy="200" rx="120" ry="52"/>
+          <circle class="sun" cx="330" cy="200" r="8"/>
+          <path class="arc" id="tempoArc"/>
+          <g id="ticks"></g>
+          <line class="ray" id="ray" x1="330" y1="200" x2="330" y2="148"/>
+          <circle class="moon anchor" id="moon" cx="330" cy="148" r="9" data-a="show"/>
+          <text class="lab" x="170" y="120" data-b="keypair">A♭m → A♭m</text>
+          <text class="lab2" x="172" y="142">pitch <tspan data-b="st">0</tspan></text>
+          <text class="lab" x="440" y="290" data-b="speed">1.00×</text>
+          <text class="lab2" x="442" y="312" data-b="bpm">124.6 BPM</text>
+          <rect class="hit" x="150" y="120" width="360" height="160"/>
+        </svg>
+      </div>
+      <div class="cons-ctl absorb"><div class="ctl-slot"></div></div>
+    </section>
+
+    <!-- gear + settings -->
+    <button class="gear" id="gear" aria-label="Settings" aria-expanded="false"><svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3H9l-.4 2.7a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L9 21h6l.4-2.7a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg></button>
+    <aside class="settings" id="settings" hidden>
+      <div class="sh"><span>Settings</span><button class="x" data-s="close" aria-label="Close">✕</button></div>
+      <div class="sg"><b>Interface</b>
+        <div class="row">
+          <button class="chip" data-skin="org" aria-pressed="true">Organism</button>
+          <button class="chip" data-skin="void" aria-pressed="false">Void Signal</button>
+          <button class="chip" data-skin="weather" aria-pressed="false">Alien Weather</button>
+          <button class="chip" data-skin="cons" aria-pressed="false">Constellation</button>
+        </div></div>
+      <div class="sg"><b>Mimi</b>
+        <div class="row">
+          <button class="swatch" data-mimi="blue" aria-pressed="true" style="--c:#5cf2ff">Blue</button>
+          <button class="swatch" data-mimi="pink" aria-pressed="false" style="--c:#ff7ad9">Pink</button>
+          <button class="swatch" data-mimi="black" aria-pressed="false" style="--c:#2a2a33">Black</button>
+        </div>
+        <div class="row col">
+          <label class="ul"><input type="checkbox" id="acc-cap" data-acc="cap"> <span>YGG cap</span></label>
+          <label class="ul"><input type="checkbox" id="acc-shades" data-acc="shades"> <span>Thin black sunglasses</span></label>
+          <label class="ul"><input type="checkbox" id="acc-shoes" data-acc="shoes"> <span>Chunky sneakers</span></label>
+        </div></div>
+      <div class="sg"><b>Extras</b>
+        <div class="row col">
+          <label class="ul"><input type="checkbox" id="plushTog" checked> <span>Plush trophy in corner</span></label>
+        </div></div>
+      <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Mimi</button></div>
+      <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
+      <a class="more" href="#options">More settings (options page)</a>
+    </aside>
+
+    <!-- PLUSH -->
+    <button class="plush" id="plush" aria-label="Plush trophy">
+      <svg viewBox="0 0 80 90" aria-hidden="true">
+        <ellipse cx="40" cy="60" rx="30" ry="26" fill="#d9c4a7"/>
+        <ellipse cx="40" cy="63" rx="18" ry="16" fill="#efe1c8"/>
+        <circle cx="40" cy="32" r="21" fill="#d9c4a7"/>
+        <ellipse cx="18" cy="18" rx="9" ry="12" fill="#c9b092" transform="rotate(-30 18 18)"/>
+        <ellipse cx="62" cy="18" rx="9" ry="12" fill="#c9b092" transform="rotate(30 62 18)"/>
+        <circle cx="32" cy="30" r="3.2" fill="#1a1a1a"/><circle cx="48" cy="30" r="3.2" fill="#1a1a1a"/>
+        <circle cx="33" cy="29" r="1" fill="#fff"/><circle cx="49" cy="29" r="1" fill="#fff"/>
+        <path d="M36 39 q4 4 8 0" fill="none" stroke="#5a4634" stroke-width="1.6" stroke-linecap="round"/>
+        <path d="M22 62 l-12 10 M58 62 l12 10" stroke="#c9b092" stroke-width="9" stroke-linecap="round"/>
+        <path d="M30 52 l4 -3 l4 3 l4 -3 l4 3" fill="none" stroke="#8b6f52" stroke-width="1" stroke-dasharray="2 2"/>
+        <rect x="34" y="70" width="12" height="7" rx="1" fill="#f3f1ea"/><text x="40" y="75.5" font-size="4.5" text-anchor="middle" font-family="Space Mono,monospace" fill="#111">YGG</text>
+      </svg>
+    </button>
+
+    <div class="ytbar" aria-hidden="true">
+      <div class="prog"></div>
+      <div class="row">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9zm13.5 3A4.5 4.5 0 0 0 14 8v8a4.5 4.5 0 0 0 2.5-4z"/></svg>
+        <span class="time">1:12 / 3:41</span>
+        <span class="sp"></span>
+        <span class="glyph" id="glyph">M</span>
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3H9l-.4 2.7a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L9 21h6l.4-2.7a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>
+        <svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  const NAMES=["C","D♭","D","E♭","E","F","G♭","G","A♭","A","B♭","B"];
+  const BASE=8, BPM0=124.6;
+  const S={st:0,tempo:0,range:50,lock:true,vinyl:false,compare:false,full:false};
+  const stage=document.getElementById('stage');
+  const $$=(s,r=document)=>Array.from(r.querySelectorAll(s));
+  const fmtS=v=>(v>0?"+":v<0?"−":"")+Math.abs(v);
+  const keyName=o=>NAMES[((BASE+o)%12+12)%12]+"m";
+
+  /* mount the shared control block into every skin */
+  const tpl=document.getElementById('ctl-tpl');
+  $$('.ctl-slot').forEach(slot=>slot.replaceWith(tpl.content.cloneNode(true)));
+  document.querySelector('.org .ctl').classList.add('absorb');
+
+  function render(){
+    const speed=1+S.tempo/100;
+    const map={speed:speed.toFixed(2)+"×",st:fmtS(S.st),bpm:(BPM0*speed).toFixed(1)+" BPM",keypair:"A♭m → "+keyName(S.st),av:S.st===0&&S.tempo===0?"0 ms":(S.lock||S.st!==0?"48 ms":"9 ms")};
+    $$('[data-b]').forEach(el=>{const v=map[el.dataset.b];if(v!==undefined&&el.textContent!==v)el.textContent=v;});
+    $$('input[data-a="tempo"]').forEach(r=>{r.min=-S.range;r.max=S.range;if(+r.value!==S.tempo)r.value=S.tempo;});
+    $$('[data-a="lock"]').forEach(b=>b.setAttribute('aria-pressed',S.lock));
+    $$('[data-a="vinyl"]').forEach(b=>b.setAttribute('aria-pressed',S.vinyl));
+    $$('[data-a="compare"]').forEach(b=>b.dataset.held=S.compare?1:0);
+    $$('[data-a="range"]').forEach(b=>b.setAttribute('aria-pressed',+b.dataset.v===S.range));
+    $$('[data-a="full"]').forEach(b=>b.setAttribute('aria-pressed',S.full));
+    $$('.ctl').forEach(c=>c.dataset.full=S.full?1:0);
+    const on=!(S.st===0&&S.tempo===0)&&!S.compare;
+    document.getElementById('glyph').classList.toggle('on',on);
+    renderCons();setBeat();
+  }
+
+  /* constellation */
+  const CX=330,CY=200,RX=120,RY=52;
+  (function(){
+    const g=document.getElementById('starfield');let h='';
+    const pts=[[70,60],[130,300],[210,70],[290,330],[380,60],[470,90],[540,140],[590,300],[100,180],[560,330],[420,320],[250,290]];
+    pts.forEach((p,i)=>{const s=i%3===0?9:6;h+=`<path class="star" transform="translate(${p[0]} ${p[1]})" d="M0 -${s} L${s*.3} -${s*.3} L${s} 0 L${s*.3} ${s*.3} L0 ${s} L-${s*.3} ${s*.3} L-${s} 0 L-${s*.3} -${s*.3}Z"/>`;});
+    g.innerHTML=h;
+    let t='';for(let i=-12;i<=12;i+=3){const a=(i/12)*Math.PI;t+=`<line class="tick" x1="${(CX+Math.sin(a)*(RX+4)).toFixed(1)}" y1="${(CY-Math.cos(a)*(RY+4)).toFixed(1)}" x2="${(CX+Math.sin(a)*(RX-4)).toFixed(1)}" y2="${(CY-Math.cos(a)*(RY-4)).toFixed(1)}"/>`;}
+    document.getElementById('ticks').innerHTML=t;
+  })();
+  function renderCons(){
+    const a=(S.st/12)*Math.PI;const mx=CX+Math.sin(a)*RX,my=CY-Math.cos(a)*RY;
+    const moon=document.getElementById('moon'),ray=document.getElementById('ray');
+    moon.setAttribute('cx',mx.toFixed(1));moon.setAttribute('cy',my.toFixed(1));ray.setAttribute('x2',mx.toFixed(1));ray.setAttribute('y2',my.toFixed(1));
+    const stars=$$('#starfield .star');stars.forEach(s=>s.classList.remove('lit'));stars[((S.st%stars.length)+stars.length)%stars.length].classList.add('lit');
+    const arc=document.getElementById('tempoArc');const r=170;const t=Math.max(-50,Math.min(50,S.tempo))/50;
+    const a0=Math.PI*0.62,a1=a0+t*0.45;const p=(ang)=>[CX+Math.cos(ang)*r,CY+Math.sin(ang)*r*0.55];
+    const [x0,y0]=p(a0),[x1,y1]=p(a1);
+    arc.setAttribute('d',`M${x0.toFixed(1)} ${y0.toFixed(1)} A${r} ${(r*0.55).toFixed(1)} 0 0 ${t>=0?1:0} ${x1.toFixed(1)} ${y1.toFixed(1)}`);
+  }
+  (function(){
+    const svg=document.querySelector('.cons svg');let dragging=false;
+    const toSt=(e)=>{const r=svg.getBoundingClientRect();const x=(e.clientX-r.left)/r.width*640,y=(e.clientY-r.top)/r.height*360;const ang=Math.atan2((x-CX)/RX,-(y-CY)/RY);return Math.max(-12,Math.min(12,Math.round(ang/Math.PI*12)));};
+    svg.addEventListener('pointerdown',e=>{if(stage.dataset.collapsed==='1')return;if(e.target.closest('.hit,#moon')){dragging=true;svg.setPointerCapture(e.pointerId);const v=toSt(e);if(v!==S.st){S.st=v;changed();}}});
+    svg.addEventListener('pointermove',e=>{if(!dragging)return;const v=toSt(e);if(v!==S.st){S.st=v;render();}});
+    ['pointerup','pointercancel'].forEach(t=>svg.addEventListener(t,()=>{if(dragging){dragging=false;organismReact();}}));
+  })();
+
+  /* Mimi reactions + beat pulse */
+  const org=document.querySelector('.org');
+  function organismReact(){
+    const b=document.getElementById('bubble');b.classList.remove('go');void b.offsetWidth;b.classList.add('go');
+    ['i1','i2'].forEach(id=>{const e=document.getElementById(id);e.classList.add('lit');setTimeout(()=>e.classList.remove('lit'),700);});
+  }
+  let beatTimer=null;
+  function setBeat(){
+    clearInterval(beatTimer);
+    if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+    const bpm=BPM0*(1+S.tempo/100);
+    beatTimer=setInterval(()=>{if(document.hidden||org.closest('.skin').hidden)return;const el=document.getElementById('beat');el.classList.remove('hit');void el.offsetWidth;el.classList.add('hit');},60000/bpm);
+  }
+  function changed(){render();organismReact();}
+
+  /* actions */
+  stage.addEventListener('click',e=>{
+    const el=e.target.closest('[data-a]');if(!el)return;const a=el.dataset.a;
+    if(a==='st+'){S.st=Math.min(12,S.st+1);changed();}
+    else if(a==='st-'){S.st=Math.max(-12,S.st-1);changed();}
+    else if(a==='tempo+'){S.tempo=Math.min(S.range,+(S.tempo+1).toFixed(1));changed();}
+    else if(a==='tempo-'){S.tempo=Math.max(-S.range,+(S.tempo-1).toFixed(1));changed();}
+    else if(a==='lock'){S.lock=!S.lock;render();}
+    else if(a==='vinyl'){S.vinyl=!S.vinyl;render();}
+    else if(a==='reset'){S.st=0;S.tempo=0;changed();}
+    else if(a==='range'){S.range=+el.dataset.v;S.tempo=Math.max(-S.range,Math.min(S.range,S.tempo));render();}
+    else if(a==='full'){S.full=!S.full;render();}
+    else if(a==='hide'){stage.dataset.collapsed='1';organismReact();try{localStorage.setItem('mimi-collapsed','1');}catch(_){}}
+    else if(a==='show'){if(stage.dataset.collapsed==='1'){stage.dataset.collapsed='0';organismReact();try{localStorage.setItem('mimi-collapsed','0');}catch(_){}}else if(el.id==='mimi'){organismReact();}}
+  });
+  stage.addEventListener('keydown',e=>{const el=e.target.closest('[role="button"][data-a]');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();el.click();}});
+  try{if(localStorage.getItem('mimi-collapsed')==='1')stage.dataset.collapsed='1';}catch(_){}
+  stage.addEventListener('input',e=>{if(e.target.matches('input[data-a="tempo"]')){S.tempo=+e.target.value;render();}});
+  stage.addEventListener('change',e=>{if(e.target.matches('input[data-a="tempo"]'))organismReact();});
+  const hold=(on)=>{S.compare=on;render();};
+  stage.addEventListener('pointerdown',e=>{const b=e.target.closest('[data-a="compare"]');if(b){hold(true);b.setPointerCapture?.(e.pointerId);}});
+  ['pointerup','pointercancel'].forEach(t=>stage.addEventListener(t,()=>{if(S.compare)hold(false);}));
+  stage.addEventListener('keydown',e=>{if(e.target.closest('[data-a="compare"]')&&e.key===' '&&!e.repeat){e.preventDefault();hold(true);}});
+  stage.addEventListener('keyup',e=>{if(e.target.closest('[data-a="compare"]')&&e.key===' '){e.preventDefault();hold(false);}});
+
+  /* skins */
+  function setSkin(name){$$('.skin').forEach(s=>s.hidden=s.dataset.skin!==name);$$('.chip[data-skin]').forEach(c=>c.setAttribute('aria-pressed',c.dataset.skin===name));try{localStorage.setItem('mimi-skin',name);}catch(_){}}
+  $$('.chip[data-skin]').forEach(c=>c.addEventListener('click',()=>setSkin(c.dataset.skin)));
+  try{const s=localStorage.getItem('mimi-skin');if(s&&document.querySelector(`.skin[data-skin="${s}"]`))setSkin(s);}catch(_){}
+
+  /* settings */
+  const gear=document.getElementById('gear'),settings=document.getElementById('settings');
+  gear.addEventListener('click',()=>{const open=settings.hidden;settings.hidden=!open;gear.setAttribute('aria-expanded',open);});
+  settings.addEventListener('click',e=>{if(e.target.closest('[data-s="close"]')){settings.hidden=true;gear.setAttribute('aria-expanded','false');}});
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!settings.hidden){settings.hidden=true;gear.setAttribute('aria-expanded','false');gear.focus();}});
+  $$('[data-mimi]',settings).forEach(b=>b.addEventListener('click',()=>{org.dataset.mimi=b.dataset.mimi;$$('[data-mimi]',settings).forEach(x=>x.setAttribute('aria-pressed',x===b));try{localStorage.setItem('mimi-color',b.dataset.mimi);}catch(_){}organismReact();}));
+  try{const m=localStorage.getItem('mimi-color');if(m){org.dataset.mimi=m;$$('[data-mimi]',settings).forEach(x=>x.setAttribute('aria-pressed',x.dataset.mimi===m));}}catch(_){}
+  settings.addEventListener('change',e=>{const cb=e.target;if(cb.dataset.acc){org.dataset[cb.dataset.acc]=cb.checked?1:0;try{localStorage.setItem('mimi-acc-'+cb.dataset.acc,cb.checked?'1':'0');}catch(_){}organismReact();}});
+  ['cap','shades','shoes'].forEach(k=>{try{if(localStorage.getItem('mimi-acc-'+k)==='1'){document.getElementById('acc-'+k).checked=true;org.dataset[k]=1;}}catch(_){}});
+
+  /* plush */
+  const plush=document.getElementById('plush'),ptog=document.getElementById('plushTog');
+  plush.addEventListener('click',()=>{plush.classList.remove('poke');void plush.offsetWidth;plush.classList.add('poke');organismReact();});
+  ptog.addEventListener('change',()=>{plush.hidden=!ptog.checked;try{localStorage.setItem('mimi-plush',ptog.checked?'1':'0');}catch(_){}});
+  try{if(localStorage.getItem('mimi-plush')==='0'){ptog.checked=false;plush.hidden=true;}}catch(_){}
+
+  document.addEventListener('visibilitychange',()=>{$$('.pod,.cloudlet,.plush,.org .body,.void,.cons .star').forEach(el=>el.style.animationPlayState=document.hidden?'paused':'running');});
+  render();
+})();
+</script>

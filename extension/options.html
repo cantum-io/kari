@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mimi settings</title>
+<style>
+:root{color-scheme:dark;--ink:#07070b;--ink-2:#0f1016;--bone:#efece4;--bone-2:#b9b6ad;--mute:#6d6c76;--cyan:#5cf2ff;--rose:#ff7ad9;--line:rgba(239,236,228,.14)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ink);color:var(--bone);font-family:"Instrument Sans",system-ui,-apple-system,sans-serif;padding:32px 20px 60px}
+.wrap{max-width:640px;margin:0 auto;display:grid;gap:28px}
+h1{font-size:14px;letter-spacing:.2em;text-transform:uppercase;font-family:ui-monospace,Menlo,monospace;color:var(--bone-2);margin:0}
+h1 b{color:var(--bone)}
+section{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:18px}
+h2{font-size:10px;letter-spacing:.18em;text-transform:uppercase;font-family:ui-monospace,Menlo,monospace;color:var(--mute);margin:0}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.opt{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:10px 0}
+.opt .l{display:grid;gap:2px}.opt .l b{font-weight:600;font-size:14px}.opt .l span{font-size:12px;color:var(--bone-2)}
+.chip{font-family:ui-monospace,Menlo,monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;padding:8px 12px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2);background:none;cursor:pointer}
+.chip[aria-pressed="true"]{color:var(--ink);background:var(--bone);border-color:var(--bone)}
+.sw{position:relative;width:38px;height:22px;border-radius:999px;background:#2a2b36;border:0;cursor:pointer;transition:background 150ms ease}
+.sw::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--bone);transition:transform 160ms cubic-bezier(.23,1,.32,1)}
+.sw[aria-pressed="true"]{background:var(--cyan)}.sw[aria-pressed="true"]::after{transform:translateX(16px)}
+.swatch{display:inline-flex;align-items:center;gap:8px;font-family:ui-monospace,Menlo,monospace;font-size:11px;padding:6px 12px 6px 8px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2);background:none;cursor:pointer}
+.swatch::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+.swatch[aria-pressed="true"]{border-color:var(--bone);color:var(--bone)}
+.danger{border-color:rgba(255,122,217,.4);color:var(--rose)}
+.foot{font-size:11px;color:var(--mute);line-height:1.6;font-family:ui-monospace,Menlo,monospace}
+.foot a{color:var(--bone-2)}
+kbd{font-family:ui-monospace,Menlo,monospace;font-size:11px;border:1px solid var(--line);border-radius:4px;padding:1px 5px;color:var(--bone-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1><b>MIMI</b> · settings</h1>
+
+  <section><h2>Interface</h2><div class="row" id="skins">
+    <button class="chip" data-skin="org">Organism</button><button class="chip" data-skin="void">Void Signal</button>
+    <button class="chip" data-skin="weather">Alien Weather</button><button class="chip" data-skin="cons">Constellation</button></div></section>
+
+  <section><h2>Mimi</h2>
+    <div class="row" id="colors">
+      <button class="swatch" data-mimi="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-mimi="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-mimi="black" style="--c:#2a2a33">Black</button></div>
+    <div class="opt"><div class="l"><b>YGG cap</b></div><button class="sw" data-bool="cap" aria-pressed="false"></button></div>
+    <div class="opt"><div class="l"><b>Thin black sunglasses</b></div><button class="sw" data-bool="shades" aria-pressed="false"></button></div>
+    <div class="opt"><div class="l"><b>Chunky sneakers</b></div><button class="sw" data-bool="shoes" aria-pressed="false"></button></div>
+    <div class="opt"><div class="l"><b>Plush trophy in the corner</b></div><button class="sw" data-bool="plush" aria-pressed="true"></button></div>
+  </section>
+
+  <section><h2>Controls</h2>
+    <div class="opt"><div class="l"><b>Full control by default</b><span>Show key lock, vinyl, range, compare and readouts without toggling.</span></div><button class="sw" data-bool="fullControl" aria-pressed="false"></button></div>
+    <div class="opt"><div class="l"><b>Remember settings per video</b><span>Come back to a song and it opens in the key and speed you left it.</span></div><button class="sw" data-bool="rememberPerVideo" aria-pressed="true"></button></div>
+    <div class="opt"><div class="l"><b>Speed range</b><span>How far the slider goes.</span></div><div class="row" id="ranges"><button class="chip" data-range="8">±8%</button><button class="chip" data-range="16">±16%</button><button class="chip" data-range="50">±50%</button></div></div>
+    <div class="opt"><div class="l"><b>Shortcuts</b><span><kbd>Alt</kbd>+<kbd>↑</kbd>/<kbd>↓</kbd> pitch · <kbd>Alt</kbd>+<kbd>→</kbd>/<kbd>←</kbd> speed. Change them at <span id="shortcuts">chrome://extensions/shortcuts</span>.</span></div></div>
+  </section>
+
+  <section><h2>Audio engine</h2>
+    <div class="opt"><div class="l"><b>Engine</b><span>Auto picks Rubber Band R3 and steps down to Signalsmith if your machine can't keep up.</span></div>
+      <div class="row" id="engines"><button class="chip" data-engine="auto">Auto</button><button class="chip" data-engine="r3">R3</button><button class="chip" data-engine="signalsmith">Signalsmith</button></div></div>
+  </section>
+
+  <section><h2>Reset</h2>
+    <div class="row"><button class="chip danger" id="resetAll">Reset all settings</button><button class="chip" id="showIntro">Show the intro tip again</button></div>
+  </section>
+
+  <p class="foot">Mimi works on youtube.com/watch pages only. It never touches the audio until you change something. No data leaves your browser.<br>
+  YGG HOMME · powered by Cantum · audio engines: <a href="https://breakfastquay.com/rubberband/" target="_blank" rel="noopener">Rubber Band Library</a> (GPL) and <a href="https://signalsmith-audio.co.uk/code/stretch/" target="_blank" rel="noopener">Signalsmith Stretch</a> (MIT). This extension is free software under the GPL-2.0.</p>
+</div>
+<script src="options.js"></script>
+</body>
+</html>

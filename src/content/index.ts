@@ -69,6 +69,9 @@ chrome.runtime.onMessage.addListener((m) => {
   const f = map[m.command]; if (f) { applyParams(f()); dock.react(); dock.render(); }
 });
 
+// Debug surface — lives in the content script's isolated world, invisible to the page. Read by the live probe.
+(globalThis as any).__mimi = { get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p) };
+
 onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); });
 onNavigate(() => { mount(); });
 mount();

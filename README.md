@@ -1,7 +1,8 @@
 # Mimi
 
 Real-time pitch and speed for music on YouTube, with studio-grade accuracy, fronted by a small animated character.
-By **YGG HOMME**, powered by **Cantum**. Free software under the GPL-2.0.
+YGG HOMME · powered by Cantum. Free software under the GPL-2.0.
+Source: https://github.com/cantum-io/mimi · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md)
 
 - Slide left to slow the song down, right to speed it up; pitch moves with it, like a record. Tap Pitch −/+ to change the key. Everything starts at 0. Key lock (pitch held while speed changes) is under Full control.
 - Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
@@ -37,6 +38,7 @@ docs/             build brief, bench results, UI playground, Claude Code kickoff
 ```
 
 ## Credits
+Cantum Marketing LLC (cantum.io) is the builder of record; YGG HOMME is the brand.
 Rubber Band Library © Particular Programs Ltd, GPL-2.0 — https://breakfastquay.com/rubberband/
 Signalsmith Stretch © Geraint Luff, MIT — https://signalsmith-audio.co.uk/code/stretch/
 `rubberband-wasm` and `signalsmith-stretch` npm builds by their respective authors.

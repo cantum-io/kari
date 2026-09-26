@@ -1,25 +1,80 @@
 {
   "manifest_version": 3,
-  "name": "Mimi — pitch & speed for music",
+  "name": "Mimi \u2014 pitch & speed for music",
   "short_name": "Mimi",
   "version": "0.1.0",
   "description": "Change the key and speed of any music video in real time, with studio-grade accuracy. Slide to slow down or speed up; tap to change pitch. By YGG HOMME, powered by Cantum.",
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
-  "permissions": ["storage"],
-  "host_permissions": ["*://www.youtube.com/*"],
-  "background": { "service_worker": "sw.js", "type": "module" },
+  "author": "Cantum",
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
+  },
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "*://www.youtube.com/*"
+  ],
+  "background": {
+    "service_worker": "sw.js",
+    "type": "module"
+  },
   "content_scripts": [
-    { "matches": ["*://www.youtube.com/*"], "js": ["content.js"], "run_at": "document_idle" }
+    {
+      "matches": [
+        "*://www.youtube.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
   ],
   "web_accessible_resources": [
-    { "resources": ["worklet.js", "rubberband.wasm"], "matches": ["*://www.youtube.com/*"] }
+    {
+      "resources": [
+        "worklet.js",
+        "rubberband.wasm"
+      ],
+      "matches": [
+        "*://www.youtube.com/*"
+      ]
+    }
   ],
   "options_page": "options.html",
-  "action": { "default_title": "Mimi settings", "default_icon": { "16": "icons/16.png", "32": "icons/32.png" } },
+  "action": {
+    "default_title": "Mimi settings",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
   "commands": {
-    "pitch-up":   { "suggested_key": { "default": "Alt+Up" },    "description": "Pitch up one semitone" },
-    "pitch-down": { "suggested_key": { "default": "Alt+Down" },  "description": "Pitch down one semitone" },
-    "tempo-up":   { "suggested_key": { "default": "Alt+Right" }, "description": "Speed up 1%" },
-    "tempo-down": { "suggested_key": { "default": "Alt+Left" },  "description": "Slow down 1%" }
+    "pitch-up": {
+      "suggested_key": {
+        "default": "Alt+Up"
+      },
+      "description": "Pitch up one semitone"
+    },
+    "pitch-down": {
+      "suggested_key": {
+        "default": "Alt+Down"
+      },
+      "description": "Pitch down one semitone"
+    },
+    "tempo-up": {
+      "suggested_key": {
+        "default": "Alt+Right"
+      },
+      "description": "Speed up 1%"
+    },
+    "tempo-down": {
+      "suggested_key": {
+        "default": "Alt+Left"
+      },
+      "description": "Slow down 1%"
+    }
   }
 }

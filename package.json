@@ -1,8 +1,17 @@
 {
   "name": "mimi",
   "version": "0.1.0",
-  "description": "Mimi — real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
+  "description": "Mimi \u2014 real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
   "license": "GPL-2.0-only",
+  "author": "Cantum Marketing LLC (cantum.io)",
+  "homepage": "https://cantum.io/mimi",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cantum-io/mimi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/cantum-io/mimi/issues"
+  },
   "type": "module",
   "scripts": {
     "build": "node scripts/build.mjs",

@@ -52,7 +52,9 @@ async function mount() {
     onAdState(a => audio?.setAds(a));
     watchPlayerState(host);
   } else { dock.render(); }
-  if (!isNeutral(params)) await applyParams(params);
+  // Always push the (possibly neutral) params for this video: on navigation the controller still holds the previous
+  // video's ratio, and a neutral video must reset it to a straight wire (live probe 2026-09-26).
+  if (!isNeutral(params) || audio.status.attached) await applyParams(params);
 }
 
 function unmount() { dock?.destroy(); dock = null; }

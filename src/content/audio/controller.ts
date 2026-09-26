@@ -32,7 +32,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1 };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1 };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -45,8 +45,8 @@ export class AudioController {
     video.addEventListener("ratechange", this.onRateChange);
   }
 
-  onStatus(cb: (s: AudioStatus) => void) { this.listeners.add(cb); cb(this.status); return () => this.listeners.delete(cb); }
-  private emit(patch: Partial<AudioStatus>) { this.status = { ...this.status, ...patch }; for (const l of this.listeners) l(this.status); }
+  onStatus(cb: (s: AudioStatus) => void) { this.listeners.add(cb); cb(this._status); return () => this.listeners.delete(cb); }
+  private emit(patch: Partial<AudioStatus>) { this._status = { ...this._status, ...patch }; for (const l of this.listeners) l(this._status); }
 
   setEnginePreference(p: "auto" | "r3" | "signalsmith") { this.pinned = p; this.tier = p === "signalsmith" ? "ss" : "r3"; this.hotBlocks = 0; this.applyEngine(); }
 
@@ -64,6 +64,7 @@ export class AudioController {
   setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; this.apply(this.params, true); }
 
   getParams() { return this.params; }
+  get status() { return this._status; }
 
   /** The one entry point for parameter changes. */
   async apply(p: Params, force = false) {
@@ -165,8 +166,8 @@ export class AudioController {
     this.wetWanted = wet;
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
-    const lat = this.latencyFrames[this.status.engine as "r3" | "ss"] || 0;
-    this.dryDelay.delayTime.setTargetAtTime(this.status.engine === "bypass" ? 0 : lat / this.ctx.sampleRate, t, 0.01);
+    const lat = this.latencyFrames[this._status.engine as "r3" | "ss"] || 0;
+    this.dryDelay.delayTime.setTargetAtTime(this._status.engine === "bypass" ? 0 : lat / this.ctx.sampleRate, t, 0.01);
     const target = wet ? 1 : 0;
     this.wet.gain.setTargetAtTime(target, t, XFADE / 3);
     this.dry.gain.setTargetAtTime(1 - target, t, XFADE / 3);
@@ -189,7 +190,7 @@ export class AudioController {
         this.stepdown(load, m.underruns);
         break;
       }
-      case "error": this.emit({ engine: "bypass", fault: m.where === "process" ? "worklet-failed" : this.status.fault }); break;
+      case "error": this.emit({ engine: "bypass", fault: m.where === "process" ? "worklet-failed" : this._status.fault }); break;
     }
   }
   private lastUnderruns = 0;
@@ -207,7 +208,7 @@ export class AudioController {
   private updateAv() {
     // outputLatency is 0 at context creation and only settles once the audio thread runs: read it live every time.
     const out = this.ctx ? Math.round(((this.ctx as any).outputLatency || 0) * 1000) : 0;
-    const eng = this.status.engine === "bypass" ? 0 : this.status.engineLatencyMs;
+    const eng = this._status.engine === "bypass" ? 0 : this._status.engineLatencyMs;
     const base = this.ctx ? Math.round(this.ctx.baseLatency * 1000) : 0;
     this.emit({ outputLatencyMs: out, avOffsetMs: out + eng + base });
   }
@@ -218,8 +219,8 @@ export class AudioController {
       const playing = !v.paused && !v.ended && v.readyState >= 3 && !v.muted && v.volume > 0;
       const lvl = this.level();
       const now = performance.now();
-      if (playing && lvl < 1e-4) { if (!this.silentSince) this.silentSince = now; else if (now - this.silentSince > 2500 && this.status.fault !== "drm-silent") this.emit({ fault: "drm-silent" }); }
-      else { this.silentSince = 0; if (this.status.fault === "drm-silent") this.emit({ fault: null }); }
+      if (playing && lvl < 1e-4) { if (!this.silentSince) this.silentSince = now; else if (now - this.silentSince > 2500 && this._status.fault !== "drm-silent") this.emit({ fault: "drm-silent" }); }
+      else { this.silentSince = 0; if (this._status.fault === "drm-silent") this.emit({ fault: null }); }
       setTimeout(tick, 500);
     };
     setTimeout(tick, 1500);

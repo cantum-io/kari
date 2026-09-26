@@ -35,6 +35,11 @@ class MimiProcessor extends AudioWorkletProcessor {
     this.warm = false; this.framesSinceSwitch = 0; // 'warm' = the selected engine is producing real output (main thread crossfades only then)
     this.deficit = 0;            // zeros emitted between an engine switch and 'warm' = the real stream latency of the wet path
     this.dropStart = po.dropStart === undefined ? "auto" : po.dropStart; // 'auto' = rubberband_get_start_delay(); a number overrides (probe knob)
+    // Rubber Band emits output in bursts. Going live on the first full block starves the ring every few hundred ms:
+    // each starvation is a 128-frame gap AND +128 frames of permanent delay (measured 2026-09-26). Hold this many frames
+    // in the ring before the first pop instead, so the deficit we report IS the stream delay and steady state never starves.
+    this.cushion = po.cushion === undefined ? 512 : +po.cushion;
+    this.ringMin = Infinity; this.ringMax = 0;
     this.port.onmessage = (e) => this.onMessage(e.data);
     this.initR3(po.rbWasm || po.rbModule).catch(err => this.post({ type: "error", where: "r3-init", message: String(err) }));
     if (po.signalsmith !== false) this.initSS().catch(err => this.post({ type: "error", where: "ss-init", message: String(err) }));
@@ -101,9 +106,14 @@ class MimiProcessor extends AudioWorkletProcessor {
     for (let c = 0; c < this.channels; c++) rb.memWrite(this.rbIn + c * QUANTUM * 4, input[c % input.length] || this._zero(n));
     rb.rubberband_process(st, this.rbInPtrs, n, 0);
     this.drainR3(false);
+    if (!this.warm) {
+      if (this.ring.count < n + this.cushion) { for (let c = 0; c < output.length; c++) output[c].fill(0); this.deficit += n; return; }
+      this.warm = true; this.latency.r3 = this.deficit; this.ringMin = Infinity; this.ringMax = 0;
+      this.post({ type: "warm", engine: "r3", latency: this.deficit, startDelay: this.rb.rubberband_get_start_delay(this.rbState), startPad: this.rb.rubberband_get_preferred_start_pad(this.rbState), dropped: this.lastDrop, cushion: this.cushion });
+    }
     const have = this.ring.pop(output, n);
-    if (have < n) { if (this.warm) this.underruns++; else this.deficit += n - have; } // warm-up zeros are the engine's latency, not trouble
-    else if (!this.warm) { this.warm = true; this.latency.r3 = this.deficit; this.post({ type: "warm", engine: "r3", latency: this.deficit, startDelay: this.rb.rubberband_get_start_delay(this.rbState), startPad: this.rb.rubberband_get_preferred_start_pad(this.rbState), dropped: this.lastDrop }); }
+    if (have < n) this.underruns++;
+    if (this.ring.count < this.ringMin) this.ringMin = this.ring.count; if (this.ring.count > this.ringMax) this.ringMax = this.ring.count;
   }
   _zero(n) { if (!this._z || this._z.length !== n) this._z = new Float32Array(n); return this._z; }
 
@@ -162,7 +172,7 @@ class MimiProcessor extends AudioWorkletProcessor {
         break;
       }
       case "engine": this.wanted = m.engine; this.pickEngine(); break;
-      case "config": if (m.dropStart !== undefined) this.dropStart = m.dropStart; break;
+      case "config": if (m.dropStart !== undefined) this.dropStart = m.dropStart; if (m.cushion !== undefined) this.cushion = +m.cushion; break;
       case "reset": if (this.engine === "r3") this.primeR3(); if (this.engine === "ss" && this.ss) this.ss._reset(); this.underruns = 0; break;
       case "stats": this.sendStats(true); break;
     }
@@ -172,7 +182,7 @@ class MimiProcessor extends AudioWorkletProcessor {
     if (!force && t - this.lastStats < 1) return;
     this.lastStats = t;
     const load = this.blocks ? this.loadMs / this.blocks : 0; // avg ms per block (Date.now resolution)
-    this.post({ type: "stats", engine: this.engine, underruns: this.underruns, avgBlockMs: load, budgetMs: QUANTUM / sampleRate * 1000, ringFrames: this.ring.count });
+    this.post({ type: "stats", engine: this.engine, underruns: this.underruns, avgBlockMs: load, budgetMs: QUANTUM / sampleRate * 1000, ringFrames: this.ring.count, ringMin: this.ringMin === Infinity ? 0 : this.ringMin, ringMax: this.ringMax });
     this.blocks = 0; this.loadMs = 0;
   }
 

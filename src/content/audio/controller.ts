@@ -27,7 +27,12 @@ export class AudioController {
   private ctx: AudioContext | null = null;
   private src: MediaElementAudioSourceNode | null = null;
   private node: AudioWorkletNode | null = null;
-  private dry!: GainNode; private wet!: GainNode; private dryDelay!: DelayNode;
+  // Two dry branches: dryDirect (straight wire, 0 ms) until the engine has measured its delay once, then dryMatched
+  // (delay = the engine's real stream latency) for the rest of the page. Delay is never automated while audible, so no
+  // pitch sweeps; hold-to-compare is sample-accurate; the only transition artefact is one 40 ms crossfade at the first
+  // engine start (review finding 2026-09-26).
+  private dryDirect!: GainNode; private dryMatched!: GainNode; private wet!: GainNode; private dryDelay!: DelayNode;
+  private matchedReady = false;
   private analyser!: AnalyserNode; private limiter!: DynamicsCompressorNode; private trim!: GainNode;
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
@@ -147,20 +152,23 @@ export class AudioController {
       const wasmBytes = await (await fetch(this.urls.wasm)).arrayBuffer();
       const src = ctx.createMediaElementSource(this.video); // once per element, for the life of the page
       this.src = src;
-      this.dry = ctx.createGain(); this.wet = ctx.createGain(); this.dryDelay = ctx.createDelay(1);
+      this.dryDirect = ctx.createGain(); this.dryMatched = ctx.createGain(); this.wet = ctx.createGain(); this.dryDelay = ctx.createDelay(1);
+      this.matchedReady = false;
       this.limiter = ctx.createDynamicsCompressor();
       this.limiter.threshold.value = -1; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.001; this.limiter.release.value = 0.05;
       this.trim = ctx.createGain(); this.trim.gain.value = LIMITER_TRIM;
       this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 512;
       this.node = new AudioWorkletNode(ctx, "mimi-processor", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { rbWasm: wasmBytes, engine: this.tier } });
       this.node.port.onmessage = (e) => this.onWorklet(e.data);
-      this.node.onprocessorerror = () => { this.emit({ fault: "worklet-failed", engine: "bypass" }); this.route(false, true); };
-      // graph: src → dry(delay) ────────────────────┐   (dry is a true straight wire: no limiter)
-      //        src → worklet → wet → limiter → trim ┴→ analyser → out
-      src.connect(this.dryDelay); this.dryDelay.connect(this.dry); this.dry.connect(this.analyser);
+  this.node.onprocessorerror = () => { this.emit({ fault: "worklet-failed", engine: "bypass" }); this.route(false, true); };
+      // graph: src → dryDirect ─────────────────────────┐   (straight wire, before the engine ever ran)
+      //        src → delay → dryMatched ─────────────────┤   (straight wire, delay-matched to the engine)
+      //        src → worklet → wet → limiter → trim ─────┴→ analyser → out
+      src.connect(this.dryDirect); this.dryDirect.connect(this.analyser);
+      src.connect(this.dryDelay); this.dryDelay.connect(this.dryMatched); this.dryMatched.connect(this.analyser);
       src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter); this.limiter.connect(this.trim); this.trim.connect(this.analyser);
       this.analyser.connect(ctx.destination);
-      this.dry.gain.value = 1; this.wet.gain.value = 0;
+      this.dryDirect.gain.value = 1; this.dryMatched.gain.value = 0; this.wet.gain.value = 0;
       if (ctx.state !== "running") { try { await ctx.resume(); } catch (_) { /* needs gesture */ } }
       if (ctx.state !== "running") { const kick = () => { ctx.resume(); window.removeEventListener("pointerdown", kick, true); window.removeEventListener("keydown", kick, true); }; window.addEventListener("pointerdown", kick, true); window.addEventListener("keydown", kick, true); }
       this.emit({ attached: true, outputLatencyMs: Math.round(((ctx as any).outputLatency || 0) * 1000) });
@@ -171,20 +179,23 @@ export class AudioController {
     }
   }
 
-  /** Delay-match the dry path to the engine that is actually running (for hold-to-compare and the attach crossfade). */
-  private updateDelay() {
+  /** Set the matched-dry delay to the engine's measured stream latency. Called on 'warm', when that branch is silent. */
+  private setMatchedDelay(frames: number) {
     if (!this.ctx) return;
-    const lat = this.latencyFrames[this._status.engine as "r3" | "ss"] || 0;
-    this.dryDelay.delayTime.setTargetAtTime(this._status.engine === "bypass" ? 0 : lat / this.ctx.sampleRate, this.ctx.currentTime, 0.01);
+    const sec = Math.min(0.99, frames / this.ctx.sampleRate);
+    const audible = this.matchedReady && !this.wetWanted && this.dryMatched.gain.value > 0.01;
+    if (audible) this.dryDelay.delayTime.setTargetAtTime(sec, this.ctx.currentTime, 0.05); // tier switch while comparing: rare, short sweep
+    else this.dryDelay.delayTime.setValueAtTime(sec, this.ctx.currentTime);
+    this.matchedReady = true;
   }
   private route(wet: boolean, force: boolean) {
     this.wetWanted = wet;
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
-    this.updateDelay();
-    const target = wet ? 1 : 0;
-    this.wet.gain.setTargetAtTime(target, t, XFADE / 3);
-    this.dry.gain.setTargetAtTime(1 - target, t, XFADE / 3);
+    const t = this.ctx.currentTime, tc = XFADE / 3;
+    const matched = !wet && this.matchedReady, direct = !wet && !this.matchedReady;
+    this.wet.gain.setTargetAtTime(wet ? 1 : 0, t, tc);
+    this.dryMatched.gain.setTargetAtTime(matched ? 1 : 0, t, tc);
+    this.dryDirect.gain.setTargetAtTime(direct ? 1 : 0, t, tc);
     this.updateAv();
   }
   private applyEngine(active = true) {
@@ -196,11 +207,15 @@ export class AudioController {
   private onWorklet(m: any) {
     switch (m.type) {
       case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; break;
-      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.updateDelay(); break;
+      case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.updateAv(); break;
       case "warm": {
-        // The worklet measured the real stream latency of the engine (zeros emitted before its first full block).
-        // Live probe 2026-09-26: 2855 frames at 44.1 kHz where rubberband_get_start_delay said 1280.
-        if (typeof m.latency === "number" && m.engine !== "bypass") { this.latencyFrames[m.engine as "r3" | "ss"] = m.latency; this.emit({ engineLatencyMs: Math.round(m.latency / (this.ctx?.sampleRate || 48000) * 1000) }); }
+        // The worklet measured the engine's real stream latency (zeros emitted before it went live with a ring cushion).
+        // Live probe 2026-09-26: 2688 frames at 44.1 kHz where rubberband_get_start_delay said 1280.
+        if (typeof m.latency === "number" && m.engine !== "bypass") {
+          this.latencyFrames[m.engine as "r3" | "ss"] = m.latency;
+          this.emit({ engineLatencyMs: Math.round(m.latency / (this.ctx?.sampleRate || 48000) * 1000) });
+          this.setMatchedDelay(m.latency);
+        }
         this.engineWarm = true; this.route(this.wetWanted, true); break;
       }
       case "stats": {
@@ -229,9 +244,10 @@ export class AudioController {
   private updateAv() {
     // outputLatency is 0 at context creation and only settles once the audio thread runs: read it live every time.
     const out = this.ctx ? Math.round(((this.ctx as any).outputLatency || 0) * 1000) : 0;
-    const eng = this._status.engine === "bypass" ? 0 : this._status.engineLatencyMs;
+    // What is actually in the chain: the engine when wet, the matched delay when dry-after-engine, nothing before that.
+    const chain = this.wetWanted ? this._status.engineLatencyMs : (this.matchedReady && this.ctx ? Math.round(this.dryDelay.delayTime.value * 1000) : 0);
     const base = this.ctx ? Math.round(this.ctx.baseLatency * 1000) : 0;
-    this.emit({ outputLatencyMs: out, avOffsetMs: out + eng + base });
+    this.emit({ outputLatencyMs: out, avOffsetMs: out + chain + base });
   }
   private watchSilence() {
     const tick = () => {

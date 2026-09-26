@@ -19,7 +19,7 @@ async function applyParams(p: Params) {
   await audio?.apply(p);
   if (settings.rememberPerVideo && currentId) {
     clearTimeout(saveTimer);
-    saveTimer = window.setTimeout(() => saveVideo(currentId, isNeutral(p) ? null : { st: p.st, cents: p.cents, tempo: p.tempo, keyLock: p.keyLock, range: p.range }), 400);
+    saveTimer = window.setTimeout(() => { const m = isNeutral(p) ? null : { st: p.st, cents: p.cents, tempo: p.tempo, keyLock: p.keyLock, range: p.range }; saveVideo(currentId, m).then(() => console.debug("[mimi] saved", currentId, m ? JSON.stringify(m) : "cleared")); }, 400);
   }
 }
 
@@ -34,6 +34,7 @@ async function mount() {
     currentId = id;
     const mem = settings.rememberPerVideo ? await loadVideo(id) : null;
     params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange, keyLock: settings.keyLockDefault };
+    console.debug("[mimi] mount", id, "memory:", mem ? JSON.stringify(mem) : "none");
   }
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);

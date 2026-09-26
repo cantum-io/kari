@@ -6,7 +6,7 @@ Source: https://github.com/cantum-io/mimi · Privacy: [docs/PRIVACY.md](docs/PRI
 
 - Slide left to slow the song down, right to speed it up; pitch moves with it, like a record. Tap Pitch −/+ to change the key. Everything starts at 0. Key lock (pitch held while speed changes) is under Full control.
 - Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
-- Accuracy: ≤1 cent across 55 Hz–1 kHz and ±12 semitones (Rubber Band R3), 22 ms engine delay. See `docs/SPRINT-0-BENCH.md`.
+- Accuracy: within 0.02 cents at every step from −12 to +12 semitones, measured on the audio that reaches the speakers on youtube.com; key lock holds 440.00 Hz at ±16 % speed. Engine delay 61 ms at 44.1 kHz (56 ms at 48 kHz) plus 6 ms of limiter look-ahead; total sound-behind-picture 97 ms on a MacBook Air's built-in output. See `docs/SPRINT-0-BENCH.md` and `docs/LIVE-PROBE.md`.
 - YouTube `/watch` pages only. No data leaves your browser. No accounts.
 
 ## How it works — the one-pass rule
@@ -33,7 +33,8 @@ src/worklet/      processor.js (R3 + Signalsmith host, bypass, watchdog)
 src/background/   sw.ts (defaults, commands)
 src/options/      options.ts
 tests/            node --test
-bench/            Sprint 0 accuracy benches
+bench/            Sprint 0 accuracy benches + bench/latency.mjs (stream delay, underruns)
+tools/probe/      live-probe harness (Playwright driver + isolated-world audio taps)
 docs/             build brief, bench results, UI playground, Claude Code kickoff, live-probe checklist
 ```
 

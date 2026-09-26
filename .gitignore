@@ -8,3 +8,8 @@ extension/rubberband.wasm
 mimi-extension.zip
 *.log
 .DS_Store
+tools/probe/node_modules/
+tools/probe/package.json
+tools/probe/package-lock.json
+tools/probe/udd/
+tools/probe/shots/

@@ -7,8 +7,8 @@ Paste everything below the line into a fresh Claude Code session opened in an em
 You are ATLAS, building **Mimi**: a free, open-source (GPL-2.0) Chrome extension by YGG HOMME, powered by Cantum, that changes pitch and speed of YouTube videos in real time with studio-grade accuracy, fronted by a small animated character named Mimi. Audio precision is the product; Mimi is its face. YouTube `/watch` pages only for v1 (no Shorts, no YouTube Music).
 
 ## Read first
-1. Unzip `mimi-v1-scaffold.zip` in this folder. It contains the full Sprint 0–2 build from the cloud session: `extension/` (MV3 source), `bench/` (engine accuracy bench with results), `docs/` (build brief, bench results, UI playground HTML), tests. Read `docs/BUILD-BRIEF.md` and `docs/SPRINT-0-BENCH.md` end to end before writing code. They carry every decision already made; do not relitigate them.
-2. `git init`, first commit as-is, then `npm install` and `npm test`. Report the test result before touching anything.
+1. Unzip `mimi-v1-scaffold.zip` in this folder. It is a git repo with one commit: the full Sprint 0–3 code from the cloud session — `extension/` (built MV3 bundle, loadable as-is), `src/`, `bench/`, `tests/` (15 passing, run against the shipped worklet bundle), `docs/` (build brief, bench results, UI playground, this file, `LIVE-PROBE.md`). Read `README.md`, `docs/BUILD-BRIEF.md`, `docs/SPRINT-0-BENCH.md` and `docs/LIVE-PROBE.md` end to end before writing code. They carry every decision already made; do not relitigate them.
+2. `npm install`, `npm run build`, `npm test`. Report the test result before touching anything. Everything in the code has been verified in Node only; **nothing has run in Chrome yet.** Your first real job is the live probe.
 
 ## Decisions already made (do not reopen)
 - **One-pass rule.** Tempo rides the `<video>` element: `playbackRate = r`, `preservesPitch = false` (Chrome's resampler; picture and sound share one clock). The engine applies only a pitch ratio: `2^(k/12) ÷ r` with key lock on, `2^(k/12)` with it off. Nothing is attached to the audio graph until the user's first change; at 0 st / 1.0× the path is a straight wire.
@@ -26,9 +26,12 @@ You are ATLAS, building **Mimi**: a free, open-source (GPL-2.0) Chrome extension
 - **Options page** (`options.html`): everything durable — interface, Mimi, wardrobe, plush, shortcuts, default range, engine tier (auto / R3 / Signalsmith), reset. Same storage keys as the dock.
 - **Name**: product is "Mimi". Store listing must not contain the word "YouTube" in the name. Credit line: "YGG HOMME · powered by Cantum · Rubber Band Library (GPL)".
 
+## What already exists (built, Node-tested, Chrome-UNVERIFIED)
+Audio spine (`src/content/audio/controller.ts`, `src/worklet/processor.js`): late attach that waits for user activation, 40 ms crossfade, dry/wet routing with delay-matched compare, R3 with `PitchHighConsistency|WindowShort|ChannelsTogether`, Signalsmith fallback at 120 ms/÷8, underrun + load watchdog with the step-down ladder, straight-wire bypass on any engine error, `ratechange` adoption of YouTube's own speed, ad bypass, DRM silence detection, A/V offset computed from `outputLatency + baseLatency + engine delay`. Dock (`src/content/ui/`): all four skins, Mimi with audio-reactive pulse from an AnalyserNode, blink, bubble, wardrobe, colourways, failure face, hide/absorb, gear settings, intro tip, fades with YouTube's controls, collapses to Mimi alone on narrow/miniplayer. Options page. Keyboard commands. Per-video memory.
+
 ## Sprints from here
-- **Sprint 3 — Truth layer**: underrun watchdog + step-down ladder (R3 short → R3 standard → Signalsmith → bypass), A/V delay readout (`AudioContext.outputLatency + engine delay`), Mimi failure face, first-open one-liner ("slide to slow down or speed up the music"), ad/DRM handling verified live.
-- **Sprint 4 — Ship**: options page polish, Weather + Constellation skins ported, icons (16/32/48/128), store screenshots from real YouTube, privacy policy (no data collected), `README` with GPL notice and Rubber Band credit, zip for the Web Store. Stop before submitting; Jesse clicks submit.
+- **Sprint 3 — Live probe + fixes**: run every row of `docs/LIVE-PROBE.md` in real Chrome on real videos, record results in that file, fix what fails. Expected trouble spots: CSP on worklet/WASM load (competitors prove it works, but verify), the Shadow DOM z-index against YouTube's own overlays, click-through to the player, font fallbacks, AirPods offset.
+- **Sprint 4 — Ship**: store screenshots from real YouTube, privacy policy text (no data collected), listing copy, `npm run zip`. Stop before submitting; Jesse clicks submit.
 
 ## How to work
 - Use the Chrome extension tools to load the unpacked extension and test on real videos: one drum-heavy track, one vocal track, one bass-heavy track, one with a mid-roll ad, one movie/rental (DRM). Record what you hear as text in `docs/LIVE-PROBE.md` with the console underrun counts and measured `outputLatency`.

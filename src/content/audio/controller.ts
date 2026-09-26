@@ -22,6 +22,9 @@ const XFADE = 0.04; // 40 ms attach crossfade
 // Chrome's DynamicsCompressor applies makeup gain even below threshold: +0.57 dB at threshold −1 dB / ratio 20
 // (measured live on youtube.com, 2026-09-26). The wet path runs through it for peak safety, so trim it back to unity.
 const LIMITER_TRIM = Math.pow(10, -0.57 / 20);
+const COMPRESSOR_LOOKAHEAD_SEC = 0.006;
+// Chrome's DynamicsCompressor has a fixed 6 ms look-ahead. The wet path runs through it, the dry paths do not, so the
+// matched dry delay (and the a/v readout) carry it too (measured live 2026-09-26: +265 frames at 44.1 kHz).
 
 export class AudioController {
   private ctx: AudioContext | null = null;
@@ -182,7 +185,7 @@ export class AudioController {
   /** Set the matched-dry delay to the engine's measured stream latency. Called on 'warm', when that branch is silent. */
   private setMatchedDelay(frames: number) {
     if (!this.ctx) return;
-    const sec = Math.min(0.99, frames / this.ctx.sampleRate);
+    const sec = Math.min(0.99, frames / this.ctx.sampleRate + COMPRESSOR_LOOKAHEAD_SEC);
     const audible = this.matchedReady && !this.wetWanted && this.dryMatched.gain.value > 0.01;
     if (audible) this.dryDelay.delayTime.setTargetAtTime(sec, this.ctx.currentTime, 0.05); // tier switch while comparing: rare, short sweep
     else this.dryDelay.delayTime.setValueAtTime(sec, this.ctx.currentTime);
@@ -245,7 +248,7 @@ export class AudioController {
     // outputLatency is 0 at context creation and only settles once the audio thread runs: read it live every time.
     const out = this.ctx ? Math.round(((this.ctx as any).outputLatency || 0) * 1000) : 0;
     // What is actually in the chain: the engine when wet, the matched delay when dry-after-engine, nothing before that.
-    const chain = this.wetWanted ? this._status.engineLatencyMs : (this.matchedReady && this.ctx ? Math.round(this.dryDelay.delayTime.value * 1000) : 0);
+    const chain = this.wetWanted ? this._status.engineLatencyMs + Math.round(COMPRESSOR_LOOKAHEAD_SEC * 1000) : (this.matchedReady && this.ctx ? Math.round(this.dryDelay.delayTime.value * 1000) : 0);
     const base = this.ctx ? Math.round(this.ctx.baseLatency * 1000) : 0;
     this.emit({ outputLatencyMs: out, avOffsetMs: out + chain + base });
   }

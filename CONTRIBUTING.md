@@ -34,7 +34,7 @@ Load unpacked: `chrome://extensions` → Developer mode → Load unpacked → `e
 ## Pull requests
 
 1. One change per PR, small.
-2. `npm run build && npm test` green; CI runs the same.
+2. `npm run build && npm test` green, and commit the rebuilt `extension/` with your change. CI rebuilds it and fails if the committed files differ.
 3. Anything only Chrome can verify (audio, CSP, player behaviour) goes through `docs/LIVE-PROBE.md`: state what you ran and what you measured. Label anything unmeasured `UNVERIFIED`.
 4. Verify claims by a path independent of the code that made them (a test, a console reading, a measured number).
 

@@ -13,4 +13,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # extension/ is committed so a plain GitHub download is installable. The build is reproducible, so a fresh
+      # build from this commit's source must match the committed files byte for byte.
+      - name: Committed extension/ matches a fresh build
+        run: git diff --exit-code --stat -- extension
       - run: npm test

@@ -3,7 +3,7 @@ import { build, context } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { execSync } from "node:child_process";
+import { createHash } from "node:crypto";
 
 const root = fileURLToPath(new URL("..", import.meta.url)); // not .pathname: "~" in a folder name is %7E there
 const out = path.join(root, "extension");
@@ -26,8 +26,20 @@ fs.copyFileSync(path.join(root, "THIRD-PARTY-NOTICES.txt"), path.join(out, "THIR
 // 3) Rubber Band wasm → extension root (web_accessible_resource)
 fs.copyFileSync(path.join(root, "node_modules/rubberband-wasm/dist/rubberband.wasm"), path.join(out, "rubberband.wasm"));
 
-let stamp = "dev"; try { stamp = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim() + (execSync("git status --porcelain -- src scripts", { cwd: root }).toString().trim() ? "+" : ""); } catch (_) { /* no git */ }
-stamp += "." + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
+// Build stamp: package version + a hash of everything that shapes the bundle. No clock, no git state, so the same
+// source always builds byte-identical files. That is what lets extension/ be committed and CI prove it matches.
+const pkgJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+function sourceHash() {
+  const h = createHash("sha256");
+  const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).forEach((e) => {
+    const f = path.join(d, e.name);
+    if (e.isDirectory()) { if (e.name !== "generated") walk(f); } else { h.update(path.relative(root, f)); h.update(fs.readFileSync(f)); }
+  });
+  walk(path.join(root, "src"));
+  for (const f of ["scripts/build.mjs", "package-lock.json"]) { h.update(f); h.update(fs.readFileSync(path.join(root, f))); }
+  return h.digest("hex").slice(0, 8);
+}
+const stamp = process.argv.includes("--watch") ? "dev" : `${pkgJson.version}+${sourceHash()}`;
 const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __KARI_BUILD__: JSON.stringify(stamp) } };
 const entries = [
   { entryPoints: [path.join(root, "src/content/index.ts")], outfile: path.join(out, "content.js"), format: "iife" },

@@ -1,10 +1,5 @@
 node_modules/
 src/worklet/generated/
-extension/content.js
-extension/worklet.js
-extension/sw.js
-extension/options.js
-extension/rubberband.wasm
 kari-extension.zip
 *.log
 .DS_Store

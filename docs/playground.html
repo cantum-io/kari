@@ -1,4 +1,4 @@
-<title>Mimi Dock</title>
+<title>Kari Dock</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Instrument+Sans:wght@400;500;600;700&display=swap">
 <style>
 :root{
@@ -90,12 +90,12 @@ button:active{transform:scale(.97)}
 .org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
 .org .body svg{width:100%;height:100%;overflow:visible}
 .org{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}
-.org[data-mimi="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
-.org[data-mimi="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
+.org[data-kari="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
+.org[data-kari="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
 .org .blob{fill:url(#blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#goo) drop-shadow(0 0 12px var(--mg))}
 .org .shine{fill:rgba(255,255,255,.55)}
 .org .eye{fill:#03141a}
-.org[data-mimi="black"] .eye{fill:#0b0b10}
+.org[data-kari="black"] .eye{fill:#0b0b10}
 .org .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))}
 .org .iris.lit{fill:#fff!important;filter:drop-shadow(0 0 8px #fff)!important}
 .org .bubble{fill:rgba(160,255,255,.18);stroke:rgba(200,255,255,.7);stroke-width:1;opacity:0;transform-origin:118px 76px}
@@ -199,7 +199,7 @@ button:active{transform:scale(.97)}
 .anchor{cursor:pointer}
 .stage[data-collapsed="1"] .anchor{transition:filter 200ms ease}
 @media (hover:hover) and (pointer:fine){.stage[data-collapsed="1"] .anchor:hover{filter:brightness(1.25)}}
-/* organism: controls fold into Mimi */
+/* organism: controls fold into Kari */
 .org .ctl{--ax:100%;--ay:60%;--tx:30px;--ty:20px}
 .stage[data-collapsed="1"] .org .body{animation-duration:4s}
 /* void: card folds into a neon orb */
@@ -274,9 +274,9 @@ button:active{transform:scale(.97)}
 
     <!-- ORGANISM -->
     <section class="skin" data-skin="org">
-      <div class="org" data-mimi="blue" data-cap="0" data-shades="0" data-shoes="0">
+      <div class="org" data-kari="blue" data-cap="0" data-shades="0" data-shoes="0">
         <div class="ctl-slot"></div>
-        <div class="body anchor" id="mimi" data-a="show" role="button" tabindex="0" aria-label="Show controls">
+        <div class="body anchor" id="kari" data-a="show" role="button" tabindex="0" aria-label="Show controls">
           <svg viewBox="0 0 160 180" aria-hidden="true">
             <defs>
               <radialGradient id="blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
@@ -368,11 +368,11 @@ button:active{transform:scale(.97)}
           <button class="chip" data-skin="weather" aria-pressed="false">Alien Weather</button>
           <button class="chip" data-skin="cons" aria-pressed="false">Constellation</button>
         </div></div>
-      <div class="sg"><b>Mimi</b>
+      <div class="sg"><b>Kari</b>
         <div class="row">
-          <button class="swatch" data-mimi="blue" aria-pressed="true" style="--c:#5cf2ff">Blue</button>
-          <button class="swatch" data-mimi="pink" aria-pressed="false" style="--c:#ff7ad9">Pink</button>
-          <button class="swatch" data-mimi="black" aria-pressed="false" style="--c:#2a2a33">Black</button>
+          <button class="swatch" data-kari="blue" aria-pressed="true" style="--c:#5cf2ff">Blue</button>
+          <button class="swatch" data-kari="pink" aria-pressed="false" style="--c:#ff7ad9">Pink</button>
+          <button class="swatch" data-kari="black" aria-pressed="false" style="--c:#2a2a33">Black</button>
         </div>
         <div class="row col">
           <label class="ul"><input type="checkbox" id="acc-cap" data-acc="cap"> <span>YGG cap</span></label>
@@ -383,7 +383,7 @@ button:active{transform:scale(.97)}
         <div class="row col">
           <label class="ul"><input type="checkbox" id="plushTog" checked> <span>Plush trophy in corner</span></label>
         </div></div>
-      <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Mimi</button></div>
+      <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
       <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
       <a class="more" href="#options">More settings (options page)</a>
     </aside>
@@ -481,7 +481,7 @@ button:active{transform:scale(.97)}
     ['pointerup','pointercancel'].forEach(t=>svg.addEventListener(t,()=>{if(dragging){dragging=false;organismReact();}}));
   })();
 
-  /* Mimi reactions + beat pulse */
+  /* Kari reactions + beat pulse */
   const org=document.querySelector('.org');
   function organismReact(){
     const b=document.getElementById('bubble');b.classList.remove('go');void b.offsetWidth;b.classList.add('go');
@@ -508,11 +508,11 @@ button:active{transform:scale(.97)}
     else if(a==='reset'){S.st=0;S.tempo=0;changed();}
     else if(a==='range'){S.range=+el.dataset.v;S.tempo=Math.max(-S.range,Math.min(S.range,S.tempo));render();}
     else if(a==='full'){S.full=!S.full;render();}
-    else if(a==='hide'){stage.dataset.collapsed='1';organismReact();try{localStorage.setItem('mimi-collapsed','1');}catch(_){}}
-    else if(a==='show'){if(stage.dataset.collapsed==='1'){stage.dataset.collapsed='0';organismReact();try{localStorage.setItem('mimi-collapsed','0');}catch(_){}}else if(el.id==='mimi'){organismReact();}}
+    else if(a==='hide'){stage.dataset.collapsed='1';organismReact();try{localStorage.setItem('kari-collapsed','1');}catch(_){}}
+    else if(a==='show'){if(stage.dataset.collapsed==='1'){stage.dataset.collapsed='0';organismReact();try{localStorage.setItem('kari-collapsed','0');}catch(_){}}else if(el.id==='kari'){organismReact();}}
   });
   stage.addEventListener('keydown',e=>{const el=e.target.closest('[role="button"][data-a]');if(el&&(e.key==='Enter'||e.key===' ')){e.preventDefault();el.click();}});
-  try{if(localStorage.getItem('mimi-collapsed')==='1')stage.dataset.collapsed='1';}catch(_){}
+  try{if(localStorage.getItem('kari-collapsed')==='1')stage.dataset.collapsed='1';}catch(_){}
   stage.addEventListener('input',e=>{if(e.target.matches('input[data-a="tempo"]')){S.tempo=+e.target.value;render();}});
   stage.addEventListener('change',e=>{if(e.target.matches('input[data-a="tempo"]'))organismReact();});
   const hold=(on)=>{S.compare=on;render();};
@@ -522,25 +522,25 @@ button:active{transform:scale(.97)}
   stage.addEventListener('keyup',e=>{if(e.target.closest('[data-a="compare"]')&&e.key===' '){e.preventDefault();hold(false);}});
 
   /* skins */
-  function setSkin(name){$$('.skin').forEach(s=>s.hidden=s.dataset.skin!==name);$$('.chip[data-skin]').forEach(c=>c.setAttribute('aria-pressed',c.dataset.skin===name));try{localStorage.setItem('mimi-skin',name);}catch(_){}}
+  function setSkin(name){$$('.skin').forEach(s=>s.hidden=s.dataset.skin!==name);$$('.chip[data-skin]').forEach(c=>c.setAttribute('aria-pressed',c.dataset.skin===name));try{localStorage.setItem('kari-skin',name);}catch(_){}}
   $$('.chip[data-skin]').forEach(c=>c.addEventListener('click',()=>setSkin(c.dataset.skin)));
-  try{const s=localStorage.getItem('mimi-skin');if(s&&document.querySelector(`.skin[data-skin="${s}"]`))setSkin(s);}catch(_){}
+  try{const s=localStorage.getItem('kari-skin');if(s&&document.querySelector(`.skin[data-skin="${s}"]`))setSkin(s);}catch(_){}
 
   /* settings */
   const gear=document.getElementById('gear'),settings=document.getElementById('settings');
   gear.addEventListener('click',()=>{const open=settings.hidden;settings.hidden=!open;gear.setAttribute('aria-expanded',open);});
   settings.addEventListener('click',e=>{if(e.target.closest('[data-s="close"]')){settings.hidden=true;gear.setAttribute('aria-expanded','false');}});
   document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!settings.hidden){settings.hidden=true;gear.setAttribute('aria-expanded','false');gear.focus();}});
-  $$('[data-mimi]',settings).forEach(b=>b.addEventListener('click',()=>{org.dataset.mimi=b.dataset.mimi;$$('[data-mimi]',settings).forEach(x=>x.setAttribute('aria-pressed',x===b));try{localStorage.setItem('mimi-color',b.dataset.mimi);}catch(_){}organismReact();}));
-  try{const m=localStorage.getItem('mimi-color');if(m){org.dataset.mimi=m;$$('[data-mimi]',settings).forEach(x=>x.setAttribute('aria-pressed',x.dataset.mimi===m));}}catch(_){}
-  settings.addEventListener('change',e=>{const cb=e.target;if(cb.dataset.acc){org.dataset[cb.dataset.acc]=cb.checked?1:0;try{localStorage.setItem('mimi-acc-'+cb.dataset.acc,cb.checked?'1':'0');}catch(_){}organismReact();}});
-  ['cap','shades','shoes'].forEach(k=>{try{if(localStorage.getItem('mimi-acc-'+k)==='1'){document.getElementById('acc-'+k).checked=true;org.dataset[k]=1;}}catch(_){}});
+  $$('[data-kari]',settings).forEach(b=>b.addEventListener('click',()=>{org.dataset.kari=b.dataset.kari;$$('[data-kari]',settings).forEach(x=>x.setAttribute('aria-pressed',x===b));try{localStorage.setItem('kari-color',b.dataset.kari);}catch(_){}organismReact();}));
+  try{const m=localStorage.getItem('kari-color');if(m){org.dataset.kari=m;$$('[data-kari]',settings).forEach(x=>x.setAttribute('aria-pressed',x.dataset.kari===m));}}catch(_){}
+  settings.addEventListener('change',e=>{const cb=e.target;if(cb.dataset.acc){org.dataset[cb.dataset.acc]=cb.checked?1:0;try{localStorage.setItem('kari-acc-'+cb.dataset.acc,cb.checked?'1':'0');}catch(_){}organismReact();}});
+  ['cap','shades','shoes'].forEach(k=>{try{if(localStorage.getItem('kari-acc-'+k)==='1'){document.getElementById('acc-'+k).checked=true;org.dataset[k]=1;}}catch(_){}});
 
   /* plush */
   const plush=document.getElementById('plush'),ptog=document.getElementById('plushTog');
   plush.addEventListener('click',()=>{plush.classList.remove('poke');void plush.offsetWidth;plush.classList.add('poke');organismReact();});
-  ptog.addEventListener('change',()=>{plush.hidden=!ptog.checked;try{localStorage.setItem('mimi-plush',ptog.checked?'1':'0');}catch(_){}});
-  try{if(localStorage.getItem('mimi-plush')==='0'){ptog.checked=false;plush.hidden=true;}}catch(_){}
+  ptog.addEventListener('change',()=>{plush.hidden=!ptog.checked;try{localStorage.setItem('kari-plush',ptog.checked?'1':'0');}catch(_){}});
+  try{if(localStorage.getItem('kari-plush')==='0'){ptog.checked=false;plush.hidden=true;}}catch(_){}
 
   document.addEventListener('visibilitychange',()=>{$$('.pod,.cloudlet,.plush,.org .body,.void,.cons .star').forEach(el=>el.style.animationPlayState=document.hidden?'paused':'running');});
   render();

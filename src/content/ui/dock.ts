@@ -1,8 +1,8 @@
-// Mimi — in-player dock (Shadow DOM). Ported from docs/playground.html.
+// Kari — in-player dock (Shadow DOM). Ported from docs/playground.html.
 import { DOCK_CSS } from "./dock.css";
-declare const __MIMI_BUILD__: string; // stamped by scripts/build.mjs
+declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
-import type { Settings, Skin, MimiColor } from "../../shared/storage";
+import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
 
 export type DockDeps = {
@@ -11,7 +11,7 @@ export type DockDeps = {
   setCompare(on: boolean): void;
   settings: Settings;
   saveSettings(patch: Partial<Settings>): void;
-  level(): number;        // 0..1 RMS for Mimi's pulse
+  level(): number;        // 0..1 RMS for Kari's pulse
   optionsUrl: string;
 };
 
@@ -40,11 +40,11 @@ const CTL = `
   <div class="rowend"><button class="hidebtn" data-a="hide">Hide</button><button class="fulltog" data-a="full" aria-pressed="false">Full control <span class="sw"></span></button></div>
 </div>`;
 
-const MIMI_SVG = `
+const KARI_SVG = `
 <svg viewBox="0 0 160 180" aria-hidden="true">
   <defs>
-    <radialGradient id="mimi-blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
-    <filter id="mimi-goo"><feGaussianBlur stdDeviation="2" result="b"/><feColorMatrix in="b" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
+    <radialGradient id="kari-blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
+    <filter id="kari-goo"><feGaussianBlur stdDeviation="2" result="b"/><feColorMatrix in="b" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
   </defs>
   <g class="beat" data-el="beat">
     <g class="blob" style="transform-origin:80px 90px">
@@ -96,9 +96,9 @@ const PLUSH_SVG = `
 const TEMPLATE = `
 <div class="root" data-collapsed="0" data-small="0">
   <section class="skin" data-skin="org">
-    <div class="org" data-mimi="blue" data-cap="0" data-shades="0" data-shoes="0" data-fault="0">
+    <div class="org" data-kari="blue" data-cap="0" data-shades="0" data-shoes="0" data-fault="0">
       ${CTL}
-      <div class="body anchor" data-el="mimi" data-a="show" role="button" tabindex="0" aria-label="Show or hide controls">${MIMI_SVG}</div>
+      <div class="body anchor" data-el="kari" data-a="show" role="button" tabindex="0" aria-label="Show or hide controls">${KARI_SVG}</div>
     </div>
   </section>
   <section class="skin" data-skin="void" hidden>
@@ -129,20 +129,20 @@ const TEMPLATE = `
   </section>
   <div class="intro" data-el="intro" hidden>slide to slow down or speed up the music (pitch moves with it, like a record) · pitch buttons change the key<br><button data-a="intro-ok" style="margin-top:6px;text-decoration:underline">got it</button></div>
   <div class="fault" data-el="fault" hidden></div>
-  <button class="gear" data-el="gear" aria-label="Mimi settings" aria-expanded="false">${GEAR}</button>
+  <button class="gear" data-el="gear" aria-label="Kari settings" aria-expanded="false">${GEAR}</button>
   <aside class="settings" data-el="settings" hidden>
     <div class="sh"><span>Settings</span><button class="x" data-s="close" aria-label="Close">✕</button></div>
     <div class="sg"><b>Interface</b><div class="row">
       <button class="chip" data-skin="org">Organism</button><button class="chip" data-skin="void">Void Signal</button>
       <button class="chip" data-skin="weather">Alien Weather</button><button class="chip" data-skin="cons">Constellation</button></div></div>
-    <div class="sg"><b>Mimi</b><div class="row">
-      <button class="swatch" data-mimi="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-mimi="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-mimi="black" style="--c:#2a2a33">Black</button></div>
+    <div class="sg"><b>Kari</b><div class="row">
+      <button class="swatch" data-kari="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-kari="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-kari="black" style="--c:#2a2a33">Black</button></div>
       <div class="row col">
         <label class="ul"><input type="checkbox" data-set="cap"> <span>YGG cap</span></label>
         <label class="ul"><input type="checkbox" data-set="shades"> <span>Thin black sunglasses</span></label>
         <label class="ul"><input type="checkbox" data-set="shoes"> <span>Chunky sneakers</span></label></div></div>
     <div class="sg"><b>Extras</b><div class="row col"><label class="ul"><input type="checkbox" data-set="plush"> <span>Plush trophy in corner</span></label></div></div>
-    <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Mimi</button></div>
+    <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
     <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
     <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
   </aside>
@@ -162,8 +162,8 @@ export class Dock {
   constructor(private host: HTMLElement, private deps: DockDeps) {
     const wrap = document.createElement("div");
     this.wrap = wrap;
-    wrap.id = "mimi-dock";
-    wrap.dataset.build = __MIMI_BUILD__;
+    wrap.id = "kari-dock";
+    wrap.dataset.build = __KARI_BUILD__;
     wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:60";
     this.shadow = wrap.attachShadow({ mode: "open" });
     const style = document.createElement("style"); style.textContent = DOCK_CSS;
@@ -179,13 +179,13 @@ export class Dock {
     this.startPulse();
   }
 
-  destroy() { cancelAnimationFrame(this.raf); this.host.querySelector("#mimi-dock")?.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); this.host.querySelector("#kari-dock")?.remove(); }
 
   /* ---------- public updates ---------- */
   setStatus(s: AudioStatus) {
     this.status = s;
     const f = this.el("fault");
-    const msg = s.fault === "drm-silent" ? "this video's audio is protected — Mimi can't touch it" : s.fault === "capture-failed" ? "couldn't reach the audio on this page" : s.fault === "worklet-failed" ? "engine hiccup — playing untouched audio" : "";
+    const msg = s.fault === "drm-silent" ? "this video's audio is protected — Kari can't touch it" : s.fault === "capture-failed" ? "couldn't reach the audio on this page" : s.fault === "worklet-failed" ? "engine hiccup — playing untouched audio" : "";
     f.hidden = !msg; f.textContent = msg;
     this.shadow.querySelector(".org")?.setAttribute("data-fault", s.fault ? "1" : "0");
     this.render();
@@ -196,8 +196,8 @@ export class Dock {
     this.$$(".skin").forEach(sk => (sk as HTMLElement).hidden = sk.dataset.skin !== s.skin);
     this.$$(".chip[data-skin]").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.skin === s.skin)));
     const org = this.shadow.querySelector(".org") as HTMLElement;
-    org.dataset.mimi = s.mimiColor; org.dataset.cap = s.cap ? "1" : "0"; org.dataset.shades = s.shades ? "1" : "0"; org.dataset.shoes = s.shoes ? "1" : "0";
-    this.$$("[data-mimi]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.mimi === s.mimiColor)));
+    org.dataset.kari = s.kariColor; org.dataset.cap = s.cap ? "1" : "0"; org.dataset.shades = s.shades ? "1" : "0"; org.dataset.shoes = s.shoes ? "1" : "0";
+    this.$$("[data-kari]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kari === s.kariColor)));
     (this.$$("input[data-set]") as HTMLInputElement[]).forEach(i => i.checked = !!(s as any)[i.dataset.set!]);
     this.el("plush").hidden = !s.plush;
     this.root.dataset.collapsed = s.collapsed ? "1" : "0";
@@ -251,7 +251,7 @@ export class Dock {
         case "range": commit(setRange(p, +el.dataset.v! as 8 | 16 | 50)); break;
         case "full": this.deps.saveSettings({ fullControl: !this.deps.settings.fullControl }); break;
         case "hide": this.deps.saveSettings({ collapsed: true }); this.react(); break;
-        case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Mimi is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
+        case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Kari is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
       }
     });
@@ -288,7 +288,7 @@ export class Dock {
     gear.addEventListener("click", () => { const open = settings.hidden; settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); });
     settings.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest('[data-s="close"]')) { settings.hidden = true; gear.setAttribute("aria-expanded", "false"); } });
     this.$$("[data-skin].chip").forEach(c => c.addEventListener("click", () => this.deps.saveSettings({ skin: c.dataset.skin as Skin })));
-    this.$$("[data-mimi]").forEach(b => b.addEventListener("click", () => { this.deps.saveSettings({ mimiColor: b.dataset.mimi as MimiColor }); this.react(); }));
+    this.$$("[data-kari]").forEach(b => b.addEventListener("click", () => { this.deps.saveSettings({ kariColor: b.dataset.kari as KariColor }); this.react(); }));
     // plush
     const plush = this.el("plush");
     plush.addEventListener("click", () => { plush.classList.remove("poke"); void plush.offsetWidth; plush.classList.add("poke"); this.react(); });
@@ -305,7 +305,7 @@ export class Dock {
   private holding = false;
   private hold(on: boolean) { this.holding = on; this.deps.setCompare(on); this.$$('[data-a="compare"]').forEach(b => b.dataset.held = on ? "1" : "0"); }
 
-  /* ---------- Mimi pulse from the audio level ---------- */
+  /* ---------- Kari pulse from the audio level ---------- */
   private startPulse() {
     let last = 0; let peak = 0;
     const tick = (t: number) => {

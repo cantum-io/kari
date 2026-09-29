@@ -1,12 +1,12 @@
-// Mimi — settings + per-video memory over chrome.storage.sync (falls back to memory when unavailable).
+// Kari — settings + per-video memory over chrome.storage.sync (falls back to memory when unavailable).
 
 export type Skin = "org" | "void" | "weather" | "cons";
-export type MimiColor = "blue" | "pink" | "black";
+export type KariColor = "blue" | "pink" | "black";
 export type EngineTier = "auto" | "r3" | "signalsmith";
 
 export type Settings = {
   skin: Skin;
-  mimiColor: MimiColor;
+  kariColor: KariColor;
   cap: boolean; shades: boolean; shoes: boolean;
   plush: boolean;
   collapsed: boolean;
@@ -19,13 +19,13 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  skin: "org", mimiColor: "blue", cap: false, shades: false, shoes: false,
+  skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false,
   plush: true, collapsed: false, fullControl: false, engine: "auto",
   defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: false,
 };
 
-const KEY = "mimi.settings";
-const VIDEO_PREFIX = "mimi.video.";
+const KEY = "kari.settings";
+const VIDEO_PREFIX = "kari.video.";
 
 type Area = { get(k: string | string[]): Promise<Record<string, unknown>>; set(o: Record<string, unknown>): Promise<void>; remove(k: string): Promise<void> };
 

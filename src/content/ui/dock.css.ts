@@ -1,4 +1,4 @@
-// Mimi — dock styles (injected into the Shadow DOM). Ported from docs/playground.html.
+// Kari — dock styles (injected into the Shadow DOM). Ported from docs/playground.html.
 export const DOCK_CSS = `
 :host{display:block;position:absolute;inset:0;pointer-events:none;z-index:60;font-size:14px;line-height:1.3;text-align:left;letter-spacing:normal;text-transform:none}
 *,*::before,*::after{box-sizing:border-box}
@@ -60,37 +60,37 @@ button:active{transform:scale(.97)}
 /* ORGANISM */
 /* 250px left the controls column at 146px: the two step blocks (28+label+28 each) overlapped and the + buttons sat under the − of the next block (live probe 2026-09-26). 330px gives the column 234px. */
 .org{position:absolute;right:3%;top:5%;width:min(330px,52%);display:grid;grid-template-columns:1fr 96px;gap:4px 8px;align-items:start}
-/* the grid container itself must not swallow clicks meant for the video: only the control box and Mimi are targets */
+/* the grid container itself must not swallow clicks meant for the video: only the control box and Kari are targets */
 .skin > .org,.skin > .cons{pointer-events:none}
 .org > .ctl,.org > .body,.cons-ctl{pointer-events:auto}
 .org .ctl{grid-column:1;padding:10px 12px;background:rgba(3,3,8,.72);border-radius:12px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);--ax:100%;--ay:60%;--tx:30px;--ty:20px}
 .org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
 .org .body svg{width:100%;height:100%;overflow:visible}
 .org{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}
-.org[data-mimi="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
-.org[data-mimi="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
-.org .blob{fill:url(#mimi-blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#mimi-goo) drop-shadow(0 0 12px var(--mg))}
+.org[data-kari="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
+.org[data-kari="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
+.org .blob{fill:url(#kari-blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#kari-goo) drop-shadow(0 0 12px var(--mg))}
 .org .shine{fill:rgba(255,255,255,.55)}
 .org .eye{fill:#03141a}
-.org[data-mimi="black"] .eye{fill:#0b0b10}
+.org[data-kari="black"] .eye{fill:#0b0b10}
 .org .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))}
 .org .iris.lit{fill:#fff!important;filter:drop-shadow(0 0 8px #fff)!important}
 .org .bubble{fill:rgba(160,255,255,.18);stroke:rgba(200,255,255,.7);stroke-width:1;opacity:0;transform-origin:118px 76px}
-.org .bubble.go{animation:mimi-bub 1600ms var(--ease-out) forwards}
-@keyframes mimi-bub{0%{opacity:0;transform:scale(.2)}15%{opacity:1}100%{opacity:0;transform:translate(26px,-70px) scale(1.4)}}
+.org .bubble.go{animation:kari-bub 1600ms var(--ease-out) forwards}
+@keyframes kari-bub{0%{opacity:0;transform:scale(.2)}15%{opacity:1}100%{opacity:0;transform:translate(26px,-70px) scale(1.4)}}
 .org .acc{display:none}
 .org[data-cap="1"] .acc.cap,.org[data-shades="1"] .acc.shades,.org[data-shoes="1"] .acc.shoes{display:block}
 .org .beat{transform-origin:80px 100px;transition:transform 90ms ease-out}
-.org[data-fault="1"] .blob{filter:url(#mimi-goo) grayscale(.6) brightness(.7)}
+.org[data-fault="1"] .blob{filter:url(#kari-goo) grayscale(.6) brightness(.7)}
 .org[data-fault="1"] .lid.r{transform:scaleY(.15);transform-origin:98px 86px}
 .org[data-fault="1"] .mouth{d:path("M70 116 q10 -6 20 0")}
 .org .zz{font-family:var(--mono);font-size:10px;fill:var(--bone-2);opacity:0}
 .org[data-fault="1"] .zz{opacity:1}
 @media (prefers-reduced-motion:no-preference){
-  .org .body{animation:mimi-bob 6s ease-in-out infinite}
-  @keyframes mimi-bob{50%{transform:translateY(-5px) rotate(-2deg)}}
-  .org .lid{animation:mimi-blink 5s ease-in-out infinite;transform-origin:center}
-  @keyframes mimi-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
+  .org .body{animation:kari-bob 6s ease-in-out infinite}
+  @keyframes kari-bob{50%{transform:translateY(-5px) rotate(-2deg)}}
+  .org .lid{animation:kari-blink 5s ease-in-out infinite;transform-origin:center}
+  @keyframes kari-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
 }
 .org[data-fault="1"] .lid{animation:none}
 
@@ -101,8 +101,8 @@ button:active{transform:scale(.97)}
 .void-orb{position:absolute;right:3%;top:8%;width:28px;height:28px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#fff,var(--cyan) 45%,#0b3a44);box-shadow:0 0 18px var(--cyan),0 0 40px rgba(92,242,255,.5);opacity:0;pointer-events:none;transition:opacity 200ms ease 120ms}
 .root[data-collapsed="1"] .void-orb{opacity:1;pointer-events:auto}
 @media (prefers-reduced-motion:no-preference){
-  .void:not([data-off="1"]){animation:mimi-voidbreathe 4s ease-in-out infinite}
-  @keyframes mimi-voidbreathe{50%{box-shadow:0 0 0 1px rgba(92,242,255,.35),0 0 36px rgba(92,242,255,.6),inset 0 0 40px rgba(92,242,255,.08)}}
+  .void:not([data-off="1"]){animation:kari-voidbreathe 4s ease-in-out infinite}
+  @keyframes kari-voidbreathe{50%{box-shadow:0 0 0 1px rgba(92,242,255,.35),0 0 36px rgba(92,242,255,.6),inset 0 0 40px rgba(92,242,255,.08)}}
 }
 
 /* ALIEN WEATHER */
@@ -115,9 +115,9 @@ button:active{transform:scale(.97)}
 .root[data-collapsed="1"] .cloudlet{transform:translate(0,-120px) scale(1.15)}
 .root[data-collapsed="1"] .suncap{opacity:0}
 @media (prefers-reduced-motion:no-preference){
-  .pod{animation:mimi-drift 7s ease-in-out infinite}
-  .cloudlet{animation:mimi-drift 9s ease-in-out -3s infinite}
-  @keyframes mimi-drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-6px)}}
+  .pod{animation:kari-drift 7s ease-in-out infinite}
+  .cloudlet{animation:kari-drift 9s ease-in-out -3s infinite}
+  @keyframes kari-drift{0%,100%{transform:translate(0,0)}50%{transform:translate(3px,-6px)}}
 }
 
 /* CONSTELLATION */
@@ -140,9 +140,9 @@ button:active{transform:scale(.97)}
 .root[data-collapsed="1"] .cons .lab,.root[data-collapsed="1"] .cons .lab2,.root[data-collapsed="1"] .cons .orbit,.root[data-collapsed="1"] .cons .tick,.root[data-collapsed="1"] .cons .arc,.root[data-collapsed="1"] .cons .sun,.root[data-collapsed="1"] .cons .ray{opacity:0}
 .root[data-collapsed="1"] .cons .hit{pointer-events:none}
 @media (prefers-reduced-motion:no-preference){
-  .cons .star{animation:mimi-twinkle 3s ease-in-out infinite}
+  .cons .star{animation:kari-twinkle 3s ease-in-out infinite}
   .cons .star:nth-child(odd){animation-delay:-1.4s}
-  @keyframes mimi-twinkle{50%{opacity:.35}}
+  @keyframes kari-twinkle{50%{opacity:.35}}
   .cons .moon,.cons .ray{transition:all 400ms var(--ease-out)}
 }
 
@@ -151,10 +151,10 @@ button:active{transform:scale(.97)}
 .plush svg{width:100%;height:100%;overflow:visible}
 .plush[hidden]{display:none!important}
 @media (prefers-reduced-motion:no-preference){
-  .plush{animation:mimi-sway 4.5s ease-in-out infinite}
-  @keyframes mimi-sway{50%{transform:rotate(-3deg) translateY(-2px)}}
-  .plush.poke{animation:mimi-poke 600ms var(--ease-out)}
-  @keyframes mimi-poke{20%{transform:scale(1.1,.9)}50%{transform:scale(.94,1.08) rotate(6deg)}}
+  .plush{animation:kari-sway 4.5s ease-in-out infinite}
+  @keyframes kari-sway{50%{transform:rotate(-3deg) translateY(-2px)}}
+  .plush.poke{animation:kari-poke 600ms var(--ease-out)}
+  @keyframes kari-poke{20%{transform:scale(1.1,.9)}50%{transform:scale(.94,1.08) rotate(6deg)}}
 }
 
 /* GEAR + SETTINGS */
@@ -183,10 +183,10 @@ button:active{transform:scale(.97)}
 .root[data-collapsed="1"] .settings .hiderow{display:none}
 .settings .more{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);text-decoration:underline;justify-self:start;pointer-events:auto}
 @media (prefers-reduced-motion:no-preference){
-  .settings{animation:mimi-setin 200ms var(--ease-out)}
-  @keyframes mimi-setin{from{opacity:0;transform:translateY(6px) scale(.97)}}
+  .settings{animation:kari-setin 200ms var(--ease-out)}
+  @keyframes kari-setin{from{opacity:0;transform:translateY(6px) scale(.97)}}
 }
-/* small players: Mimi alone */
+/* small players: Kari alone */
 .root[data-small="1"] .org{width:auto;grid-template-columns:auto}
 .root[data-small="1"] .org .ctl{display:none}
 .root[data-small="1"] .org .body{width:64px;height:74px}

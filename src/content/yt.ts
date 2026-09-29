@@ -1,4 +1,4 @@
-// Mimi — YouTube page plumbing. Hooks only the <video> and #movie_player; never control-bar classes.
+// Kari — YouTube page plumbing. Hooks only the <video> and #movie_player; never control-bar classes.
 
 export const isWatchPage = () => location.hostname.endsWith("youtube.com") && location.pathname === "/watch";
 export const videoId = () => new URLSearchParams(location.search).get("v") || "";

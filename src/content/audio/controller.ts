@@ -1,4 +1,4 @@
-// Mimi — audio controller (content script side). Owns the AudioContext, attaches late, keeps a
+// Kari — audio controller (content script side). Owns the AudioContext, attaches late, keeps a
 // straight-wire bypass path, drives the worklet, and enforces the one-pass rule on the <video>.
 
 import { plan, type Params, DEFAULT_PARAMS } from "../../shared/math";
@@ -82,7 +82,7 @@ export class AudioController {
     const pl = plan(p);
     const rate = this.adActive ? this.baseRate : this.baseRate * pl.rate;
     this.setVideoRate(rate);
-    // Key lock holds the pitch against YouTube's own speed menu too (baseRate), not only against Mimi's slider.
+    // Key lock holds the pitch against YouTube's own speed menu too (baseRate), not only against Kari's slider.
     const engineRatio = p.keyLock ? pl.engineRatio / this.baseRate : pl.engineRatio;
     const engineActive = Math.abs(engineRatio - 1) > 1e-6;
     const wantAttach = (engineActive && !this.adActive) || this.compare;
@@ -101,7 +101,7 @@ export class AudioController {
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */
   setCompare(on: boolean) { this.compare = on; this.apply(this.params, true); }
 
-  /** For Mimi's pulse: 0..1 RMS of what's playing. Cheap; call at ≤30 Hz. */
+  /** For Kari's pulse: 0..1 RMS of what's playing. Cheap; call at ≤30 Hz. */
   level(): number {
     if (!this.analyser) return 0;
     this.analyser.getByteTimeDomainData(this.rmsBuf);
@@ -161,7 +161,7 @@ export class AudioController {
       this.limiter.threshold.value = -1; this.limiter.knee.value = 0; this.limiter.ratio.value = 20; this.limiter.attack.value = 0.001; this.limiter.release.value = 0.05;
       this.trim = ctx.createGain(); this.trim.gain.value = LIMITER_TRIM;
       this.analyser = ctx.createAnalyser(); this.analyser.fftSize = 512;
-      this.node = new AudioWorkletNode(ctx, "mimi-processor", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { rbWasm: wasmBytes, engine: this.tier } });
+      this.node = new AudioWorkletNode(ctx, "kari-processor", { numberOfInputs: 1, numberOfOutputs: 1, outputChannelCount: [2], processorOptions: { rbWasm: wasmBytes, engine: this.tier } });
       this.node.port.onmessage = (e) => this.onWorklet(e.data);
   this.node.onprocessorerror = () => { this.emit({ fault: "worklet-failed", engine: "bypass" }); this.route(false, true); };
       // graph: src → dryDirect ─────────────────────────┐   (straight wire, before the engine ever ran)

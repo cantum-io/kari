@@ -1,6 +1,6 @@
-# Contributing to Mimi
+# Contributing to Kari
 
-Mimi is free software under the GPL-2.0-only licence (see `LICENSE`). By contributing you agree your work is released under the same licence.
+Kari is free software under the GPL-2.0-only licence (see `LICENSE`). By contributing you agree your work is released under the same licence.
 
 ## Developer Certificate of Origin
 

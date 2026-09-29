@@ -1,11 +1,11 @@
-# Chrome Web Store listing — Mimi
+# Chrome Web Store listing — Kari
 
 Publisher: the Cantum Google account, display name **YGG HOMME**. Jesse registers the account and clicks submit.
 Everything below is ready to paste. The product name never contains the word YouTube.
 
 ## Title (≤45)
 
-Mimi — pitch & speed for music
+Kari — pitch & speed for music
 
 ## Summary (≤132, also the manifest description)
 
@@ -13,7 +13,7 @@ Change the key and speed of music on youtube.com in real time. Slide for speed, 
 
 ## Detailed description (plain text)
 
-Mimi changes the key and the speed of music on youtube.com watch pages while it plays, with studio accuracy, and a small animated character to keep you company.
+Kari changes the key and the speed of music on youtube.com watch pages while it plays, with studio accuracy, and a small animated character to keep you company.
 
 Slide left to slow the song down, right to speed it up. By default the pitch moves with the speed, like a record: that is vinyl mode, and it uses nothing but Chrome's own resampler, so nothing is touched until you ask for something a resampler cannot do. Tap Pitch − or + to change the key. Turn on key lock and the pitch stays put while the speed changes. Everything starts at zero and returns to zero with one tap.
 
@@ -21,7 +21,7 @@ Accuracy is the point. The engine is Rubber Band Library R3, the same engine DJ 
 
 Full control adds vinyl or key lock, a ±8, ±16 or ±50 % range, hold-to-compare against the untouched sound (level- and delay-matched), key names, and a live sound-behind-picture readout. Settings and the pitch you chose per video are remembered. Keyboard: Option+↑/↓ for pitch, Option+→/← for speed.
 
-Mimi is free forever. No paid tier, no accounts, no data collected, nothing leaves your browser. Open source under the GPL-2.0 at https://github.com/cantum-io/mimi.
+Kari is free forever. No paid tier, no accounts, no data collected, nothing leaves your browser. Open source under the GPL-2.0 at https://github.com/cantum-io/kari.
 
 Works on www.youtube.com/watch pages. Not affiliated with YouTube or Google.
 
@@ -51,29 +51,29 @@ No remote code. The worklet and the WebAssembly engine ship inside the package.
 - Does the extension collect user data: **No.**
 - Personally identifiable information, health, financial, authentication, personal communications, location, web history, user activity, website content: **none collected.**
 - Certifications: not sold to third parties; not used for purposes unrelated to the single purpose; not used for creditworthiness or lending. **All three: yes.**
-- Privacy policy URL: https://github.com/cantum-io/mimi/blob/main/docs/PRIVACY.md
+- Privacy policy URL: https://github.com/cantum-io/kari/blob/main/docs/PRIVACY.md
 
 ## Contact
 
 - Support email: info@cantum.io
-- Homepage: https://cantum.io/mimi
+- Homepage: https://cantum.io/kari
 - Security: security@cantum.io
 
 ## Screenshots (1280×800, taken on real youtube.com)
 
 1. The dock on a music video, controls unfolded, slider at −20 %, pitch −2, engine R3, a/v readout visible.
 2. Full control open: vinyl / key lock, range pills, hold to compare, key names, readouts.
-3. Mimi folded alone on the player (hidden state), pink colourway with the YGG cap.
+3. Kari folded alone on the player (hidden state), pink colourway with the YGG cap.
 4. The Constellation interface, moon on the orbit at +3.
-5. The settings page: interface, Mimi's look, wardrobe, engine tier, privacy line.
+5. The settings page: interface, Kari's look, wardrobe, engine tier, privacy line.
 
 ## Promo tile (440×280)
 
-Mimi on ink, one line: "Key and speed for music. Studio-accurate. Free." Credit line small at the bottom.
+Kari on ink, one line: "Key and speed for music. Studio-accurate. Free." Credit line small at the bottom.
 
 ## Before submitting (Jesse)
 
-1. `npm run zip` → `mimi-extension.zip` (contains LICENSE and THIRD-PARTY-NOTICES.txt).
+1. `npm run zip` → `kari-extension.zip` (contains LICENSE and THIRD-PARTY-NOTICES.txt).
 2. Developer account under the Cantum Google account, display name YGG HOMME, one-time registration fee.
 3. Paste the fields above. Upload five screenshots and the promo tile.
 4. The privacy policy URL and the source link resolve only once the GitHub repository is public.

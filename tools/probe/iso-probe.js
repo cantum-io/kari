@@ -1,7 +1,7 @@
 // Installed into the content script's isolated world (POST /iso with this file as the body) once the engine is
 // attached. Taps the audio graph with analysers and a dual recorder and exposes measurement helpers on __probe.
 // The taps read the actual audio that reaches the speakers, independently of the code under test.
-const a = __mimi.audio; if (!a || !a.ctx) return 'no ctx yet: ' + JSON.stringify(a ? a.status : null);
+const a = __kari.audio; if (!a || !a.ctx) return 'no ctx yet: ' + JSON.stringify(a ? a.status : null);
 if (!globalThis.__probe) {
   const ctx = a.ctx;
   const anIn = ctx.createAnalyser(); anIn.fftSize = 32768; anIn.smoothingTimeConstant = 0;

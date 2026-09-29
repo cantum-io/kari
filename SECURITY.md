@@ -1,6 +1,6 @@
 # Security policy
 
-Mimi runs entirely inside your browser on youtube.com watch pages. It collects no data, makes no network requests of its own, and asks only for `storage` and the youtube.com host permission.
+Kari runs entirely inside your browser on youtube.com watch pages. It collects no data, makes no network requests of its own, and asks only for `storage` and the youtube.com host permission.
 
 ## Reporting a vulnerability
 

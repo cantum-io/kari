@@ -1,10 +1,10 @@
-// Live-probe driver: Playwright Chromium with the unpacked Mimi extension, controlled over HTTP on 127.0.0.1:9777.
+// Live-probe driver: Playwright Chromium with the unpacked Kari extension, controlled over HTTP on 127.0.0.1:9777.
 // Used for docs/LIVE-PROBE.md. Not part of the shipped extension.
 //
-//   EXT=/abs/path/to/extension UDD=/tmp/mimi-udd HEADLESS=1 node server.mjs
+//   EXT=/abs/path/to/extension UDD=/tmp/kari-udd HEADLESS=1 node server.mjs
 //
 // POST /eval {code}            evaluate in the page's MAIN world (code = async function body)
-// POST /iso  {code}            evaluate in the extension's ISOLATED world (content script) via CDP → reaches __mimi
+// POST /iso  {code}            evaluate in the extension's ISOLATED world (content script) via CDP → reaches __kari
 // POST /goto {url}             navigate the current page
 // POST /newpage {url}          open a new tab and make it current
 // POST /use {index}            switch current page
@@ -80,7 +80,7 @@ const readBody = (req) => new Promise((r) => { let s = ""; req.on("data", (c) =>
 
 async function evalIso(rec, code) {
   const names = [...rec.worlds.keys()].filter((n) => n !== "__main__");
-  const name = names.find((n) => /mimi/i.test(n)) || names[names.length - 1];
+  const name = names.find((n) => /kari/i.test(n)) || names[names.length - 1];
   if (!name) throw new Error("no isolated world yet; worlds=" + JSON.stringify(names));
   const r = await rec.cdp.send("Runtime.evaluate", { expression: `(async () => { ${code} })()`, contextId: rec.worlds.get(name), awaitPromise: true, returnByValue: true });
   if (r.exceptionDetails) throw new Error(r.exceptionDetails.exception?.description || r.exceptionDetails.text);

@@ -1,8 +1,8 @@
-# Mimi
+# Kari
 
 Real-time pitch and speed for music on YouTube, with studio-grade accuracy, fronted by a small animated character.
 YGG HOMME · powered by Cantum. Free software under the GPL-2.0.
-Source: https://github.com/cantum-io/mimi · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md)
+Source: https://github.com/cantum-io/kari · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md)
 
 - Slide left to slow the song down, right to speed it up; pitch moves with it, like a record. Tap Pitch −/+ to change the key. Everything starts at 0. Key lock (pitch held while speed changes) is under Full control.
 - Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
@@ -20,7 +20,7 @@ npm install
 npm run build        # → extension/
 npm test             # runs the shipped worklet bundle in a simulated AudioWorkletGlobalScope + one-pass math
 npm run bench        # engine accuracy bench (Rubber Band); see bench/ for the Signalsmith sweeps
-npm run zip          # → mimi-extension.zip for the Chrome Web Store
+npm run zip          # → kari-extension.zip for the Chrome Web Store
 ```
 Load unpacked: `chrome://extensions` → Developer mode → Load unpacked → pick `extension/`.
 

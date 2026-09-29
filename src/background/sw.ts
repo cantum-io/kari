@@ -1,4 +1,4 @@
-// Mimi — service worker. Defaults on install, action opens options, keyboard commands → active tab.
+// Kari — service worker. Defaults on install, action opens options, keyboard commands → active tab.
 import { loadSettings, saveSettings } from "../shared/storage";
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -9,5 +9,5 @@ chrome.action.onClicked.addListener(() => { chrome.runtime.openOptionsPage(); })
 
 chrome.commands.onCommand.addListener(async (command) => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-  if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "mimi:command", command }).catch(() => { /* no content script on this tab */ });
+  if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "kari:command", command }).catch(() => { /* no content script on this tab */ });
 });

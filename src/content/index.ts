@@ -1,4 +1,4 @@
-// Mimi — content script entry. Watch page only. Attaches nothing to the audio until the first change.
+// Kari — content script entry. Watch page only. Attaches nothing to the audio until the first change.
 import { AudioController } from "./audio/controller";
 import { Dock } from "./ui/dock";
 import { isWatchPage, videoId, waitForVideo, onNavigate, onAdState, player, isMiniplayer, controlsHidden } from "./yt";
@@ -25,13 +25,13 @@ async function applyParams(p: Params) {
       const key = currentId + ":" + (m ? JSON.stringify(m) : "");
       if (key === lastSaved) return;
       lastSaved = key;
-      saveVideo(currentId, m).then(() => console.debug("[mimi] saved", currentId, m ? JSON.stringify(m) : "cleared"));
+      saveVideo(currentId, m).then(() => console.debug("[kari] saved", currentId, m ? JSON.stringify(m) : "cleared"));
     }, 400);
   }
 }
 
 async function mount() {
-  // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Mimi alone) and keep the video id.
+  // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Kari alone) and keep the video id.
   if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
   const video = await waitForVideo(); const host = player();
   if (!video || !host) return;
@@ -43,7 +43,7 @@ async function mount() {
     const mem = settings.rememberPerVideo ? await loadVideo(id) : null;
     params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange, keyLock: settings.keyLockDefault };
     lastSaved = id + ":" + (mem ? JSON.stringify({ st: params.st, cents: params.cents, tempo: params.tempo, keyLock: params.keyLock, range: params.range }) : "");
-    console.debug("[mimi] mount", id, "memory:", mem ? JSON.stringify(mem) : "none");
+    console.debug("[kari] mount", id, "memory:", mem ? JSON.stringify(mem) : "none");
   }
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);
@@ -82,13 +82,13 @@ function watchPlayerState(host: HTMLElement) {
 
 // keyboard commands from the service worker
 chrome.runtime.onMessage.addListener((m) => {
-  if (m?.type !== "mimi:command" || !dock) return;
+  if (m?.type !== "kari:command" || !dock) return;
   const map: Record<string, () => Params> = { "pitch-up": () => stepSt(params, 1), "pitch-down": () => stepSt(params, -1), "tempo-up": () => stepTempo(params, 1), "tempo-down": () => stepTempo(params, -1) };
   const f = map[m.command]; if (f) { applyParams(f()); dock.react(); dock.render(); }
 });
 
 // Debug surface — lives in the content script's isolated world, invisible to the page. Read by the live probe.
-(globalThis as any).__mimi = { get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p) };
+(globalThis as any).__kari = { get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p) };
 
 onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); });
 onNavigate(() => { mount(); });

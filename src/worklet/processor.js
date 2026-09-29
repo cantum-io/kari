@@ -1,4 +1,4 @@
-// Mimi audio worklet — hosts Rubber Band R3 (primary) and Signalsmith Stretch (fallback).
+// Kari audio worklet — hosts Rubber Band R3 (primary) and Signalsmith Stretch (fallback).
 // Runs on the audio thread. No allocations per block after warm-up. Never outputs silence on failure:
 // if an engine is not ready or throws, the input is copied straight to the output.
 
@@ -19,7 +19,7 @@ class Ring {
   clear() { this.r = this.w = this.count = 0; }
 }
 
-class MimiProcessor extends AudioWorkletProcessor {
+class KariProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super(options);
     const po = options.processorOptions || {};
@@ -206,4 +206,4 @@ class MimiProcessor extends AudioWorkletProcessor {
   }
 }
 
-registerProcessor("mimi-processor", MimiProcessor);
+registerProcessor("kari-processor", KariProcessor);

@@ -1,4 +1,4 @@
-// Mimi — shared math. Pure functions, no DOM. Tested in tests/math.test.mjs.
+// Kari — shared math. Pure functions, no DOM. Tested in tests/math.test.mjs.
 
 export const NOTE_NAMES = ["C", "D♭", "D", "E♭", "E", "F", "G♭", "G", "A♭", "A", "B♭", "B"] as const;
 

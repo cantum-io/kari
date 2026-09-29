@@ -1,7 +1,7 @@
-Mimi — third-party notices
+Kari — third-party notices
 ==========================
 
-Mimi itself is © 2026 Cantum Marketing LLC (cantum.io) for YGG HOMME and is released under the
+Kari itself is © 2026 Cantum Marketing LLC (cantum.io) for YGG HOMME and is released under the
 GNU General Public License, version 2 only (see LICENSE).
 
 This package contains the following third-party software:
@@ -36,5 +36,5 @@ This package contains the following third-party software:
    DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-Complete corresponding source for Mimi, including the build scripts that produce worklet.js and
-rubberband.wasm from the packages above, is available at https://github.com/cantum-io/mimi.
+Complete corresponding source for Kari, including the build scripts that produce worklet.js and
+rubberband.wasm from the packages above, is available at https://github.com/cantum-io/kari.

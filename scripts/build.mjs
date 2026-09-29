@@ -1,4 +1,4 @@
-// Mimi build — esbuild bundles for MV3. `node scripts/build.mjs [--watch]`
+// Kari build — esbuild bundles for MV3. `node scripts/build.mjs [--watch]`
 import { build, context } from "esbuild";
 import fs from "node:fs";
 import path from "node:path";
@@ -28,7 +28,7 @@ fs.copyFileSync(path.join(root, "node_modules/rubberband-wasm/dist/rubberband.wa
 
 let stamp = "dev"; try { stamp = execSync("git rev-parse --short HEAD", { cwd: root }).toString().trim() + (execSync("git status --porcelain -- src scripts", { cwd: root }).toString().trim() ? "+" : ""); } catch (_) { /* no git */ }
 stamp += "." + new Date().toISOString().slice(0, 16).replace(/[-:T]/g, "");
-const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __MIMI_BUILD__: JSON.stringify(stamp) } };
+const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __KARI_BUILD__: JSON.stringify(stamp) } };
 const entries = [
   { entryPoints: [path.join(root, "src/content/index.ts")], outfile: path.join(out, "content.js"), format: "iife" },
   { entryPoints: [path.join(root, "src/worklet/processor.js")], outfile: path.join(out, "worklet.js"), format: "iife" },

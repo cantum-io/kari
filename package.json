@@ -1,16 +1,16 @@
 {
-  "name": "mimi",
+  "name": "kari",
   "version": "0.1.0",
-  "description": "Mimi \u2014 real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
+  "description": "Kari \u2014 real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
   "license": "GPL-2.0-only",
   "author": "Cantum Marketing LLC (cantum.io)",
-  "homepage": "https://cantum.io/mimi",
+  "homepage": "https://cantum.io/kari",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cantum-io/mimi.git"
+    "url": "https://github.com/cantum-io/kari.git"
   },
   "bugs": {
-    "url": "https://github.com/cantum-io/mimi/issues"
+    "url": "https://github.com/cantum-io/kari/issues"
   },
   "type": "module",
   "scripts": {
@@ -18,7 +18,7 @@
     "watch": "node scripts/build.mjs --watch",
     "test": "node --test tests/*.test.mjs",
     "bench": "node bench/bench_rb.mjs",
-    "zip": "npm run build && cd extension && zip -qr ../mimi-extension.zip . -x '*.DS_Store'"
+    "zip": "npm run build && cd extension && zip -qr ../kari-extension.zip . -x '*.DS_Store'"
   },
   "dependencies": {
     "rubberband-wasm": "3.3.0",

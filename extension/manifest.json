@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Mimi \u2014 pitch & speed for music",
-  "short_name": "Mimi",
+  "name": "Kari \u2014 pitch & speed for music",
+  "short_name": "Kari",
   "version": "0.1.0",
   "description": "Change the key and speed of music on youtube.com in real time. Slide for speed, tap for pitch. By YGG HOMME, powered by Cantum.",
   "author": {
@@ -47,7 +47,7 @@
   ],
   "options_page": "options.html",
   "action": {
-    "default_title": "Mimi settings",
+    "default_title": "Kari settings",
     "default_icon": {
       "16": "icons/16.png",
       "32": "icons/32.png"

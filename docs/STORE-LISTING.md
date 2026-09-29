@@ -59,13 +59,19 @@ No remote code. The worklet and the WebAssembly engine ship inside the package.
 - Homepage: https://cantum.io/kari
 - Security: security@cantum.io
 
-## Screenshots (1280×800, taken on real youtube.com)
+## Screenshots (1280×800, in `docs/store/`, real youtube.com)
 
-1. The dock on a music video, controls unfolded, slider at −20 %, pitch −2, engine R3, a/v readout visible.
-2. Full control open: vinyl / key lock, range pills, hold to compare, key names, readouts.
-3. Kari folded alone on the player (hidden state), pink colourway with the YGG cap.
-4. The Constellation interface, moon on the orbit at +3.
-5. The settings page: interface, Kari's look, wardrobe, engine tier, privacy line.
+Shot with `tools/probe/shoot-store.sh` on the current build, in theater mode, on a Creative Commons performance
+(Illinois Brass Band, "Ritual Fire Dance", video `i0riJz2U6Zs`, channel Creative Commons Music and Audio), so no
+third-party music video is featured in the listing.
+
+1. `01-dock.png` — the dock on the player: speed 0.80×, pitch −2, key lock, Kari beside it.
+2. `02-full-control.png` — full control open: vinyl / key lock, range, hold to compare, key names, engine R3, a/v readout.
+3. `03-kari-folded.png` — controls folded into Kari (pink, YGG cap).
+4. `05-options.png` — the settings page: interface, Kari's colour and wardrobe, controls, engine tier.
+5. `04-constellation.png` — optional; the Constellation interface at +3. Its speed label overlaps the dock readout, so upload it last or skip it.
+
+Promo tile 440×280: `promo-440x280.png` ("Kari · Key and speed for music. Studio-accurate. Free.").
 
 ## Promo tile (440×280)
 

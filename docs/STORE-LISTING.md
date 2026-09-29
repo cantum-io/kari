@@ -62,7 +62,14 @@ No remote code. The worklet and the WebAssembly engine ship inside the package.
 - Does the extension collect user data: **No.** No user data collected. Per-video memory (pitch and speed, keyed by video id) stays in `chrome.storage.local` on the device and is never synced or sent anywhere; preferences use `chrome.storage.sync`.
 - Personally identifiable information, health, financial, authentication, personal communications, location, web history, user activity, website content: **none collected.**
 - Certifications: not sold to third parties; not used for purposes unrelated to the single purpose; not used for creditworthiness or lending. **All three: yes.**
-- Privacy policy URL: https://github.com/cantum-io/kari/blob/main/docs/PRIVACY.md
+- Privacy policy URL: https://cantum.io/kari/privacy/
+
+## URLs
+
+- Homepage URL: https://cantum.io/kari/
+- Support URL: https://cantum.io/kari/#support
+- Official URL: None for now (needs cantum.io verified in Google Search Console under info@cantum.io)
+- Privacy policy URL: https://cantum.io/kari/privacy/ (mirror of docs/PRIVACY.md)
 
 ## Contact
 

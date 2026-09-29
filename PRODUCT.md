@@ -69,7 +69,7 @@ Open decisions:
 
 ## Brand Commitments
 
-- **Name:** Kari. Brand: YGG HOMME. Builder of record: Cantum Marketing LLC. Credit line: "YGG HOMME · powered by Cantum".
+- **Name:** Kari. Brand: YGG HOMME. Builder of record: Cantum LLC. Credit line: "YGG HOMME · powered by Cantum".
 - **Character:** Kari, a small animated character who fronts the controls (`extension/icons/kari.svg`).
 - **Voice:** plain, exact and measured. Claims come with numbers. Examples from shipped copy: "Everything starts at 0." "Silence is not a failure mode."
 - **Store category:** Entertainment. It is a listening tool, not a productivity tool.

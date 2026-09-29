@@ -1,4 +1,4 @@
-// Kari — settings + per-video memory over chrome.storage.sync (falls back to memory when unavailable).
+// Kari — settings over chrome.storage.sync, per-video memory over chrome.storage.local (each falls back to memory when unavailable).
 
 export type Skin = "org" | "void" | "weather" | "cons";
 export type KariColor = "blue" | "pink" | "black";
@@ -29,10 +29,10 @@ const VIDEO_PREFIX = "kari.video.";
 
 type Area = { get(k: string | string[]): Promise<Record<string, unknown>>; set(o: Record<string, unknown>): Promise<void>; remove(k: string): Promise<void> };
 
-function area(): Area {
+function area(name: "sync" | "local"): Area {
   const mem: Record<string, unknown> = {};
   try {
-    const s = (globalThis as any).chrome?.storage?.sync;
+    const s = (globalThis as any).chrome?.storage?.[name];
     if (s) return { get: k => s.get(k), set: o => s.set(o), remove: k => s.remove(k) };
   } catch (_) { /* no extension context */ }
   return {
@@ -41,7 +41,8 @@ function area(): Area {
     async remove(k) { delete mem[k]; },
   };
 }
-const store = area();
+const store = area("sync");   // settings: Chrome may sync these across the user's own devices
+const local = area("local");  // per-video memory: stays on this device, never synced
 
 export async function loadSettings(): Promise<Settings> {
   try { const o = await store.get(KEY); return { ...DEFAULT_SETTINGS, ...((o[KEY] as Partial<Settings>) || {}) }; }
@@ -62,8 +63,19 @@ export function onSettingsChange(cb: (s: Settings) => void) {
 
 export type VideoMemory = { st: number; cents: number; tempo: number; keyLock: boolean; range: 8 | 16 | 50 };
 export async function loadVideo(id: string): Promise<VideoMemory | null> {
-  try { const o = await store.get(VIDEO_PREFIX + id); return (o[VIDEO_PREFIX + id] as VideoMemory) || null; } catch (_) { return null; }
+  const k = VIDEO_PREFIX + id;
+  try {
+    const o = await local.get(k);
+    if (o[k]) return o[k] as VideoMemory;
+    // One-time migration: 0.1.0 kept per-video memory in chrome.storage.sync. Move it to local.
+    const legacy = await store.get(k);
+    const m = (legacy[k] as VideoMemory) || null;
+    if (m) {
+      try { await local.set({ [k]: m }); await store.remove(k); } catch (_) { /* best effort */ }
+    }
+    return m;
+  } catch (_) { return null; }
 }
 export async function saveVideo(id: string, m: VideoMemory | null) {
-  try { if (m) await store.set({ [VIDEO_PREFIX + id]: m }); else await store.remove(VIDEO_PREFIX + id); } catch (_) { /* best effort */ }
+  try { if (m) await local.set({ [VIDEO_PREFIX + id]: m }); else await local.remove(VIDEO_PREFIX + id); } catch (_) { /* best effort */ }
 }

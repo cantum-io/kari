@@ -48,7 +48,7 @@ docs/             build brief, bench results, UI playground, Claude Code kickoff
 ```
 
 ## Credits
-Cantum Marketing LLC (cantum.io) is the builder of record; YGG HOMME is the brand.
+Cantum LLC (cantum.io) is the builder of record; YGG HOMME is the brand.
 Rubber Band Library © Particular Programs Ltd, GPL-2.0 — https://breakfastquay.com/rubberband/
 Signalsmith Stretch © Geraint Luff, MIT — https://signalsmith-audio.co.uk/code/stretch/
 `rubberband-wasm` and `signalsmith-stretch` npm builds by their respective authors.

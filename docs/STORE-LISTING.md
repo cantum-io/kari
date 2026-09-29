@@ -13,17 +13,28 @@ Change the key and speed of music on youtube.com in real time. Slide for speed, 
 
 ## Detailed description (plain text)
 
-Kari changes the key and the speed of music on youtube.com watch pages while it plays, with studio accuracy, and a small animated character to keep you company.
+Kari changes the key and the speed of music on youtube.com while it plays, with studio accuracy, and a small animated character to keep you company.
 
-Slide left to slow the song down, right to speed it up. By default the pitch moves with the speed, like a record: that is vinyl mode, and it uses nothing but Chrome's own resampler, so nothing is touched until you ask for something a resampler cannot do. Tap Pitch − or + to change the key. Turn on key lock and the pitch stays put while the speed changes. Everything starts at zero and returns to zero with one tap.
+How it works
+• Slide left to slow a song down, right to speed it up. By default the pitch moves with the speed, like a record (vinyl mode), using only Chrome's own resampler.
+• Tap Pitch − or + to change the key without changing the speed.
+• Turn on key lock and the pitch stays put while the speed changes.
+• Everything starts at zero, and one tap resets it.
 
-Accuracy is the point. The engine is Rubber Band Library R3, the same engine DJ software ships for key lock, running in an audio worklet. Measured on the real audio that reaches your speakers: within 0.02 cents at every step from −12 to +12 semitones, key lock holding 440.00 Hz at ±16 % speed. The engine runs once, only when the key changes; there is never a second lossy pass. If the engine ever stalls, the audio falls back to a straight wire. Silence is not a failure mode.
+Studio accuracy
+The pitch engine is Rubber Band Library R3, running in an audio worklet. Measured on the audio that actually reaches your speakers, every step from −12 to +12 semitones lands within 0.02 cents, and key lock holds 440.00 Hz at ±16 % speed. The engine runs only when the key changes and never stacks a second pass. If it ever stalls, you hear the original sound, never silence.
 
-Full control adds vinyl or key lock, a ±8, ±16 or ±50 % range, hold-to-compare against the untouched sound (level- and delay-matched), key names, and a live sound-behind-picture readout. Settings and the pitch you chose per video are remembered. Keyboard: Option+↑/↓ for pitch, Option+→/← for speed.
+Full control
+Vinyl or key lock, a ±8, ±16 or ±50 % speed range, hold-to-compare against the untouched sound (level- and delay-matched), key names, and a live readout of how far the sound runs behind the picture. Kari remembers the key and speed you chose for each song, on your own device.
 
-Kari is free forever. No paid tier, no accounts, no data collected, nothing leaves your browser. Open source under the GPL-2.0 at https://github.com/cantum-io/kari.
+Free and private
+Kari is free, with no paid tier and no account. It never sends your data to us or anyone else: no analytics, no servers. The code is open source under the GPL-2.0 at https://github.com/cantum-io/kari.
 
-Works on www.youtube.com/watch pages. Not affiliated with YouTube or Google.
+Works on youtube.com video pages in desktop Chrome.
+
+Screenshots show "Ritual Fire Dance" performed by the Illinois Brass Band, shared under a Creative Commons Attribution licence.
+
+YouTube is a trademark of Google LLC. Use of this trademark is subject to Google Permissions. Kari is not affiliated with or endorsed by YouTube or Google.
 
 YGG HOMME · powered by Cantum · Rubber Band Library (GPL)
 
@@ -48,7 +59,7 @@ No remote code. The worklet and the WebAssembly engine ship inside the package.
 
 ## Privacy practices (dashboard answers)
 
-- Does the extension collect user data: **No.**
+- Does the extension collect user data: **No.** No user data collected. Per-video memory (pitch and speed, keyed by video id) stays in `chrome.storage.local` on the device and is never synced or sent anywhere; preferences use `chrome.storage.sync`.
 - Personally identifiable information, health, financial, authentication, personal communications, location, web history, user activity, website content: **none collected.**
 - Certifications: not sold to third parties; not used for purposes unrelated to the single purpose; not used for creditworthiness or lending. **All three: yes.**
 - Privacy policy URL: https://github.com/cantum-io/kari/blob/main/docs/PRIVACY.md
@@ -61,15 +72,15 @@ No remote code. The worklet and the WebAssembly engine ship inside the package.
 
 ## Screenshots (1280×800, in `docs/store/`, real youtube.com)
 
-Shot with `tools/probe/shoot-store.sh` on the current build, in theater mode, on a Creative Commons performance
-(Illinois Brass Band, "Ritual Fire Dance", video `i0riJz2U6Zs`, channel Creative Commons Music and Audio), so no
-third-party music video is featured in the listing.
+Four screenshots. Shot with `tools/probe/shoot-store.sh` on the current build, in theater mode, with YouTube's
+recommendations and everything below the player hidden, on a Creative Commons performance (Illinois Brass Band,
+"Ritual Fire Dance", video `i0riJz2U6Zs`, channel Creative Commons Music and Audio), so no third-party thumbnail, title
+or music video appears in the listing. The Constellation shot is dropped.
 
 1. `01-dock.png` — the dock on the player: speed 0.80×, pitch −2, key lock, Kari beside it.
 2. `02-full-control.png` — full control open: vinyl / key lock, range, hold to compare, key names, engine R3, a/v readout.
 3. `03-kari-folded.png` — controls folded into Kari (pink, YGG cap).
 4. `05-options.png` — the settings page: interface, Kari's colour and wardrobe, controls, engine tier.
-5. `04-constellation.png` — optional; the Constellation interface at +3. Its speed label overlaps the dock readout, so upload it last or skip it.
 
 Promo tile 440×280: `promo-440x280.png` ("Kari · Key and speed for music. Studio-accurate. Free.").
 
@@ -79,7 +90,11 @@ Kari on ink, one line: "Key and speed for music. Studio-accurate. Free." Credit 
 
 ## Before submitting (Jesse)
 
-1. `npm run zip` → `kari-extension.zip` (contains LICENSE and THIRD-PARTY-NOTICES.txt).
+1. `npm run zip` → `kari-extension.zip`, version 0.1.1 (contains LICENSE and THIRD-PARTY-NOTICES.txt).
 2. Developer account under the Cantum Google account, display name YGG HOMME, one-time registration fee.
-3. Paste the fields above. Upload five screenshots and the promo tile.
-4. The privacy policy URL and the source link resolve only once the GitHub repository is public.
+3. 2-Step Verification turned on for that Google account.
+4. Contact email info@cantum.io added on the account and verified.
+5. Trader declaration: trader, Cantum LLC, with a public business address and a phone number that can receive SMS.
+6. Paste the fields above. Upload the four screenshots and the promo tile.
+7. On the Package tab, upload the 0.1.1 zip before submitting.
+8. The privacy policy URL and the source link resolve now that the GitHub repository is public.

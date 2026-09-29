@@ -1,7 +1,7 @@
 Kari — third-party notices
 ==========================
 
-Kari itself is © 2026 Cantum Marketing LLC (cantum.io) for YGG HOMME and is released under the
+Kari itself is © 2026 Cantum LLC (cantum.io) for YGG HOMME and is released under the
 GNU General Public License, version 2 only (see LICENSE).
 
 This package contains the following third-party software:

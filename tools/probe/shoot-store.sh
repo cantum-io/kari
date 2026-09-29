@@ -12,6 +12,12 @@ node q.mjs iso <<'JS'
 if (!document.querySelector('ytd-watch-flexy[theater]')) { document.querySelector('button.ytp-size-button')?.click(); }
 await new Promise(r=>setTimeout(r,1500)); window.scrollTo(0,0); return 'theater='+!!document.querySelector('ytd-watch-flexy[theater]');
 JS
+# hide YouTube's recommendations and everything below the player, so no third-party thumbnail or title is in frame
+node q.mjs eval <<'JS'
+const s=document.createElement('style'); s.id='kari-store-hide';
+s.textContent='#secondary, #related, ytd-watch-next-secondary-results-renderer, #below { visibility: hidden !important; }';
+document.head.appendChild(s); return 'recommendations hidden: '+!!document.getElementById('kari-store-hide');
+JS
 node q.mjs iso <<'JS'
 const v=document.querySelector('#movie_player video'); const t0=Date.now(); while(Date.now()-t0<15000){ const sp=document.querySelector('.ytp-spinner'); const shown=sp&&getComputedStyle(sp).display!=='none'; if(!v.paused && v.readyState>=4 && !shown && v.currentTime>6) break; await new Promise(r=>setTimeout(r,300)); }
 return 'video t='+v.currentTime.toFixed(1)+' rs='+v.readyState+' title='+document.title.slice(0,60);

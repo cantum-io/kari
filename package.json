@@ -1,9 +1,9 @@
 {
   "name": "kari",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Kari \u2014 real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
   "license": "GPL-2.0-only",
-  "author": "Cantum Marketing LLC (cantum.io)",
+  "author": "Cantum LLC (cantum.io)",
   "homepage": "https://cantum.io/kari",
   "repository": {
     "type": "git",
@@ -18,7 +18,7 @@
     "watch": "node scripts/build.mjs --watch",
     "test": "node --test tests/*.test.mjs",
     "bench": "node bench/bench_rb.mjs",
-    "zip": "npm run build && cd extension && zip -qr ../kari-extension.zip . -x '*.DS_Store'"
+    "zip": "rm -f kari-extension.zip && npm run build && cd extension && zip -qr ../kari-extension.zip . -x '*.DS_Store'"
   },
   "dependencies": {
     "rubberband-wasm": "3.3.0",

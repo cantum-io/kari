@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Kari \u2014 pitch & speed for music",
+  "name": "Kari — pitch & speed for music",
   "short_name": "Kari",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Change the key and speed of music on youtube.com in real time. Slide for speed, tap for pitch. By YGG HOMME, powered by Cantum.",
   "author": {
     "email": "info@cantum.io"

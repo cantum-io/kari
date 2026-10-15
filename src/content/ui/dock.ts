@@ -105,16 +105,6 @@ const KARI_SVG = `
   <circle class="bubble" data-el="bubble" cx="118" cy="76" r="14"/>
 </svg>`;
 
-const PLUSH_SVG = `
-<svg viewBox="0 0 80 90" aria-hidden="true">
-  <ellipse cx="40" cy="60" rx="30" ry="26" fill="#d9c4a7"/><ellipse cx="40" cy="63" rx="18" ry="16" fill="#efe1c8"/><circle cx="40" cy="32" r="21" fill="#d9c4a7"/>
-  <ellipse cx="18" cy="18" rx="9" ry="12" fill="#c9b092" transform="rotate(-30 18 18)"/><ellipse cx="62" cy="18" rx="9" ry="12" fill="#c9b092" transform="rotate(30 62 18)"/>
-  <circle cx="32" cy="30" r="3.2" fill="#1a1a1a"/><circle cx="48" cy="30" r="3.2" fill="#1a1a1a"/><circle cx="33" cy="29" r="1" fill="#fff"/><circle cx="49" cy="29" r="1" fill="#fff"/>
-  <path d="M36 39 q4 4 8 0" fill="none" stroke="#5a4634" stroke-width="1.6" stroke-linecap="round"/>
-  <path d="M22 62 l-12 10 M58 62 l12 10" stroke="#c9b092" stroke-width="9" stroke-linecap="round"/>
-  <path d="M30 52 l4 -3 l4 3 l4 -3 l4 3" fill="none" stroke="#8b6f52" stroke-width="1" stroke-dasharray="2 2"/>
-  <rect x="34" y="70" width="12" height="7" rx="1" fill="#f3f1ea"/><text x="40" y="75.5" font-size="4.5" text-anchor="middle" font-family="Space Mono,monospace" fill="#111">YGG</text>
-</svg>`;
 
 const TEMPLATE = `
 <div class="root" data-collapsed="0" data-small="0">
@@ -164,14 +154,12 @@ const TEMPLATE = `
         <label class="ul"><input type="checkbox" data-set="cap"> <span>YGG cap</span></label>
         <label class="ul"><input type="checkbox" data-set="shades"> <span>Thin black sunglasses</span></label>
         <label class="ul"><input type="checkbox" data-set="shoes"> <span>Chunky sneakers</span></label></div></div>
-    <div class="sg"><b>Extras</b><div class="row col"><label class="ul"><input type="checkbox" data-set="plush"> <span>Plush trophy in corner</span></label></div></div>
     <div class="sg" data-el="midisg"><b>MIDI</b><div class="row"><button class="chip" data-m="connect">Connect</button><button class="chip" data-m="learn" aria-pressed="false">Learn</button><span class="mst" data-el="midist">not connected</span></div>
       <span class="mst">learn: switch it on, click a loop length or Tap, then hit the pad · a pad on the lit length releases</span></div>
     <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
     <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
     <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
   </aside>
-  <button class="plush" data-el="plush" aria-label="Plush trophy">${PLUSH_SVG}</button>
 </div>`;
 
 const CX = 330, CY = 200, RX = 120, RY = 52, BASE_KEY = 8; // A♭m shown as the reference key until detection exists
@@ -236,7 +224,6 @@ export class Dock {
     org.dataset.kari = s.kariColor; org.dataset.cap = s.cap ? "1" : "0"; org.dataset.shades = s.shades ? "1" : "0"; org.dataset.shoes = s.shoes ? "1" : "0";
     this.$$("[data-kari]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kari === s.kariColor)));
     (this.$$("input[data-set]") as HTMLInputElement[]).forEach(i => i.checked = !!(s as any)[i.dataset.set!]);
-    this.el("plush").hidden = !s.plush;
     this.root.dataset.collapsed = s.collapsed ? "1" : "0";
     this.$$(".ctl").forEach(c => c.dataset.full = s.fullControl ? "1" : "0");
     this.$$('[data-a="full"]').forEach(b => b.setAttribute("aria-pressed", String(s.fullControl)));
@@ -367,9 +354,6 @@ export class Dock {
     settings.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest('[data-s="close"]')) { settings.hidden = true; gear.setAttribute("aria-expanded", "false"); } });
     this.$$("[data-skin].chip").forEach(c => c.addEventListener("click", () => this.deps.saveSettings({ skin: c.dataset.skin as Skin })));
     this.$$("[data-kari]").forEach(b => b.addEventListener("click", () => { this.deps.saveSettings({ kariColor: b.dataset.kari as KariColor }); this.react(); }));
-    // plush
-    const plush = this.el("plush");
-    plush.addEventListener("click", () => { plush.classList.remove("poke"); void plush.offsetWidth; plush.classList.add("poke"); this.react(); });
     // constellation drag
     const svg = this.el("consSvg") as unknown as SVGSVGElement;
     const toSt = (e: PointerEvent) => { const r = svg.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width * 640, y = (e.clientY - r.top) / r.height * 360; const ang = Math.atan2((x - CX) / RX, -(y - CY) / RY); return Math.max(-12, Math.min(12, Math.round(ang / Math.PI * 12))); };

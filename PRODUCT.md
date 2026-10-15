@@ -49,7 +49,7 @@ Shipped in 0.1.0:
 - Hold to compare against the untouched sound, level-matched and delay-matched.
 - A live sound-behind-picture readout.
 - Engines: Rubber Band Library R3 (primary) and Signalsmith Stretch (fallback), with an Auto setting that steps down when the machine can't keep up.
-- Six interfaces: Organism, Void, Signal, Alien Weather, Constellation. Kari comes in blue, pink or black, with a wardrobe: YGG cap, thin black sunglasses, chunky sneakers, plush trophy.
+- Six interfaces: Organism, Void, Signal, Alien Weather, Constellation. Kari comes in blue, pink or black, with a wardrobe: YGG cap, thin black sunglasses, chunky sneakers.
 
 Constraints:
 

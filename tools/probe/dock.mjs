@@ -27,7 +27,7 @@ await page.setContent(`<!doctype html><html><body style="margin:0;background:#11
 await page.addScriptTag({ path: bundle });
 await page.evaluate(() => {
   const calls = (window.__calls = []);
-  const settings = { skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false, plush: true, collapsed: false, fullControl: false, engine: "auto", defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: true };
+  const settings = { skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false, collapsed: false, fullControl: false, engine: "auto", defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: true };
   const params = { st: 0, cents: 0, tempo: 0, keyLock: false, range: 50 };
   const deps = {
     getParams: () => params, apply() {}, setCompare() {}, settings, saveSettings(p) { Object.assign(settings, p); dock.applySettings(settings); }, level: () => 0.1, optionsUrl: "about:blank",

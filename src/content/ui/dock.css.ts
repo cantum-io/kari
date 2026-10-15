@@ -9,8 +9,8 @@ export const DOCK_CSS = `
    just opacity, so faded controls cannot take clicks meant for the player); Kari's anchor (the blob, the orb, the
    cloudlet, the moon) never does. v1 faded the whole root, and opacity on a parent cannot be undone by a child, so the
    blob vanished a few seconds into playback (Jesse, 2026-10-15). */
-.absorb,.gear,.settings,.intro,.fault,.plush,.suncap{transition:opacity 200ms ease,visibility 0s linear 0s}
-.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]) :is(.absorb,.gear,.settings,.intro,.fault,.plush,.suncap,.cons .lab,.cons .lab2,.cons .orbit,.cons .tick,.cons .arc,.cons .sun,.cons .ray,.cons .star){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
+.absorb,.gear,.settings,.intro,.fault,.suncap{transition:opacity 200ms ease,visibility 0s linear 0s}
+.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]) :is(.absorb,.gear,.settings,.intro,.fault,.suncap,.cons .lab,.cons .lab2,.cons .orbit,.cons .tick,.cons .arc,.cons .sun,.cons .ray,.cons .star){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
 .root[data-hidden-with-controls="1"] .anchor{opacity:1;visibility:visible;pointer-events:auto}
 .root[data-hidden-with-controls="1"] .void-orb{opacity:1;pointer-events:auto}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;touch-action:manipulation;pointer-events:auto}
@@ -176,16 +176,6 @@ button:disabled:active{transform:none}
   .cons .moon,.cons .ray{transition:all 400ms var(--ease-out)}
 }
 
-/* PLUSH */
-.plush{position:absolute;left:14px;bottom:56px;width:70px;height:78px;cursor:pointer;transform-origin:50% 100%;pointer-events:auto}
-.plush svg{width:100%;height:100%;overflow:visible}
-.plush[hidden]{display:none!important}
-@media (prefers-reduced-motion:no-preference){
-  .plush{animation:kari-sway 4.5s ease-in-out infinite}
-  @keyframes kari-sway{50%{transform:rotate(-3deg) translateY(-2px)}}
-  .plush.poke{animation:kari-poke 600ms var(--ease-out)}
-  @keyframes kari-poke{20%{transform:scale(1.1,.9)}50%{transform:scale(.94,1.08) rotate(6deg)}}
-}
 
 /* GEAR + SETTINGS */
 .gear{position:absolute;right:12px;bottom:58px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);display:grid;place-items:center;transition:background 150ms ease;pointer-events:auto}
@@ -220,7 +210,7 @@ button:disabled:active{transform:none}
 .root[data-small="1"] .org{width:auto;grid-template-columns:auto}
 .root[data-small="1"] .org .ctl{display:none}
 .root[data-small="1"] .org .body{width:64px;height:74px}
-.root[data-small="1"] .void,.root[data-small="1"] .pod,.root[data-small="1"] .cons-ctl,.root[data-small="1"] .plush,.root[data-small="1"] .cons svg{display:none}
+.root[data-small="1"] .void,.root[data-small="1"] .pod,.root[data-small="1"] .cons-ctl,.root[data-small="1"] .cons svg{display:none}
 .root[data-small="1"] .void-orb{opacity:1;pointer-events:auto}
 .root[data-small="1"] .cloudlet{transform:translate(0,-120px)}
 
@@ -234,7 +224,6 @@ button:disabled:active{transform:none}
 .root[data-site="sc"] .suncap{top:auto;bottom:150px}
 .root[data-site="sc"] .cloudlet{top:auto;bottom:14px;right:16px}
 .root[data-site="sc"][data-collapsed="1"] .cloudlet{transform:none}
-.root[data-site="sc"] .plush{display:none}
 .root[data-site="sc"] .gear{right:auto;left:14px;bottom:12px}
 .root[data-site="sc"] .settings{right:auto;left:14px;bottom:50px;max-height:260px}
 .root[data-site="sc"] .intro{top:auto;bottom:240px;right:16px}

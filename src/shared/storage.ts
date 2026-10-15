@@ -8,7 +8,6 @@ export type Settings = {
   skin: Skin;
   kariColor: KariColor;
   cap: boolean; shades: boolean; shoes: boolean;
-  plush: boolean;
   collapsed: boolean;
   fullControl: boolean;
   engine: EngineTier;
@@ -21,7 +20,7 @@ export type Settings = {
 
 export const DEFAULT_SETTINGS: Settings = {
   skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false,
-  plush: true, collapsed: false, fullControl: false, engine: "auto",
+  collapsed: false, fullControl: false, engine: "auto",
   defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: false,
 };
 

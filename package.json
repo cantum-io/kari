@@ -1,7 +1,7 @@
 {
   "name": "kari",
-  "version": "0.1.1",
-  "description": "Kari \u2014 real-time pitch and speed for YouTube, by YGG HOMME, powered by Cantum",
+  "version": "0.3.0",
+  "description": "Kari \u2014 real-time pitch, speed and beat loops for YouTube and SoundCloud, by YGG HOMME, powered by Cantum",
   "license": "GPL-2.0-only",
   "author": "Cantum LLC (cantum.io)",
   "homepage": "https://cantum.io/kari",

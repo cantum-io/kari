@@ -121,7 +121,7 @@ Read-back for any row: `__kari.status` plus the console, never the dock alone (t
 | S10 | Key lock at ±16 % | Key lock on, slider to +16: pitch unchanged by ear, speed clearly faster; vinyl (default): pitch rides speed | UNVERIFIED (ear) |
 | S11 | Hold to compare | level- and delay-matched by ear, as on YouTube | UNVERIFIED (ear) |
 | S12 | Go+ / protected track (needs a Go+ account) | the dock shows "this track's audio is protected — speed only"; speed still works; `__kari.status.fault === "drm-silent"`; whether the node is audible at all is the open question from the graph doc | UNVERIFIED — no Go+ account on hand |
-| S13 | Dock placement | dock above `.playControls` at the right, not clipped by the bar (if clipped: `.playControls` has overflow hidden → mount at body level, fixed above the bar); gear and settings at the left; SoundCloud's own buttons in the bar still clickable; Kari's blob toggles the panel | UNVERIFIED |
+| S13 | Dock placement | dock above `.playControls` at the right, not clipped by the bar (if clipped: `.playControls` has overflow hidden → mount at body level, fixed above the bar); gear and settings at the left; SoundCloud's own buttons in the bar still clickable; Kari's blob toggles the panel | **FAIL → FIXED 2026-10-15** (probe + screenshot): the panel hung below the bar's top edge (`:host{inset:0}` kept `top:0`, so `bottom:100%` was dropped) and inherited `visibility:hidden` from `.playControls`; now `top:auto` + `visibility:visible` on the host and the dock follows the bar's `m-visible`. Bar buttons clickable and blob toggle: UNVERIFIED by hand. |
 | S14 | Keyboard | Alt+↑/↓ and Alt+→/← step pitch/speed on a SoundCloud tab; SoundCloud's own shortcuts (Space, Shift+→) untouched when the dock is not focused | UNVERIFIED |
 | S15 | Permission off | settings → SoundCloud off: SW console `unregistered`; a new SoundCloud tab shows no dock; YouTube unaffected | UNVERIFIED |
 | S16 | YouTube still works on this build | one watch page: Pitch +1 → R3, memory, miniplayer — same as rows 1–18 above (controller gained an external-graph mode; the YouTube branch is unchanged by construction) | UNVERIFIED |
@@ -145,7 +145,18 @@ Read-back for any row: `__kari.status` plus the console, never the dock alone (t
 Diagnosed 2026-10-15, 01:00–02:30 PT, from Jesse's Chrome 153 profile on disk (read-only), a fresh-profile
 reproduction in Chromium 153, and the grant probe `tools/probe/sc-grant.mjs`. Branch `claude/sc-noshow-e10a4a`.
 
-**What happened.** The live profile that night was Chrome's "Profile 16" (jesse@wdconstructions.com, managed), not
+**What happened — two things, found in this order.** (1) The permission had never been granted; (2) once it was
+(Jesse toggled the switch at ~02:20 PT, and Profile 16's prefs then showed soundcloud.com granted and the scripts
+registered), the dock still showed nothing on the build he had loaded, because it mounted **off-screen and hidden**:
+measured in headless Chromium, `#kari-dock` sat at y = the bar's top edge with height 320 (the panel hung *below* the
+bar: the dock's own `:host{inset:0}` rule kept `top:0` and the browser dropped `bottom:100%`), and its root computed
+`visibility:hidden`, inherited from SoundCloud's `.playControls{visibility:hidden}` (SoundCloud re-shows only its inner
+section). Row S13 had never been checked visually, only by DOM presence. Fixed in the bridge's mount style (`top:auto`,
+`visibility:visible`) and by following the bar's `m-visible` class through the dock's hide switch; screenshots at
+1440×900 and 1280×720 show the panel above the bar, blob bottom-right, gear left; the probe's B2/B3 rows now require
+visible + on screen + hit-tested, never DOM presence.
+
+The live profile that night was Chrome's "Profile 16" (jesse@wdconstructions.com, managed), not
 "Default" (that is the amaixamai@gmail.com profile — the YouTube account — also named "Jesse"). In Profile 16 the
 unpacked Kari (`nljfopkjcihikbhbjfbggdemilelmokh`, which is exactly the id Chrome derives from
 `…/~:Projects:kari/kari/extension`) was installed at 00:45:47 PT, enabled, its service worker had run, and its
@@ -194,8 +205,10 @@ after a refused prompt still opens the settings, as before.
    if any; the only expected service-worker line is `[kari] soundcloud scripts unregistered (installed)` until the
    grant.
 2. Open any soundcloud.com page and click Kari's toolbar icon (pin it from the puzzle menu if it is hidden). Chrome's
-   bubble asks for soundcloud.com → **Allow**. The dock appears above the bottom bar; a tab that was already open says
-   "reload this page once" when you play — reload it once. (The options switch, settings → Sites → SoundCloud, is the same
+   bubble asks for soundcloud.com → **Allow**. The dock appears above the bottom bar, controls and Kari's blob at the
+   right, gear at the left; a tab that was already open says "reload this page once" when you play — reload it once.
+   On the build loaded before this fix (main 202ed3b) nothing shows even after the grant: load this branch's
+   `extension/` instead (or Reload the card after the branch is merged into the folder you loaded). (The options switch, settings → Sites → SoundCloud, is the same
    grant by another route.)
 3. The service-worker console (card → "service worker", or "Inspect views" → sw.js): expect
    `[kari] soundcloud scripts registered (action click)` then `[kari] soundcloud scripts injected into tab N`; from the

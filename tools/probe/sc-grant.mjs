@@ -76,11 +76,23 @@ async function open(extDir, label) {
     await cdp.send("Runtime.enable");
     const evalKari = async (expr) => { const n = [...worlds.keys()].find((k) => /kari/i.test(k)); if (!n) return { world: false }; const r = await bounded(cdp.send("Runtime.evaluate", { expression: expr, contextId: worlds.get(n), awaitPromise: true, returnByValue: true }), 10000, "isolated-world evaluate"); return r.exceptionDetails ? { world: true, error: r.exceptionDetails.exception?.description || r.exceptionDetails.text } : { world: true, value: r.result.value }; };
     const kari = () => evalKari("(() => { const k = globalThis.__kari; return k ? { hookReady: k.hookReady, late: k.late, lateFault: k.lateFault, status: k.status, key: k.key, log: k.log.slice(-5) } : null; })()");
-    const dock = () => page.evaluate(() => { const d = document.querySelector("#kari-dock"); if (!d) return null; const f = d.shadowRoot && d.shadowRoot.querySelector('[data-el="fault"]'); return { fault: f && !f.hidden ? f.textContent : null }; }).catch(() => null);
+    // Mounted is not shown: the dock once "mounted" off-screen and visibility:hidden (2026-10-15). Read what a user sees.
+    const dock = () => page.evaluate(() => {
+      const d = document.querySelector("#kari-dock"); if (!d) return null;
+      const f = d.shadowRoot && d.shadowRoot.querySelector('[data-el="fault"]');
+      const root = d.shadowRoot && d.shadowRoot.querySelector(".root"), blob = d.shadowRoot && d.shadowRoot.querySelector(".org");
+      const r = d.getBoundingClientRect(), b = blob && blob.getBoundingClientRect(), bar = document.querySelector(".playControls"), br = bar && bar.getBoundingClientRect();
+      const vis = root ? getComputedStyle(root).visibility : "?";
+      const aboveBar = !!br && Math.abs(r.bottom - br.top) < 2, blobOnScreen = !!b && b.top >= 0 && b.bottom <= innerHeight && b.width > 0;
+      const hit = b ? document.elementFromPoint(Math.min(innerWidth - 2, b.left + b.width / 2), b.top + b.height / 2) : null; // what a click on Kari's body would reach
+      return { fault: f && !f.hidden ? f.textContent : null, shown: vis === "visible" && aboveBar && blobOnScreen && hit === d, vis, aboveBar, blobOnScreen, rect: { y: Math.round(r.y), h: Math.round(r.height) }, barTop: br && Math.round(br.top), hit: hit ? hit.id || hit.tagName.toLowerCase() + (hit.className && typeof hit.className === "string" ? "." + hit.className.split(" ")[0] : "") : null };
+    }).catch(() => null);
     const waitDock = async (ms) => { const t = Date.now(); while (Date.now() - t < ms) { const d = await dock(); if (d) return d; await sleep(250); } return null; };
     const waitKari = async (pred, ms) => { const t = Date.now(); let last = null; while (Date.now() - t < ms) { last = await kari(); if (last && last.value && pred(last.value)) return last.value; await sleep(250); } return last && last.value; };
     await page.goto(TRACK, { waitUntil: "domcontentloaded", timeout: 45000 });
+    // Cookie banner: the opt-out link ("I'm a GPC user…"), never "Continue"; it covers the bar until it is gone.
     await page.locator("#onetrust-close-btn-handler").first().click({ timeout: 5000 }).catch(() => {});
+    await page.getByText("GPC user").first().click({ timeout: 2500 }).catch(() => {});
     await page.locator(".modal__closeButton").first().click({ timeout: 3000 }).catch(() => {});
     const playing = () => page.evaluate(() => { const b = document.querySelector(".playControls__play"); const tp = document.querySelector(".playbackTimeline__timePassed span[aria-hidden]"); return !!b && [...b.classList].some((c) => /playing/.test(c)) && !!tp && tp.textContent !== "0:00"; }).catch(() => false);
     const play = async (ms = 25000) => { // the bar's button once live, else the hero button; the first click is usually dropped pre-hydration
@@ -174,8 +186,8 @@ try {
   step("B2: fresh tab");
   const t2 = await B.scTab(); const p2 = await t2.play();
   const k2 = await t2.waitKari((v) => v.status && v.status.route === 0, 12000); const d2 = await t2.dock();
-  row("B2", "new tab with the scripts registered: hook at document_start (not late), dock in the bar, route 0 after play, no fault", p2 && !!d2 && !!k2 && k2.hookReady && k2.late === false && k2.status.route === 0 && !k2.status.fault && !d2.fault,
-    `playing ${p2} · dock ${!!d2} fault "${d2 && d2.fault}" · hookReady ${k2 && k2.hookReady} late ${k2 && k2.late} route ${k2 && k2.status && k2.status.route} ctx ${k2 && k2.status && k2.status.ctxState}`);
+  row("B2", "new tab with the scripts registered: hook at document_start (not late), dock SHOWN above the bar (visible, on screen, takes the hit test), route 0 after play, no fault", p2 && !!d2 && d2.shown && !!k2 && k2.hookReady && k2.late === false && k2.status.route === 0 && !k2.status.fault && !d2.fault,
+    `playing ${p2} · dock ${!!d2} shown ${d2 && d2.shown} (vis ${d2 && d2.vis}, above bar ${d2 && d2.aboveBar}, rect y ${d2 && d2.rect.y} h ${d2 && d2.rect.h}, bar top ${d2 && d2.barTop}, blob on screen ${d2 && d2.blobOnScreen}, hit ${d2 && d2.hit}) fault "${d2 && d2.fault}" · hookReady ${k2 && k2.hookReady} late ${k2 && k2.late} route ${k2 && k2.status && k2.status.route} ctx ${k2 && k2.status && k2.status.ctxState}`);
   await t2.page.close();
 
   step("B3: tab open and playing before the grant → icon");
@@ -188,8 +200,8 @@ try {
   const d3 = await t3.waitDock(8000);
   const k3 = await t3.waitKari((v) => v.lateFault === true, 6000);
   const fault3 = (await t3.dock())?.fault || null;
-  row("B3", "tab open and PLAYING before the grant, icon path: injected without a reload; the player already owns its graph → dock says 'reload this page'", p3 && before3.world === false && a3 === "injected" && !!inj3 && !!d3 && !!k3 && k3.late === true && k3.lateFault === true && /reload this page/.test(fault3 || ""),
-    `playing ${p3} · before: world ${before3.world} · activate → ${a3} · ${inj3 || "no inject line"} · dock ${!!d3} · late ${k3 && k3.late} lateFault ${k3 && k3.lateFault} · fault "${fault3}"`);
+  row("B3", "tab open and PLAYING before the grant, icon path: injected without a reload; the dock is shown and says 'reload this page'", p3 && before3.world === false && a3 === "injected" && !!inj3 && !!d3 && d3.shown && !!k3 && k3.late === true && k3.lateFault === true && /reload this page/.test(fault3 || ""),
+    `playing ${p3} · before: world ${before3.world} · activate → ${a3} · ${inj3 || "no inject line"} · dock ${!!d3} shown ${d3 && d3.shown} · late ${k3 && k3.late} lateFault ${k3 && k3.lateFault} · fault "${fault3}"`);
 
   step("B4: reload that tab");
   await t3.page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});

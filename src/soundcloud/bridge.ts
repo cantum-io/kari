@@ -6,7 +6,7 @@ import type { AudioStatus } from "../content/audio/controller";
 import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, type Settings } from "../shared/storage";
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
 import { NS, accept, makeNonce, sanitizeStatus, EMPTY_STATUS, type HookStatus } from "./protocol";
-import { bar, barPlaying, waitForBar, onBarChange, currentTrackKey } from "./sc";
+import { bar, barPlaying, barShown, waitForBar, onBarChange, currentTrackKey } from "./sc";
 import { memoryId } from "./track-key";
 
 (() => {
@@ -110,11 +110,19 @@ import { memoryId } from "./track-key";
         level: () => level,
         optionsUrl: chrome.runtime.getURL("options.html"),
         site: "sc",
-        // A panel above the bar: the bar is ~48 px tall, the dock needs room to stand on it.
-        mountStyle: "position:absolute;left:0;right:0;bottom:100%;height:320px;pointer-events:none;z-index:60",
+        // A panel above the bar: the bar is ~48 px tall, the dock needs room to stand on it. Two parts are load-bearing
+        // (both found 2026-10-15 by measuring, after the dock had "mounted" and shown nothing): `top:auto`, because the
+        // dock's own :host rule sets inset:0 and with top:0 in force the browser drops bottom:100% and hangs the panel
+        // below the bar's top edge, off-screen; and `visibility:visible`, because SoundCloud's .playControls container is
+        // visibility:hidden (its __inner section re-shows itself) and the dock would inherit hidden.
+        mountStyle: "position:absolute;left:0;right:0;top:auto;bottom:100%;height:320px;visibility:visible;pointer-events:none;z-index:60",
       });
       setStatus(status);
-      onBarChange(host, () => { syncTrack("bar"); if (!host.contains(dock!.hostEl)) mount(); });
+      // The bar slides in with `m-visible` on .playControls (nothing queued = no bar); the dock follows it the way it
+      // follows YouTube's autohide, through the same hide switch.
+      const followBar = () => dock?.setControlsHidden(!barShown(host));
+      followBar();
+      onBarChange(host, () => { syncTrack("bar"); followBar(); if (!host.contains(dock!.hostEl)) mount(); });
       post({ type: "engine-pref", pref: settings.engine });
       // No hook within 3 s of the dock = the MAIN-world script never ran on this page (opened before the permission
       // was granted). Only a reload fixes that; say so, nothing else works without the element.

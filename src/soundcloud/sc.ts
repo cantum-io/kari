@@ -7,6 +7,9 @@ export const BADGE_LINK = ".playControls__soundBadge .playbackSoundBadge__titleL
 
 export const bar = () => document.querySelector(BAR) as HTMLElement | null;
 
+/** Is the bar on screen? SoundCloud keeps .playControls visibility:hidden and slides its inner section in with `m-visible`. */
+export const barShown = (host: Element | null = bar()) => !!host && host.classList.contains("m-visible");
+
 /** Is the bottom bar's play button in its playing state? (class list carries "playing" while a track plays; read, never clicked) */
 export const barPlaying = () => { const b = document.querySelector(".playControls__play"); return !!b && [...b.classList].some(c => /playing/.test(c)); };
 

@@ -4,6 +4,7 @@
 // field it reads (see sanitizeStatus) and never evaluates anything it receives.
 
 import type { LoopBeats, GridSource } from "../content/beat/grid"; // types only: Node runs the tests straight from this file
+import type { TempoPhase } from "../content/beat/detect";
 
 export const NS = "kari-sc";
 export type Dir = "b2h" | "h2b"; // bridge → hook, hook → bridge
@@ -20,11 +21,12 @@ export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | 
 export type HookStatus = {
   attached: boolean; engine: EngineName; engineLatencyMs: number; outputLatencyMs: number; avOffsetMs: number;
   underruns: number; load: number; fault: Fault; baseRate: number;
-  loop: LoopBeats | 0; loopMs: number; loopClamped: boolean; bpm: number | null; gridSource: GridSource | null; learning: boolean;
+  loop: LoopBeats | 0; loopMs: number; loopClamped: boolean; bpm: number | null; gridSource: GridSource | null; tempo: TempoPhase;
   route: Route; ctxState: string;
 };
 
-export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false, route: null, ctxState: "" };
+export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", route: null, ctxState: "" };
+const TEMPO_PHASES = new Set<TempoPhase>(["off", "idle", "gesture", "learning", "found", "none"]);
 
 /**
  * Beat-loop commands, bridge → hook as `{ type: "loop", ...command }`. The dock's buttons and the MIDI pads live in the
@@ -112,7 +114,7 @@ export function sanitizeStatus(x: unknown): HookStatus {
     loopClamped: s.loopClamped === true,
     bpm: isBpm(s.bpm) ? s.bpm : null,
     gridSource: GRID_SOURCES.has(s.gridSource as GridSource) ? (s.gridSource as GridSource) : null,
-    learning: s.learning === true,
+    tempo: TEMPO_PHASES.has(s.tempo as TempoPhase) ? (s.tempo as TempoPhase) : "idle",
     route,
     ctxState: typeof s.ctxState === "string" ? s.ctxState.slice(0, 16) : "",
   };

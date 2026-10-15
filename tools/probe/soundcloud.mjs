@@ -272,7 +272,7 @@ if (LOOP && played) {
     // 2. The in-house detector: the chain attaches on `playing`, the readout says "learning…", then "N bpm" (or "tap").
     const t0a = Date.now();
     L.auto = { first: await tempoRo(), verdict: null, ms: null, status: null };
-    const verdict = await until(async () => { const t = await tempoRo(); return t && t !== "learning…" && t !== "" ? t : null; }, 14000, 250);
+    const verdict = await until(async () => { const t = await tempoRo(); return t && /bpm|^tap$/.test(t) ? t : null; }, 14000, 250); // "play to learn" / "learning…" are not verdicts
     L.auto.verdict = verdict; L.auto.ms = verdict ? Date.now() - t0a : null; L.auto.status = await kariStatus();
     // 3. Tap tempo: five taps 500 ms apart = 120 bpm in media time at 1×. A tap overrides the detector's grid.
     for (let i = 0; i < 5; i++) { if (await inDock(ORG + '[data-a="tap"]', "click")) L.taps++; await page.waitForTimeout(500); }
@@ -340,7 +340,7 @@ else {
   if (loop) {
     const st = loop.status, sa = loop.statusAfter;
     row("loop: dock rows", `Full control ${loop.fullOff ? "off" : "ON"}, loop row ${loop.loopRowShown ? "shown" : "HIDDEN"}, pills disabled before a tempo ${JSON.stringify(loop.pillsBefore)}, MIDI group ${loop.midiGroupShown ? "shown" : "HIDDEN"}`);
-    if (loop.auto) row("loop: auto tempo", `readout "${loop.auto.first || ""}" → "${loop.auto.verdict || "(nothing within 14 s)"}"${loop.auto.ms ? ` after ${loop.auto.ms} ms` : ""}; status bpm ${loop.auto.status?.bpm ?? "null"}, grid ${loop.auto.status?.gridSource ?? "null"}, learning ${loop.auto.status?.learning}, attached ${loop.auto.status?.attached}`);
+    if (loop.auto) row("loop: auto tempo", `readout "${loop.auto.first || ""}" → "${loop.auto.verdict || "(nothing within 14 s)"}"${loop.auto.ms ? ` after ${loop.auto.ms} ms` : ""}; status bpm ${loop.auto.status?.bpm ?? "null"}, grid ${loop.auto.status?.gridSource ?? "null"}, tempo ${loop.auto.status?.tempo}, attached ${loop.auto.status?.attached}`);
     row("loop: tap", `${loop.taps} taps 500 ms apart → readout "${loop.bpmText || "(none)"}"`);
     row("loop: 1-bar latch", loop.loopInfo ? `dock "${loop.loopInfo}" ${loop.latchMs} ms after the click, 1 bar pill pressed ${loop.quarterPressed}` : "NOT latched");
     row("loop: __kari.status", st ? `loop ${st.loop}, loopMs ${st.loopMs}, bpm ${st.bpm}, grid ${st.gridSource}, engine ${st.engine}, attached ${st.attached}, route ${st.route}` : "none");

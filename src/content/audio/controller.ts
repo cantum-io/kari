@@ -4,7 +4,7 @@
 import { plan, type Params, DEFAULT_PARAMS } from "../../shared/math";
 import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../beat/grid";
 import { TapTempo } from "../beat/tap";
-import { AutoBeatDetector, type OnsetBatch, type DetectorState, type TempoEstimate } from "../beat/detect";
+import { AutoBeatDetector, tempoPhase, type OnsetBatch, type DetectorState, type TempoEstimate, type TempoPhase } from "../beat/detect";
 
 export type EngineName = "r3" | "ss" | "bypass";
 export type AudioStatus = {
@@ -22,7 +22,7 @@ export type AudioStatus = {
   loopClamped: boolean;      // the asked length exceeded the ring: the loop runs at the ring's ceiling
   bpm: number | null;        // the beat grid's bpm, null until detected, tapped or typed
   gridSource: BeatGrid["source"] | null;
-  learning: boolean;         // the tempo detector is listening and has no verdict yet
+  tempo: TempoPhase;         // what the tempo readout should say: idle (play to learn) · gesture (click to learn) · learning · found · none (tap) · off
 };
 
 /** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
@@ -70,7 +70,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle" };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -98,31 +98,43 @@ export class AudioController {
 
   constructor(private video: HTMLMediaElement, private urls: { worklet: string; wasm: string }, private ext: ExternalGraph | null = null) {
     this.detector.onGrid(g => this.onAutoGrid(g));
-    this.detector.onState(s => this.emit({ learning: s === "learning" }));
+    this.detector.onState(() => this.emitTempo());
     this.listen(video);
   }
   private listen(v: HTMLMediaElement) {
     v.addEventListener("ratechange", this.onRateChange);
     for (const t of AudioController.INTERRUPTS) v.addEventListener(t, this.onInterrupt);
     v.addEventListener("playing", this.onPlaying);
+    // Already playing when Kari arrives (a watch page whose video started before the content script ran at document_idle,
+    // a SoundCloud element wrapped mid-play, an SPA rebind onto a running element): `playing` fired before we listened
+    // and will not fire again until a pause or a seek, so treat the running element as that event (2026-10-15).
+    if (AudioController.isPlaying(v)) this.onPlaying();
   }
+  private static isPlaying(v: HTMLMediaElement) { return !v.paused && !v.ended && v.readyState >= 3; }
   private unlisten(v: HTMLMediaElement) {
     v.removeEventListener("ratechange", this.onRateChange);
     for (const t of AudioController.INTERRUPTS) v.removeEventListener(t, this.onInterrupt);
     v.removeEventListener("playing", this.onPlaying);
   }
   /** A loop has no track underneath to slip back into once the element stops or jumps: let go. A seek also empties the detector's window. */
-  private onInterrupt = (e: Event) => { if (this.loopBeats) this.releaseLoop(); if (e.type === "seeking" || e.type === "emptied") this.detector.reset(); };
+  private onInterrupt = (e: Event) => { if (this.loopBeats) this.releaseLoop(); if (e.type === "seeking" || e.type === "emptied") this.detector.reset(); this.emitTempo(); };
   /**
    * Playback started: attach now (a straight, delay-free wire) so the tempo detector hears the track from its first
    * beat. Not on a protected element (mediaKeys: the source would go silent) and not under an ad. On YouTube the
    * attach still waits for the page's first click (a context made without a gesture would mute the video).
    */
   private onPlaying = () => {
-    if (this.src || this.adActive || (this.video as any).mediaKeys) return;
+    if (this.src || this.adActive || (this.video as any).mediaKeys) { this.emitTempo(); return; }
     // attach, then the normal apply: it sets the engine (bypass on a neutral video) and the routing, exactly as the first change would
     this.attach().then(() => this.apply(this.params, true)).catch(() => { /* reported through status */ });
   };
+  /* ---- the tempo readout's phase (detect.ts tempoPhase): emitted whenever one of its inputs moves ---- */
+  private waitingGesture = false;   // YouTube: the chain waits for the page's first click before Chrome lets the context run
+  private phase(): TempoPhase {
+    const blocked = !!(this.video as any).mediaKeys || this._status.fault === "drm-silent";
+    return tempoPhase(this.detector.state, { muted: this.detector.isMuted, blocked, gesture: this.waitingGesture, heard: this.detector.heard > 0 });
+  }
+  private emitTempo() { const tempo = this.phase(); if (tempo !== this._status.tempo) this.emit({ tempo }); }
   get detectorState(): DetectorState { return this.detector.state; }
   get detectorDebug() { return this.detector.debug; }
   get lastEstimate(): TempoEstimate | null { return this.detector.last; }
@@ -133,7 +145,7 @@ export class AudioController {
   /** The element carries mediaKeys (DRM): say so and, in speed-only mode, keep the engine off this element. */
   noteDrm() {
     if (this._status.fault === "drm-silent") return;
-    this.emit({ fault: "drm-silent" });
+    this.emit({ fault: "drm-silent" }); this.emitTempo();
     if (this.ext?.speedOnlyOnDrm) this.apply(this.params, true);
   }
   private get speedOnly() { return !!this.ext?.speedOnlyOnDrm && this._status.fault === "drm-silent"; }
@@ -149,8 +161,8 @@ export class AudioController {
     this.unlisten(this.video);
     if (this.loopBeats) this.releaseLoop();
     this.video = video;
-    this.listen(video);
     this.detector.reset();
+    this.listen(video);   // after the reset: a running element attaches from here (see listen)
     // The old MediaElementSource belongs to the old element; if YouTube replaced the element we need a new graph.
     if (this.src) { try { this.src.disconnect(); } catch (_) { /* ignore */ } this.src = null; this.emit({ attached: false }); }
     this.apply(this.params, true);
@@ -197,7 +209,7 @@ export class AudioController {
     // A tap or a typed bpm owns the grid from then on: the detector stops publishing (and the worklet stops posting)
     // until the grid is cleared (a new track).
     this.detector.mute(!!g && g.source !== "auto"); this.syncOnset();
-    this.emit({ bpm: g ? g.bpm : null, gridSource: g ? g.source : null, learning: this.detector.state === "learning" });
+    this.emit({ bpm: g ? g.bpm : null, gridSource: g ? g.source : null, tempo: this.phase() });
     // A grid means loops are coming: attach now so the capture ring has history by the first latch (needs a prior click).
     if (g && !this.src) this.attach().catch(() => { /* reported through status */ });
   }
@@ -302,12 +314,39 @@ export class AudioController {
       window.addEventListener("pointerdown", done, true); window.addEventListener("keydown", done, true);
     });
   }
+  /**
+   * Does Chrome let this fresh context run now? It does after the page's first click, and without one on a site the
+   * profile listens to often (Chrome's media-engagement index: youtube.com qualifies for anyone who uses it), where the
+   * context starts on its own. A blocked context stays "suspended" and its resume() hangs until a gesture, so the answer
+   * is read within `ms` and a pending resume is left to resolve later (harmless: we resume again after activation).
+   */
+  private contextRunning(ctx: AudioContext, ms: number): Promise<boolean> {
+    if (ctx.state === "running") return Promise.resolve(true);
+    return new Promise<boolean>(res => {
+      let done = false;
+      const finish = (v: boolean) => { if (done) return; done = true; ctx.removeEventListener("statechange", onState); res(v); };
+      const onState = () => { if (ctx.state === "running") finish(true); };
+      ctx.addEventListener("statechange", onState);
+      ctx.resume().then(() => finish(true), () => finish(ctx.state === "running"));
+      setTimeout(() => finish((ctx.state as string) === "running"), ms);
+    });
+  }
   private async _attach() {
     const ext = this.ext;
-    if (!ext) await this.waitForActivation(); // external: the page's context already exists (route 0) or `playing` fired (route 1)
     if (this.src) return;
     try {
       const ctx = ext ? ext.ctx : new AudioContext({ latencyHint: "interactive" });
+      // YouTube (Kari's own context): wiring the video through a context Chrome keeps suspended would mute it. Until
+      // 2026-10-15 this always waited for the page's first click, and the readout said "tap" meanwhile; now the context
+      // is tried first (it runs without a click on a site Chrome trusts with media) and only a blocked one waits, with
+      // the readout saying "click to learn" while it does. External graphs (SoundCloud) already run: the page made them.
+      if (!ext && !(await this.contextRunning(ctx, 400))) {
+        this.waitingGesture = true; this.emitTempo();
+        await this.waitForActivation();
+        this.waitingGesture = false;
+        try { await ctx.resume(); } catch (_) { /* resumed below on the next gesture if this one did not take */ }
+        this.emitTempo();
+      }
       this.ctx = ctx;
       if (ext) await ext.loadWorklet(ctx); else await ctx.audioWorklet.addModule(this.urls.worklet);
       const wasmBytes = ext ? await ext.wasm() : await (await fetch(this.urls.wasm)).arrayBuffer();
@@ -339,8 +378,10 @@ export class AudioController {
       this.emit({ attached: true, outputLatencyMs: Math.round(((ctx as any).outputLatency || 0) * 1000) });
       this.watchSilence();
     } catch (err) {
+      this.waitingGesture = false;
       this.emit({ fault: "capture-failed", attached: false });
       this.src = null;
+      this.emitTempo();
     }
   }
 

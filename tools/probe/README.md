@@ -68,6 +68,8 @@ done with Playwright's mouse on the dock's own buttons (trusted input), and the 
 ```
 npm run build
 node tools/probe/tapfade.mjs https://www.youtube.com/watch?v=…   [--only ABC] [--stage ms] [--json] [--headed]
+                                                                  [--dump frames.json] [--pcm audio.pcm]
+node tools/probe/replay.mjs frames.json [--at seconds] [--bpm a,b] [--window s] [--odf sum|low|high] [--ioi]
 ```
 
 Phases, each from a fresh load (YouTube throttles the automation profile after ~15–45 s): **A** the stage — play from
@@ -76,6 +78,16 @@ the pointer — park the pointer still over the video, YouTube's own control bar
 panel's top edge, 5 s each, and watch `ytp-autohide` and the panel's visibility · **C** taps — five clicks on the Tap
 pill 500 ms apart, then a 4 s hold still on the pill, then five more clicks at the same spot: did they reach `tap()` or
 the player? Exit 0 = the panel held under the pointer and every click reached `tap()`.
+
+**Offline bench (2026-10-15, for the link-1 detector question).** `--dump` wraps `AutoBeatDetector.feed` in the
+isolated world and records every onset batch the worklet posts (the ODF and low-band frames, the batch's context time,
+both clocks as the detector read them, playing or not) plus every estimate the detector made; `--pcm` adds a
+ScriptProcessor on the controller's own source node and records what Kari hears (mono 16-bit at the context's rate,
+the rate in a `.json` sidecar). `replay.mjs` feeds a dump back through the real `AutoBeatDetector` in Node and prints
+every run next to what the page recorded (the replay reproduces the page's runs to the digit on both of Jesse's
+links), and `--at s` opens the window ending at media time `s`: the prior-free autocorrelation peaks, the best comb at
+every bpm with its P / E / empty teeth, the novelty's density and the inter-onset intervals. The method and the
+numbers: `docs/TEMPO-LINK1-2026-10-15.md`.
 
 ### Run: 2026-10-15 ~12:30 PT, 0.4.0 as shipped (f8b62bc), Chromium 153 headless, MacBook Air M4
 

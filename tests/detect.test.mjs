@@ -71,6 +71,17 @@ test("swung pattern (kick on the beat, hat at 2/3 of it) at 100 bpm: the beat, n
   assert.ok(e.confidence >= MIN_CONFIDENCE);
 });
 
+test("a 50 Hz tremolo (energy up and down every frame) is not an onset train: the rise is read over 30 ms, so the flicker sums to nothing", () => {
+  // 2026-10-15, V3bLpIXaFp8: a dense mix whose bands flicker frame to frame posted ~12 onsets a second and never
+  // committed. Pink noise amplitude-modulated at 50 Hz is that flicker in its purest form: one period is two hops.
+  const meanOdf = (x) => { const of = new OnsetFeature(SR), L = new Float32Array(Q), odf = []; for (let i = 0; i < x.length; i += Q) { L.set(x.subarray(i, i + Q)); const b = of.push([L], Q, i); if (b) odf.push(...b.odf); } const tail = odf.slice(100); return tail.reduce((a, v) => a + v, 0) / tail.length; };
+  const plain = pink(SR * 8, 31, 0.08), x = plain.slice(); for (let i = 0; i < x.length; i++) x[i] *= 1 + 0.9 * Math.sin(2 * Math.PI * 50 * i / SR);
+  const m0 = meanOdf(plain), m1 = meanOdf(x);
+  assert.ok(m1 < 2 * m0, `mean onset strength ${m1.toFixed(2)} under the tremolo vs ${m0.toFixed(2)} without it (the previous-frame difference read the tremolo at 5.5× the plain noise)`);
+  const e = analyze(x);
+  assert.ok(!e || e.confidence < MIN_CONFIDENCE, `confidence ${e?.confidence.toFixed(2)} at ${e?.bpm.toFixed(1)} bpm`);
+});
+
 test("pink noise: never confident; silence: nothing at all", () => {
   for (const seed of [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]) {
     const e = analyze(pink(SR * 8, seed));

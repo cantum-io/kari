@@ -4,9 +4,13 @@
 //
 // Three pieces, front to back:
 //   OnsetFeature     audio thread (the worklet imports it). Mono mix → four first-order bands (<150 Hz, 150–1000,
-//                    1–4 kHz, >4 kHz) → per-hop log energies → half-wave-rectified difference summed over the bands =
-//                    onset strength at 100 frames/s (hop = sampleRate/100). The low band is kept on its own for the
-//                    bar "1". Ten frames make a batch the worklet posts with the context time of its first frame.
+//                    1–4 kHz, >4 kHz) → per-hop log energies → half-wave-rectified rise over the loudest of the last
+//                    FLUX_MEMORY frames, summed over the bands = onset strength at 100 frames/s (hop = sampleRate/100).
+//                    The rise is measured against a 30 ms memory, not the previous frame alone, so a band that flickers
+//                    up and down every frame (a dense mix: V3bLpIXaFp8, 2026-10-15) does not post a rise each time it
+//                    comes back up, while a real onset — a rise after a trough — is unchanged (SuperFlux's trick, along
+//                    time). The low band is kept on its own for the bar "1". Ten frames make a batch the worklet posts
+//                    with the context time of its first frame.
 //   TempoTracker     main thread (the controller's world: the content script on YouTube, the MAIN-world hook on
 //                    SoundCloud). A 6 s window of frames in media time. Novelty = strength minus its 0.5 s moving mean,
 //                    rectified, scaled so its peaks sit near 1. Autocorrelation over 60–200 bpm picks period candidates
@@ -40,6 +44,8 @@ export const ONSET_HZ = 100;      // frames per second
 export const ONSET_BATCH = 10;    // frames per posted batch (100 ms)
 const BAND_HZ = [150, 1000, 4000];
 const LOG_GAIN = 1000;            // log1p(LOG_GAIN · meanSquare): −60 dBFS → 0.001, 0 dBFS → 6.9
+export const FLUX_MEMORY = 3;     // frames a rise is measured against (30 ms): 1 = the previous frame alone (0.4.0), which
+                                  // read a dense mix's frame-to-frame flicker as 12 onsets a second and never committed
 
 export type OnsetBatch = { type: "onset"; t: number; hop: number; odf: Float32Array; low: Float32Array; rms: number };
 
@@ -47,7 +53,8 @@ export class OnsetFeature {
   readonly hop: number; readonly hopSec: number;
   private a: Float64Array; private y = new Float64Array(3);
   private e = new Float64Array(5);                 // four band energies + the broadband sum, accumulating over the hop
-  private prev = new Float64Array(4);              // last hop's log band energies
+  private prev = new Float64Array(4 * FLUX_MEMORY); // the last FLUX_MEMORY hops' log band energies, band-major ring
+  private n = 0;                                   // hops so far (the ring's write slot is n % FLUX_MEMORY)
   private i = 0;                                   // samples into the current hop
   private k = 0;                                   // frames into the current batch
   private odf: Float32Array; private low: Float32Array; private ms = 0;
@@ -75,7 +82,13 @@ export class OnsetFeature {
       if (++this.i === hop) {
         this.i = 0;
         let sum = 0, lo = 0;
-        for (let b = 0; b < 4; b++) { const l = Math.log1p(LOG_GAIN * e[b] / hop); const d = l - this.prev[b]; this.prev[b] = l; if (d > 0) { sum += d; if (b === 0) lo = d; } e[b] = 0; }
+        const slot = this.n++ % FLUX_MEMORY, prev = this.prev;
+        for (let b = 0; b < 4; b++) {
+          const l = Math.log1p(LOG_GAIN * e[b] / hop); e[b] = 0;
+          let m = prev[b * FLUX_MEMORY]; for (let j = 1; j < FLUX_MEMORY; j++) if (prev[b * FLUX_MEMORY + j] > m) m = prev[b * FLUX_MEMORY + j];
+          prev[b * FLUX_MEMORY + slot] = l;
+          const d = l - m; if (d > 0) { sum += d; if (b === 0) lo = d; }
+        }
         this.ms += e[4] / hop; e[4] = 0;
         this.odf[this.k] = sum; this.low[this.k] = lo;
         if (++this.k === this.odf.length) {
@@ -86,7 +99,7 @@ export class OnsetFeature {
     }
     return out;
   }
-  reset() { this.y.fill(0); this.e.fill(0); this.prev.fill(0); this.i = 0; this.k = 0; this.ms = 0; }
+  reset() { this.y.fill(0); this.e.fill(0); this.prev.fill(0); this.n = 0; this.i = 0; this.k = 0; this.ms = 0; }
 }
 
 /* ------------------------------------------------------------------ period, phase and the "1" (main thread) */

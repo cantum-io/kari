@@ -6,10 +6,15 @@
 // `[kari]` console lines.
 //
 //   npm run build
-//   node tools/probe/tapfade.mjs [watch url] [--json] [--headed] [--ext dir] [--stage ms]
+//   node tools/probe/tapfade.mjs [watch url] [--json] [--headed] [--ext dir] [--stage ms] [--dump file.json] [--pcm file.pcm]
 //
 // Phases (each from a fresh load; YouTube throttles the automation profile after ~15–45 s of playback):
 //   A  stage: play from page script, sample the tempo readout + detector state every second until a bpm or `--stage` ms.
+//      `--dump file.json` also records every onset batch the worklet posts (the ODF and low-band frames, the batch's
+//      context time, both clocks as the detector read them) and every estimate the detector made, so the tracker can
+//      be re-run offline in Node (`tools/probe/replay.mjs`). `--pcm file.pcm` also records what Kari hears during the
+//      stage (a ScriptProcessor on the controller's own source node: mono 16-bit little-endian at the context's rate,
+//      the rate in a `.json` sidecar), so front-end variants can be tried on the same audio.
 //   B  idle under the pointer: park the pointer still (1) over the video centre, (2) over YouTube's own control bar,
 //      (3) over Kari's Tap pill, (4) over Kari's blob; sample `ytp-autohide` + the panel's computed visibility for 5 s each.
 //   C  taps: pointer on the Tap pill, 5 clicks 500 ms apart (per click: what AudioController.tap returned, the tapper's
@@ -31,6 +36,7 @@ const JSON_OUT = flag("--json"), HEADED = flag("--headed");
 const EXT = path.resolve(opt("--ext", path.join(here, "../../extension")));
 const STAGE = +opt("--stage", 20000);
 const ONLY = opt("--only", "ABC").toUpperCase();
+const DUMP = opt("--dump", ""), PCM = opt("--pcm", "");
 const die = (code, msg) => { console.error(msg); process.exit(code); };
 if (!fs.existsSync(path.join(EXT, "manifest.json"))) die(2, `no build at ${EXT}: npm run build`);
 
@@ -92,6 +98,22 @@ async function load() {
 /** Install a log around AudioController.tap in the isolated world: every call the dock makes is recorded with its answer. */
 const hookTap = () => iso("(() => { const a = globalThis.__kari && globalThis.__kari.audio; if (!a || a.__tapHooked) return !!a; const orig = a.tap.bind(a); globalThis.__taplog = []; a.tap = () => { const before = a.grid ? { ...a.grid } : null; const r = orig(); globalThis.__taplog.push({ at: performance.now(), ret: r, taps: a.tapper.taps.slice(), media: +a.video.currentTime.toFixed(3), paused: a.video.paused, rate: a.video.playbackRate, gridBefore: before, gridAfter: a.grid ? { ...a.grid } : null, loop: a.loopBeats, detectorMuted: a.detector.isMuted, detectorState: a.detector.state }); return r; }; a.__tapHooked = true; return true; })()");
 const tapLog = () => iso("JSON.stringify(globalThis.__taplog || [])").then((s) => (s ? JSON.parse(s) : []));
+/** Record every onset batch the detector is fed (with both clocks as it reads them) and every estimate it makes. */
+const hookOnset = () => iso("(() => { const a = globalThis.__kari && globalThis.__kari.audio; if (!a || !a.detector) return false; if (a.__onsetHooked) return true; const d = a.detector, orig = d.feed.bind(d); globalThis.__onsetlog = { batches: [], runs: [] }; d.feed = (m) => { const v = a.video, c = a.ctx; const runs = d.debug.runs; globalThis.__onsetlog.batches.push({ t: m.t, hop: m.hop, odf: Array.from(m.odf), low: Array.from(m.low), rms: m.rms, media: v.currentTime, ctx: c ? c.currentTime : 0, rate: v.playbackRate || 1, playing: !v.paused && !v.ended && v.readyState >= 3 && !a.adActive, listening: d.listening }); const r = orig(m); if (d.debug.runs !== runs) globalThis.__onsetlog.runs.push({ batch: globalThis.__onsetlog.batches.length, played: d.debug.played, state: d.state, est: d.last }); return r; }; a.__onsetHooked = true; return true; })()");
+const onsetLog = () => iso("JSON.stringify(globalThis.__onsetlog || null)").then((s) => (s ? JSON.parse(s) : null));
+/** Record the controller's source (what the worklet hears) as mono Int16 through a ScriptProcessor that outputs silence. */
+const hookPcm = () => iso("(() => { const a = globalThis.__kari && globalThis.__kari.audio; if (!a || !a.ctx || !a.src) return false; if (a.__pcmHooked) return true; const ctx = a.ctx, sp = ctx.createScriptProcessor(4096, 2, 1); globalThis.__pcm = { rate: ctx.sampleRate, chunks: [], t0: ctx.currentTime }; sp.onaudioprocess = (e) => { const L = e.inputBuffer.getChannelData(0), R = e.inputBuffer.numberOfChannels > 1 ? e.inputBuffer.getChannelData(1) : L; const o = new Int16Array(L.length); for (let i = 0; i < L.length; i++) { const v = 0.5 * (L[i] + R[i]); o[i] = Math.max(-32768, Math.min(32767, Math.round(v * 32767))); } globalThis.__pcm.chunks.push(o); e.outputBuffer.getChannelData(0).fill(0); }; a.src.connect(sp); sp.connect(ctx.destination); a.__pcmHooked = true; return true; })()");
+const pcmInfo = () => iso("(() => { const p = globalThis.__pcm; if (!p) return null; return JSON.stringify({ rate: p.rate, t0: p.t0, samples: p.chunks.reduce((n, c) => n + c.length, 0) }); })()").then((s) => (s ? JSON.parse(s) : null));
+/** Pull the recording in 1 M-sample slices, base64 of the Int16 bytes. */
+async function pullPcm() {
+  const info = await pcmInfo(); if (!info) return null;
+  const parts = []; const SL = 1 << 20;
+  for (let from = 0; from < info.samples; from += SL) {
+    const b64 = await iso(`(() => { const p = globalThis.__pcm; const all = new Int16Array(${Math.min(SL, info.samples - from)}); let n = 0, skip = ${from}; for (const c of p.chunks) { if (skip >= c.length) { skip -= c.length; continue; } const s = c.subarray(skip, Math.min(c.length, skip + all.length - n)); all.set(s, n); n += s.length; skip = 0; if (n >= all.length) break; } let str = ""; const u8 = new Uint8Array(all.buffer, 0, n * 2); for (let i = 0; i < u8.length; i += 0x8000) str += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(str); })()`);
+    if (!b64) return null; parts.push(Buffer.from(b64, "base64"));
+  }
+  return { ...info, buf: Buffer.concat(parts) };
+}
 /** Full control on, through the dock's own toggle (a real click). */
 async function fullControlOn() {
   const on = await page.evaluate((ORG) => { const sr = document.querySelector("#kari-dock").shadowRoot; return sr.querySelector(ORG + '[data-a="full"]').getAttribute("aria-pressed") === "true"; }, ORG);
@@ -107,14 +129,30 @@ async function fullControlOn() {
 
 /* ---------------- A. stage: when the bpm appears */
 if (ONLY.includes("A")) { await load();
+  let hooked = false;
+  if (DUMP) { for (let i = 0; i < 50 && !hooked; i++) { hooked = !!(await hookOnset()); if (!hooked) await sleep(100); } lines.push(`${stamp()} harness: onset hook ${hooked ? "installed" : "NOT installed (no controller in 5 s)"}`); }
+  let pcmOn = false;
+  if (PCM) { for (let i = 0; i < 100 && !pcmOn; i++) { pcmOn = !!(await hookPcm()); if (!pcmOn) await sleep(100); } lines.push(`${stamp()} harness: pcm recorder ${pcmOn ? "on" : "NOT on (no source in 10 s)"}`); }
   const timeline = []; const end = Date.now() + STAGE; let found = null; const tA = Date.now();
   while (Date.now() < end) {
+    if (DUMP && !hooked) hooked = !!(await hookOnset());
+    if (PCM && !pcmOn) pcmOn = !!(await hookPcm());
     const s = { at: stamp(), ms: Date.now() - tA, readout: await readout(), kari: await kari(), video: await page.evaluate(() => { const v = document.querySelector("#movie_player video"); return v ? { paused: v.paused, t: +v.currentTime.toFixed(1), rs: v.readyState } : null; }) };
     timeline.push(s);
     if (s.readout && /bpm/.test(s.readout.text)) { found = s; break; }
     await sleep(1000);
   }
   report.phases.stage = { found: found ? { ms: found.ms, text: found.readout.text, bpm: found.kari && found.kari.bpm, est: found.kari && found.kari.dbg } : null, timeline };
+  if (DUMP) {
+    const log = await onsetLog();
+    if (log) { fs.writeFileSync(DUMP, JSON.stringify({ url, ext: EXT, at: new Date().toISOString(), stageMs: STAGE, found: report.phases.stage.found, ...log })); lines.push(`${stamp()} harness: dumped ${log.batches.length} onset batches, ${log.runs.length} detector runs → ${DUMP}`); }
+    else lines.push(`${stamp()} harness: no onset log to dump`);
+  }
+  if (PCM) {
+    const rec = await pullPcm();
+    if (rec) { fs.writeFileSync(PCM, rec.buf); fs.writeFileSync(PCM + ".json", JSON.stringify({ url, rate: rec.rate, t0: rec.t0, samples: rec.samples, format: "int16le mono" })); lines.push(`${stamp()} harness: recorded ${(rec.samples / rec.rate).toFixed(1)} s at ${rec.rate} Hz → ${PCM}`); }
+    else lines.push(`${stamp()} harness: no pcm to write`);
+  }
   row("A stage: a bpm on its own", found ? true : null, found ? `"${found.readout.text}" ${(found.ms / 1000).toFixed(1)} s after play(); detector ${JSON.stringify(found.kari && found.kari.dbg && { fed: found.kari.dbg.fed, played: found.kari.dbg.played, runs: found.kari.dbg.runs, conf: +found.kari.dbg.lastConf.toFixed(2) })}` : `no bpm in ${STAGE / 1000} s; last readout ${JSON.stringify(timeline[timeline.length - 1]?.readout)} detector ${JSON.stringify(timeline[timeline.length - 1]?.kari?.dbg)} last estimate ${JSON.stringify(timeline[timeline.length - 1]?.kari?.est)}`);
 }
 

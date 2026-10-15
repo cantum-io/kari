@@ -110,3 +110,35 @@ played, late 10-14 to 00:08 PT 10-15, gave −22.5 to −23.2 dBFS with no silen
 against a scratch build that registered today's `content.js` as `soundcloud.js`: it found the world and reported
 "__kari present, audio not created" (that script only attaches on YouTube). The dock and `[kari]` line readers have
 not seen a positive case yet; the hook's first run is their test.
+
+## SoundCloud grant (`sc-grant.mjs`)
+
+How Kari gets onto soundcloud.com, on the **production** build, and the two orders that used to leave a blank page:
+a tab opened before the grant, and Kari arriving after SoundCloud built its graph. Written 2026-10-15 after the
+first live load showed nothing on SoundCloud (the permission had never been granted; `docs/LIVE-PROBE.md`,
+"If nothing appears on SoundCloud").
+
+```
+npm run build
+node tools/probe/sc-grant.mjs [--track https://soundcloud.com/lofilion/cave] [--headed] [--json] [--verbose]
+```
+
+Phase A loads `extension/` as shipped (soundcloud.com optional, nothing static) in a fresh headless Chromium:
+install state and Chrome's own error list for the extension, the options page by direct URL and by
+`openOptionsPage`, what a mistyped id looks like (`ERR_BLOCKED_BY_CLIENT`), the toolbar action's logic
+(`__kari.soundcloud.activate` on the service-worker global — the request is reached and refused for want of a
+gesture), a SoundCloud tab before any grant, and YouTube (pitch +1 → R3, no wasm error). Phase B copies the build with
+`https://soundcloud.com/*` moved into `host_permissions` — the state right after a user's Allow — and still no static
+scripts, so `src/background/soundcloud.ts` runs exactly as shipped: install registers both scripts; a fresh tab
+attaches on route 0; a tab open and **playing** before the grant gets the scripts injected on the icon's path and
+the dock says "reload this page"; a tab open and **idle** before the grant gets injected and the dock is up at
+once, but SoundCloud builds its graph at hydration (one `createMediaElementSource` 6.5 s after load, before any
+click, measured 2026-10-15), so on play the same notice shows — only a tab that has not hydrated yet attaches
+without a reload; the second click answers "present" (ping), nothing injected twice.
+
+What automation cannot do is click Chrome's permission bubble: rows H1–H3 (the Allow via icon or switch, the revoke,
+the grant arriving while the worker is asleep) are printed as checks for a human, not counted.
+`chrome.developerPrivate.addHostPermission` was tried as a proxy: it returns ok and grants nothing for an optional
+host. Pre-seeding `granted_permissions` in the profile's Secure Preferences is reset by Chrome's pref-hash check,
+and `--load-extension` re-installs on every launch anyway. Exit `0` every automated row passed · `1` a row failed ·
+`2` setup failed.

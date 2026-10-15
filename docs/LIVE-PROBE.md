@@ -139,3 +139,92 @@ Read-back for any row: `__kari.status` plus the console, never the dock alone (t
   preceding rate write; the fix is in `src/soundcloud/hook-core.ts` (rate guard).
 - Silence with R3 active on a free track: run `npm run check:soundcloud` first, then read
   `docs/SOUNDCLOUD-GRAPH-2026-10-14.md` § "What would break route 0".
+
+## If nothing appears on SoundCloud
+
+Diagnosed 2026-10-15, 01:00–02:30 PT, from Jesse's Chrome 153 profile on disk (read-only), a fresh-profile
+reproduction in Chromium 153, and the grant probe `tools/probe/sc-grant.mjs`. Branch `claude/sc-noshow-e10a4a`.
+
+**What happened.** The live profile that night was Chrome's "Profile 16" (jesse@wdconstructions.com, managed), not
+"Default" (that is the amaixamai@gmail.com profile — the YouTube account — also named "Jesse"). In Profile 16 the
+unpacked Kari (`nljfopkjcihikbhbjfbggdemilelmokh`, which is exactly the id Chrome derives from
+`…/~:Projects:kari/kari/extension`) was installed at 00:45:47 PT, enabled, its service worker had run, and its
+granted hosts were `*://www.youtube.com/*` only. Chrome's dynamic-script store held no Kari entry. So the SoundCloud
+permission had never been granted, the scripts had never been registered, and nothing could appear: the build was
+fine, the switch was never reached.
+
+**What was not the cause.** No policy: no `/Library/Managed Preferences`, no `ExtensionSettings`,
+`ExtensionInstallBlocklist`, `URLBlocklist`, `runtime_blocked_hosts` or `DeveloperToolsAvailability` anywhere on disk
+(Local State, every profile's Preferences and Secure Preferences, the managed profiles' `Policy/User Policy` cache,
+which holds only an Android Play Store setting). The `ERR_BLOCKED_BY_CLIENT` on the options URL was a mistyped id:
+the hand-off carried a 31-character id (`…cihk…`; the real one is `…cihik…`), and Chromium answers exactly
+`ERR_BLOCKED_BY_CLIENT` for any id it does not have — with the right id the page loads (probe row A2). The one entry
+on the card's Errors page ("Unsafe attempt to load URL …/rubberband.wasm from frame … youtube.com/watch…", stack
+`content.js _attach`) is real but harmless: CDP on a fresh profile shows exactly one request for `rubberband.wasm`,
+initiator `_attach@content.js`, **finished with HTTP 200**, while Blink prints that line for it; the engine then runs
+(R3 in 50–61 ms in every run, store 0.1.1 and this build alike). It is nondeterministic — four runs of this build:
+two with the line, two without; the exact folder Jesse loaded (`main` 202ed3b, `~:Projects:kari/kari/extension`) with
+the line; the store 0.1.1 files once without. Not caused by the SoundCloud work (the variant with the SoundCloud
+pattern removed from `web_accessible_resources` logs it too) and not a block: Chrome records every console error of
+an unpacked extension on the card, which is why it showed. Open, low priority: why Blink's display-isolation check
+logs for a content-script fetch that the browser then allows (`tools/probe/sc-grant.mjs` row A5 lists the line as
+"benign present/absent" and fails only on the engine).
+
+**What changed (the grant no longer depends on the options page).** `src/background/soundcloud.ts` (new, unit-tested
+in `tests/background.test.mjs`) and `src/background/sw.ts`: clicking Kari's toolbar icon on a soundcloud.com tab calls
+`chrome.permissions.request` inside that click's gesture, registers the two scripts, and injects them into that tab
+with `chrome.scripting.executeScript` (hook in MAIN, then bridge in ISOLATED), so the dock is there at once and a tab
+that has not hydrated yet attaches without a reload; the manifest gains `activeTab` (no warning, no re-consent) so the click can see the tab's
+URL before the host is granted. A grant from the options switch now also injects into every open SoundCloud tab
+(`permissions.onAdded` → `injectOpenTabs`). The bridge answers `kari:ping` (so a tab is injected once) and refuses to
+run twice on a page. SoundCloud builds its graph at hydration — one `createMediaElementSource` 6.5 s after load,
+before any click (measured with an outermost observer, 2026-10-15) — so in a tab that had finished loading the hook
+reports `late`, and the dock shows "reload this page once — Kari arrived after SoundCloud set up its player" while
+the bar is playing and nothing is wrapped (fault `late`); a source event clears it. One reload of an already-open
+SoundCloud tab is therefore expected after the grant, and the page now says so instead of showing nothing.
+The service worker also logs every outcome of the icon (`[kari] action <result> <url>`). The icon on YouTube, on a SoundCloud tab where Kari already runs, and
+after a refused prompt still opens the settings, as before.
+
+**The three things to check, in order, in Jesse's Chrome:**
+
+1. `chrome://extensions`: Developer mode on; the Kari card from `…/kari/extension` is **on** (toggle blue), and the
+   store copy ("Kari — pitch & speed for music", id `lgadafn…`) is **off** in the *same* profile — check the profile
+   avatar at the top right first; the YouTube account (amaixamai) and the WDC account are different profiles with
+   their own extension lists. Click **Reload** on the card after any rebuild. The Errors button lists runtime errors
+   if any; the only expected service-worker line is `[kari] soundcloud scripts unregistered (installed)` until the
+   grant.
+2. Open any soundcloud.com page and click Kari's toolbar icon (pin it from the puzzle menu if it is hidden). Chrome's
+   bubble asks for soundcloud.com → **Allow**. The dock appears above the bottom bar; a tab that was already open says
+   "reload this page once" when you play — reload it once. (The options switch, settings → Sites → SoundCloud, is the same
+   grant by another route.)
+3. The service-worker console (card → "service worker", or "Inspect views" → sw.js): expect
+   `[kari] soundcloud scripts registered (action click)` then `[kari] soundcloud scripts injected into tab N`; from the
+   switch: `registered (permission added)` instead. `unregistered (…)` means the permission is not granted;
+   `permission request failed … user gesture` means the request ran outside a click (it cannot, from the icon); a
+   missing line means the click never reached the worker (wrong profile, card off, or a popup extension stealing the
+   action — Kari has none).
+
+**Probe results (`node tools/probe/sc-grant.mjs`, Chromium 153 headless, "Cave" by LOFI LION, 2026-10-15).**
+Phase A is the production build; phase B the same build with soundcloud.com in `host_permissions` (the state after
+Allow) and still no static scripts, so the worker's registration and injection paths run as shipped.
+
+| # | Check | Result |
+|---|---|---|
+| A1 | Production build loads: enabled, no runtime or manifest errors, SW line `unregistered (installed)`, nothing registered | **PASS.** ENABLED, UNPACKED, errors `[]`, granted false, scripts `[]`. |
+| A2 | Options page by direct URL and by `openOptionsPage`; a 31-char id → `ERR_BLOCKED_BY_CLIENT` | **PASS.** direct 200 "Kari settings"; `openOptionsPage` opened `…/options.html`; the 31-char id → `net::ERR_BLOCKED_BY_CLIENT`. |
+| A3 | Action logic: YouTube tab → settings as before; SoundCloud tab → `permissions.request` reached (refused outside a gesture) | **PASS.** youtube → not-soundcloud; soundcloud → denied with `[kari] soundcloud permission request failed … must be called during a user gesture`. |
+| A4 | SoundCloud tab before any grant: no isolated world, no dock, page plays untouched | **PASS.** playing, no isolated world, no dock. |
+| A5 | YouTube on this build: pitch +1 → R3; the known benign "Unsafe attempt … rubberband.wasm" line listed, never a block | **PASS.** engine r3 after 51 ms, attached, dock up; the benign line present in this run (request finished 200). |
+| B1 | Host granted: install registers hook (MAIN) + bridge (ISOLATED), SW line `registered (installed)` | **PASS.** `registered (installed)`; `kari-sc-hook:MAIN`, `kari-sc-bridge:ISOLATED`. |
+| B2 | Fresh tab: hook at document_start (not late), dock in the bar, route 0 after play, no fault | **PASS.** dock in `.playControls`, hookReady, late false, route 0, ctx running, no fault. |
+| B3 | Tab open and **playing** before the grant, icon path: injected without a reload, dock says "reload this page" | **PASS.** `injected into tab N`; dock up; late true, lateFault true; fault "reload this page once — Kari arrived after SoundCloud set up its player". |
+| B4 | After that reload: hook ready, not late, no notice | **PASS.** hookReady, late false, no notice. |
+| B5 | Tab open and **idle** before the grant, icon path: injected, dock up at once; on play the graph predates the hook (built at hydration) → "reload this page" | **PASS.** injected (late), dock up; after play: route null, the same notice (graph built at hydration, before the injection). |
+| B6 | Icon again on the same tab → "present", nothing injected twice | **PASS.** activate → present. |
+| H1 | The bubble's Allow from the icon (then `registered (action click)` + `injected into tab N`, dock up) | UNVERIFIED — needs Jesse's click |
+| H2 | Revoke from the switch → `unregistered (permission removed)`, new SoundCloud tab shows no dock, YouTube unaffected | UNVERIFIED — needs Jesse's click |
+| H3 | Grant while the worker is Inactive → it starts and logs `registered (permission added)` (Chrome lists `permissions.onAdded` under the extension's `serviceworkerevents` in Profile 16's prefs, which is how it wakes a worker) | UNVERIFIED — needs Jesse's click |
+
+What automation cannot do is click Chrome's permission bubble. `chrome.developerPrivate.addHostPermission` returns ok
+and grants nothing for an optional host; a `granted_permissions` entry seeded into Secure Preferences is reset by
+Chrome's pref-hash check; `--load-extension` re-installs on every launch. Row S2 above is superseded by B3/B5.

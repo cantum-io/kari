@@ -24,8 +24,8 @@ export type DockDeps = {
 };
 
 const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
-  yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
-  sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
+  yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page so Kari can reach the player" },
+  sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page once — Kari arrived after SoundCloud set up its player" },
 };
 const LOOP_ACTION: Record<string, MidiAction> = { "0.25": "loop-q", "0.5": "loop-h", "1": "loop-1", off: "release", tap: "tap" };
 

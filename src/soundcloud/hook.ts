@@ -13,6 +13,7 @@ import type { Params } from "../shared/math";
   Object.defineProperty(window, mark, { value: true, enumerable: false, configurable: false, writable: false });
 
   const origin = location.origin;
+  const late = document.readyState !== "loading"; // injected by the service worker into an open page, not run at document_start
   let nonce: string | null = null;
   const post = (m: Record<string, unknown>, transfer?: Transferable[]) => {
     try { window.postMessage({ ns: NS, dir: "h2b", nonce, ...m }, origin, transfer || []); } catch (_) { /* detached window */ }
@@ -89,7 +90,7 @@ import type { Params } from "../shared/math";
     const d = accept(e, window, origin, "b2h", nonce);
     if (!d) return;
     switch (d.type) {
-      case "init": if (!nonce && typeof d.nonce === "string" && d.nonce.length >= 16) { nonce = d.nonce; post({ type: "ready", units: hook.units().length }); } return;
+      case "init": if (!nonce && typeof d.nonce === "string" && d.nonce.length >= 16) { nonce = d.nonce; post({ type: "ready", units: hook.units().length, late }); } return;
       case "engine": {
         if (engine) return;
         const wasm = d.wasm, url = d.workletUrl;

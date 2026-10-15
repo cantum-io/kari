@@ -15,7 +15,7 @@ export type AudioStatus = {
   avOffsetMs: number;        // sound behind picture, total
   underruns: number;
   load: number;              // 0..1 of the audio budget
-  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing";
+  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late";
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
   loop: LoopBeats | 0;       // latched loop length in beats, 0 = none
   loopMs: number;            // its length in real-time ms

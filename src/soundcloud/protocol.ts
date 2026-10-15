@@ -8,7 +8,7 @@ export type Dir = "b2h" | "h2b"; // bridge → hook, hook → bridge
 
 export type Route = 0 | 1 | "late" | null;
 export type EngineName = "r3" | "ss" | "bypass";
-export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing";
+export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late";
 
 /** What the hook reports about the audio chain. Same shape the dock consumes on YouTube, plus route and context state. */
 export type HookStatus = {
@@ -42,7 +42,7 @@ export function accept(e: { source: unknown; origin: string; data: unknown }, wi
 }
 
 const ENGINES = new Set<EngineName>(["r3", "ss", "bypass"]);
-const FAULTS = new Set<Fault>([null, "drm-silent", "capture-failed", "worklet-failed", "hook-missing"]);
+const FAULTS = new Set<Fault>([null, "drm-silent", "capture-failed", "worklet-failed", "hook-missing", "late"]);
 const num = (x: unknown, lo: number, hi: number, d = 0) => (typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d);
 
 /** Rebuild a HookStatus from untrusted input: every field typed, every number clamped, every enum checked. */

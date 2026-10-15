@@ -7,6 +7,9 @@ export const BADGE_LINK = ".playControls__soundBadge .playbackSoundBadge__titleL
 
 export const bar = () => document.querySelector(BAR) as HTMLElement | null;
 
+/** Is the bottom bar's play button in its playing state? (class list carries "playing" while a track plays; read, never clicked) */
+export const barPlaying = () => { const b = document.querySelector(".playControls__play"); return !!b && [...b.classList].some(c => /playing/.test(c)); };
+
 /** The playing track's key from the sound badge in the bottom bar, or null when no badge is up. */
 export function currentTrackKey(): string | null {
   const a = document.querySelector(BADGE_LINK) as HTMLAnchorElement | null;

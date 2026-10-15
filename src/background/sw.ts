@@ -1,46 +1,36 @@
-// Kari — service worker. Defaults on install, action opens options, keyboard commands → active tab, and the
-// SoundCloud scripts: registered only while the optional host permission is granted (never static content_scripts,
-// which would count as a required host and disable Kari for existing users until they accept).
+// Kari — service worker. Defaults on install, keyboard commands → active tab, the toolbar action, and the SoundCloud
+// scripts: registered only while the optional host permission is granted (never static content_scripts, which would
+// count as a required host and disable Kari for existing users until they accept). The SoundCloud logic lives in
+// ./soundcloud.ts so tests can run it with fakes.
 import { loadSettings, saveSettings } from "../shared/storage";
+import { makeSoundCloud, SC_MATCH } from "./soundcloud";
 
-const SC_MATCH = "https://soundcloud.com/*";
-const SC_SCRIPTS: chrome.scripting.RegisteredContentScript[] = [
-  { id: "kari-sc-hook", js: ["sc-hook.js"], matches: [SC_MATCH], runAt: "document_start", world: "MAIN", allFrames: false, persistAcrossSessions: true },
-  { id: "kari-sc-bridge", js: ["sc-bridge.js"], matches: [SC_MATCH], runAt: "document_start", world: "ISOLATED", allFrames: false, persistAcrossSessions: true },
-];
-
-let syncing: Promise<void> = Promise.resolve();
-/** Make the registered scripts match the permission state. Serialised: concurrent events must not race the registry. */
-function syncSoundCloud(why: string) {
-  syncing = syncing.then(async () => {
-    try {
-      const granted = await chrome.permissions.contains({ origins: [SC_MATCH] });
-      const have = await chrome.scripting.getRegisteredContentScripts({ ids: SC_SCRIPTS.map(s => s.id) });
-      const haveIds = new Set(have.map(s => s.id));
-      if (granted) {
-        const present = SC_SCRIPTS.filter(s => haveIds.has(s.id)), missing = SC_SCRIPTS.filter(s => !haveIds.has(s.id));
-        if (present.length) await chrome.scripting.updateContentScripts(present);   // same ids: update, never re-register (duplicate ids reject the batch)
-        if (missing.length) await chrome.scripting.registerContentScripts(missing);
-      } else if (haveIds.size) {
-        await chrome.scripting.unregisterContentScripts({ ids: [...haveIds] });
-      }
-      console.debug("[kari] soundcloud scripts", granted ? "registered" : "unregistered", `(${why})`);
-    } catch (err) { console.warn("[kari] soundcloud script sync failed", why, err); }
-  });
-  return syncing;
-}
+const sc = makeSoundCloud(chrome);
 
 chrome.runtime.onInstalled.addListener(async () => {
   await saveSettings(await loadSettings()); // writes defaults if missing
-  syncSoundCloud("installed");
+  sc.sync("installed");
 });
-chrome.runtime.onStartup.addListener(() => { syncSoundCloud("startup"); });
-chrome.permissions.onAdded.addListener((p) => { if (p.origins?.includes(SC_MATCH)) syncSoundCloud("permission added"); });
-chrome.permissions.onRemoved.addListener((p) => { if (p.origins?.includes(SC_MATCH)) syncSoundCloud("permission removed"); });
+chrome.runtime.onStartup.addListener(() => { sc.sync("startup"); });
+// A grant from the options switch: register, then reach the SoundCloud tabs that are already open (a registered
+// script alone waits for their next reload). A removal: unregister; open tabs keep their running scripts until reload.
+chrome.permissions.onAdded.addListener((p) => { if (p.origins?.includes(SC_MATCH)) sc.sync("permission added").then((granted) => { if (granted) return sc.injectOpenTabs(); }); });
+chrome.permissions.onRemoved.addListener((p) => { if (p.origins?.includes(SC_MATCH)) sc.sync("permission removed"); });
 
-chrome.action.onClicked.addListener(() => { chrome.runtime.openOptionsPage(); });
+// The toolbar icon. On a SoundCloud tab it is the grant path that needs no options page: ask inside this click's
+// gesture, register, inject into this tab. Everywhere else (YouTube, anything), and on a SoundCloud tab where Kari is
+// already running or the prompt was refused, it opens the settings as before (the switch is there, with its copy).
+chrome.action.onClicked.addListener(async (tab) => {
+  const r = await sc.activate(tab);
+  console.debug("[kari] action", r, tab.url || "(no url)");
+  if (r !== "injected") chrome.runtime.openOptionsPage();
+});
 
 chrome.commands.onCommand.addListener(async (command) => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab?.id) chrome.tabs.sendMessage(tab.id, { type: "kari:command", command }).catch(() => { /* no content script on this tab */ });
 });
+
+// Debug surface for the probe (tools/probe/sc-grant.mjs): the service-worker global, reachable by nothing but DevTools
+// and the harness's worker.evaluate — no page, no content script can see it.
+(globalThis as any).__kari = { soundcloud: sc };

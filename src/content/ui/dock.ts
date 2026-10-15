@@ -18,7 +18,8 @@ export type DockDeps = {
   site?: "yt" | "sc";     // copy and placement differ per host page (default "yt")
   mountStyle?: string;    // the wrapper's inline style; default fills the host (YouTube's player box)
   // beat loops: click + MIDI only; the grid and the loop live in the audio controller, state comes back through setStatus
-  // absent on hosts without a loop path yet (SoundCloud in this build): the dock hides the loop row and the MIDI group
+  // (on SoundCloud the controller sits in the MAIN-world hook and these calls cross src/soundcloud/loops.ts).
+  // Absent = no loop path on this host: the dock hides the loop row and the MIDI group.
   loop?: { latch(beats: LoopBeats): Promise<boolean>; release(): void; tap(): number | null; setBpm(bpm: number): void; nudge(delta: number): void };
   midi?: Midi;
 };

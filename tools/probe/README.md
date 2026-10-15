@@ -38,9 +38,11 @@ KARI_TEST_HOSTS=soundcloud npm run build            # + test-build/soundcloud/ (
 node tools/probe/soundcloud.mjs https://soundcloud.com/lofilion/cave --kari
 ```
 
-Flags: `--kari` reads Kari too · `--json` prints the report as JSON for assertions · `--verbose` logs clicks and page
-warnings · `--headed` shows the window · `--ext <dir>` another build · `--settle <ms>` wait after play starts (2500).
-Exit `0` played · `1` play never started within 20 s of the page load · `2` setup failed (no test build, no load).
+Flags: `--kari` reads Kari too · `--loop` (implies `--kari`) drives beat loops through the dock, see below · `--json`
+prints the report as JSON for assertions · `--verbose` logs clicks and page warnings · `--headed` shows the window ·
+`--ext <dir>` another build · `--settle <ms>` wait after play starts (2500).
+Exit `0` played · `1` play never started within 20 s of the page load · `2` setup failed (no test build, no load) ·
+`3` the `--loop` check failed (played, but no ¼ loop latched, or it was silent, or × did not release it).
 
 **Why a test build.** Kari asks for SoundCloud as an optional permission, and automation cannot click Chrome's
 permission prompt. `scripts/test-hosts.mjs` (run by `npm run build`, a no-op unless `KARI_TEST_HOSTS` is set) copies
@@ -110,3 +112,56 @@ played, late 10-14 to 00:08 PT 10-15, gave −22.5 to −23.2 dBFS with no silen
 against a scratch build that registered today's `content.js` as `soundcloud.js`: it found the world and reported
 "__kari present, audio not created" (that script only attaches on YouTube). The dock and `[kari]` line readers have
 not seen a positive case yet; the hook's first run is their test.
+
+### Beat loops (`--loop`)
+
+What a listener would do, done to the dock's own buttons inside its open shadow root, with the answers read from three
+independent places: the dock's readouts, `__kari.status` in the isolated world (the hook's status after
+`sanitizeStatus`) and the harness's analyser at the destination. Steps: switch Full control on (the loop row lives in
+the full panel) · click Tap five times 500 ms apart (120 bpm in media time at 1×) and wait for the bpm readout · click
+¼ and wait for `loop ¼ · … ms` · read `__kari.status`, 2 s of RMS at the destination and the element clock across it
+(slip: the track underneath must keep moving, nothing is seeked) · click × and wait for `loop —` · 2 s of RMS again.
+Pass = status `loop 0.25` with a positive `loopMs`, a bpm from `tap`, `attached`, the ¼ pill pressed, no silent RMS
+window while looping or after the release, the clock advanced, and `loop 0` after ×.
+
+### Run: 2026-10-15 00:5x PT, Kari with the SoundCloud loop bridge (branch claude/infallible-tharp-1c2f4a), Chromium 153 headless, MacBook Air M4
+
+Same track as above (LOFI LION, "Cave", CC BY). `node tools/probe/soundcloud.mjs https://soundcloud.com/lofilion/cave --loop`, exit 0.
+
+```
+track                          https://soundcloud.com/lofilion/cave
+play started                   yes, 12423 ms after load (clicked .sc-button-play.playButton ×2)
+AudioContext                   running 44100 Hz base 5.8 ms out 24 ms (1)
+MediaElementAudioSourceNode    1 created (first at 11417 ms)
+gain chain                     MediaElementSource → Gain → Gain → Gain → Gain → destination
+node types                     GainNode, AudioDestinationNode, MediaElementAudioSourceNode
+hook order                     at install: cmes native, connect native; harness still outermost: cmes false, connect false
+element                        #3 via createElement, src blob, in DOM false, readyState 4, t 2.93
+element.playbackRate           1 (sets: 1, 1, 1) preservesPitch false
+crossorigin                    anonymous
+mediaKeys                      null
+RMS at destination, 2 s        mean 0.0676 (-23.4 dBFS), min 0.019, max 0.2076, 0/37 windows silent, ctx running
+kari scripts in test build     sc-hook.js, sc-bridge.js
+kari dock                      engine wire, a/v 0 ms, in div.playControls, build 0.1.1+fcf2180a
+kari isolated world            __kari.status {"attached":false,"engine":"bypass",…,"loop":0,"loopMs":0,"bpm":null,"gridSource":null,"route":0,"ctxState":"running"}, ctx running
+loop: dock rows                loop row shown, MIDI group shown
+loop: tap                      5 taps 500 ms apart → readout "119 bpm"
+loop: ¼ latch                  dock "¼ · 126 ms" 8 ms after the click, ¼ pill pressed true
+loop: __kari.status            loop 0.25, loopMs 126, bpm 118.98246198510341, grid tap, engine bypass, attached true, route 0
+loop: RMS at destination, 2 s  mean 0.2159 (-13.3 dBFS), min 0.0206, max 0.3057, 0/37 windows silent
+loop: slip                     element clock 7.523 → 9.526 s while looping (kept moving)
+loop: graph                    1 worklet node(s): MediaElementSource → {Gain → Analyser → Gain → Gain → Gain → Gain → destination | Delay → Gain → Analyser → Gain → Gain → Gain → Gain → destination | AudioWorklet → Gain → DynamicsCompressor → Gain → Analyser → Gain → Gain → Gain → Gain → destination}
+loop: × release                dock "—", status loop 0, loopMs 0
+loop: RMS after release, 2 s   mean 0.1078 (-19.3 dBFS), min 0.0364, max 0.3219, 0/37 windows silent
+verdict                        SoundCloud graph present, Kari attached, ¼ loop latched and released
+```
+
+Read from the run: the loop row and the MIDI group render on SoundCloud; the first tap attached the chain (the worklet
+node and Kari's three branches appear in the graph, SoundCloud's four gains downstream, exactly the route 0 shape);
+the ¼ latch at 119 bpm is 126 ms and the dock showed it 8 ms after the click (one status round trip over
+`window.postMessage`); the element clock kept moving under the loop (slip, no seek); × went back to the live track.
+The RMS while looping (−13 dBFS) is above the intro (−23) and the post-release stretch (−19) because the latched slice
+holds a beat hit that repeats every 126 ms: the peaks match (0.31 vs 0.32), which a doubled dry+wet path would not.
+Two identical runs (00:4x and 00:5x PT), both exit 0. Nothing here was heard; the seam and the grid alignment on
+SoundCloud are UNVERIFIED by ear (docs/BEAT-LOOPS-2026-10-15.md).
+

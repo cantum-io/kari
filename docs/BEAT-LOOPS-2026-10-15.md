@@ -80,6 +80,29 @@ at a known bpm (a 128 bpm metronome or DJ-tool video is ideal). Switch Full cont
 10. **Keys**: focus the bpm field, type digits: YouTube's shortcuts stay quiet. Enter, then `k`: YouTube pauses again.
 11. **Reduced motion** (System Settings → Accessibility → Display → Reduce motion): the latched pill shows no sweep.
 
+## SoundCloud (added 2026-10-15, branch claude/infallible-tharp-1c2f4a)
+
+On SoundCloud the controller (grid, tap tempo, latch, release) runs inside the MAIN-world hook, next to the element it
+reads the clock from, while the dock and the MIDI pads live in the isolated bridge. The bridge protocol carries the gap:
+
+| Piece | Where | What |
+|---|---|---|
+| Loop status | `src/soundcloud/protocol.ts` `HookStatus` | now the full `AudioStatus` (`loop`, `loopMs`, `bpm`, `gridSource`) plus route and context state; `sanitizeStatus` checks every field (loop ∈ {0, ¼, ½, 1}, bpm finite in 1–1000 or null, gridSource an enum) |
+| Loop commands | `protocol.ts` `LoopCommand`, `parseLoopCommand` | bridge → hook `{type:"loop", action: latch\|release\|tap\|bpm\|nudge\|clear}`; same origin, source, namespace, direction and nonce checks as every other message; a latch carries a `seq` the hook answers with `{type:"loop-ack", seq, ok}` |
+| Routing | `src/soundcloud/loops.ts` | `LoopRequests` (bridge: the dock's loop deps as messages, a latch promise that resolves on the ack or false after 2 s) and `runLoopCommand` (hook: the command onto the active unit's controller) |
+| Dock | `src/soundcloud/bridge.ts` | real `loop` and `midi` deps: the loop row and the MIDI group show on SoundCloud; `Midi` is built from `settings.midiMap`, pads fire the same actions as on YouTube |
+| Release | controller `INTERRUPTS` on the real element + bridge | pause, SoundCloud's own seek (`seeking`), ended and emptied release the loop exactly as on YouTube; a track change (new badge key in the bottom bar) also clears the grid (`clear`), so the next track starts without a bpm, as a new video does |
+
+Checked headless (`node tools/probe/soundcloud.mjs <track> --loop`, table in `tools/probe/README.md`): five taps → 119
+bpm, ¼ latched 126 ms and shown 8 ms after the click, non-silent output while looping, the element clock advancing
+under the loop, × back to the live track. Node tests cover the protocol round trip, the guards (wrong nonce, bad
+beats, no controller, hostile ack) and the status sanitizer (`tests/soundcloud.test.mjs`).
+
+UNVERIFIED on SoundCloud, by ear or in a real Chrome: the seam and the grid alignment (the same unknowns as above,
+plus SoundCloud's own pause/seek fades downstream of the loop); the 100 ms first-attach mute against a latch within
+the first second; Web MIDI from the isolated world on soundcloud.com; the dock in the bottom bar with the two extra
+rows on a narrow window.
+
 ## Follow-ups (not built)
 
 - Per-video bpm memory next to pitch/speed (today the grid is cleared on every new video).

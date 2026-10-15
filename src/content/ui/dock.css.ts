@@ -40,6 +40,26 @@ button:active{transform:scale(.97)}
 .meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em;flex-wrap:wrap;gap:2px 12px}
 .meta em{font-style:normal;color:var(--bone-2)}
 .meta em.warn{color:var(--amber)}
+/* beat loops: three latch pills, a release, tap tempo and the bpm field. Disabled until a grid exists. */
+.loops,.tempo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.loops .lab,.tempo .lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pill.loop{min-width:30px;text-align:center;font-size:11px;letter-spacing:0;padding:4px 8px;position:relative;overflow:hidden}
+.pill.loop[aria-pressed="true"]{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
+.pill.off{color:var(--bone-2);padding:4px 7px}
+.pill[data-arm="1"]{border-color:var(--amber);color:var(--amber)}
+button:disabled{opacity:.35;cursor:default}
+button:disabled:active{transform:none}
+.bpmbox{display:inline-grid;grid-template-columns:24px 54px 24px;align-items:center;border:1px solid var(--line);border-radius:6px;overflow:hidden;background:rgba(0,0,0,.35)}
+.bpmbox button{height:26px;font-size:13px;font-family:var(--mono)}
+.bpm{-webkit-appearance:textfield;appearance:textfield;width:100%;height:26px;background:transparent;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);color:var(--bone);font:inherit;font-family:var(--mono);font-size:11px;text-align:center;padding:0;pointer-events:auto}
+.bpm::-webkit-inner-spin-button,.bpm::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.bpm::placeholder{color:var(--mute)}
+.mst{font-family:var(--mono);font-size:9px;color:var(--mute);letter-spacing:.06em;align-self:center}
+@media (prefers-reduced-motion:no-preference){
+  /* the latched pill sweeps once per pass: the one motion token here is the loop length itself */
+  .pill.loop[aria-pressed="true"]::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.45),transparent 40%);transform:translateX(-100%);animation:kari-loopsweep var(--loop-ms,500ms) linear infinite}
+  @keyframes kari-loopsweep{to{transform:translateX(100%)}}
+}
 .rowend{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .hidebtn{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:2px 0;text-decoration:underline dotted}
 .fulltog{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--bone-2);display:inline-flex;align-items:center;gap:6px}

@@ -1,5 +1,5 @@
 {
-  "recorded": "2026-10-15T06:44:18.991Z",
+  "recorded": "2026-10-15T16:19:08.421Z",
   "page": "https://soundcloud.com/discover",
   "scripts": [
     {
@@ -8,76 +8,76 @@
       "bytes": 1583
     },
     {
-      "name": "57-f301081c.js",
-      "sha256": "fbccca8d53a77ff4a00b8a3bc097f65045fc92080c364acf953ebecdf116f405",
+      "name": "57-2822e361.js",
+      "sha256": "b53b9649f704a1b5029d72ca90238f16b615cb0eacc3508311953945420ed021",
       "bytes": 52980
     },
     {
-      "name": "58-ccf1b1a8.js",
-      "sha256": "d549bed5784c554735a73c9406b24044f558ca643e59a868c386f4fecc05c6ce",
+      "name": "58-165c873b.js",
+      "sha256": "7b383e8934f763e6cb2e0465c4bdde2efc549af688c7caaeff5de7b162cf7195",
       "bytes": 3247
     },
     {
-      "name": "2-6d1224c7.js",
-      "sha256": "5a0f50ecd93ce86e8d8bfa480508697f5313cafff1a7b85831663367324483d1",
+      "name": "2-998abd65.js",
+      "sha256": "30a28094a9136618e231a7d787681ccc5571dba3f7bd59f68e018f8451669e2a",
       "bytes": 933600
     },
     {
-      "name": "0-d4276671.js",
-      "sha256": "b7a6286d8a8aaf2dde6d36e76da3eca7501bc23fbdf5b6cf67b387ee7fe65715",
+      "name": "0-5357b47f.js",
+      "sha256": "4b0eb96b6bb3e9bd1fb65965b6a0c0348a8da6937735d0d0e8e4d3956265ebca",
       "bytes": 1009937
     },
     {
-      "name": "1-8a7baab3.js",
-      "sha256": "03d19b018974133b1a51c5b2059c50dd06d7e28bb872e02434af3f96e0948dfd",
+      "name": "1-094a523e.js",
+      "sha256": "81aa379c3cf4c4b06bed25beebc52d28a4116dd0c26912402de5140a5b8c81b0",
       "bytes": 315405
     },
     {
-      "name": "56-0455fbd6.js",
-      "sha256": "47f03041e817b995277dfa1d06bcede57e3d602ba104bbb81951323ca4bcf210",
-      "bytes": 683616
+      "name": "56-a394f3d5.js",
+      "sha256": "9f7f115300321884e87e8bab6d2464364427653f237872b2ebc9e2ca19dda852",
+      "bytes": 683925
     },
     {
-      "name": "55-313c5966.js",
-      "sha256": "f55e13a645505ed67f58d30742b760cce948dd5c59de51de2bacf27e717fb90c",
-      "bytes": 2910970
+      "name": "55-7f920804.js",
+      "sha256": "33117cd31bc65919c1c26e6e3d8d6dba7fa97ef956e0b23231057cb64260c7b3",
+      "bytes": 2910942
     }
   ],
   "chunk": {
-    "name": "55-313c5966.js",
-    "sha256": "f55e13a645505ed67f58d30742b760cce948dd5c59de51de2bacf27e717fb90c",
-    "bytes": 2910970
+    "name": "55-7f920804.js",
+    "sha256": "33117cd31bc65919c1c26e6e3d8d6dba7fa97ef956e0b23231057cb64260c7b3",
+    "bytes": 2910942
   },
   "probes": [
     {
       "id": "source-call",
       "count": 1,
-      "firstOffset": 509009
+      "firstOffset": 509008
     },
     {
       "id": "source-method",
       "count": 2,
-      "firstOffset": 508752
+      "firstOffset": 508751
     },
     {
       "id": "source-connect",
       "count": 1,
-      "firstOffset": 509108
+      "firstOffset": 509107
     },
     {
       "id": "gain-chain",
       "count": 1,
-      "firstOffset": 514913
+      "firstOffset": 514912
     },
     {
       "id": "gain-names",
       "count": 1,
-      "firstOffset": 515044
+      "firstOffset": 515043
     },
     {
       "id": "one-context",
       "count": 1,
-      "firstOffset": 487698
+      "firstOffset": 487697
     },
     {
       "id": "no-other-source-kinds",
@@ -87,7 +87,7 @@
     {
       "id": "rate-reset",
       "count": 1,
-      "firstOffset": 512224
+      "firstOffset": 512223
     },
     {
       "id": "no-preserves-pitch",
@@ -97,12 +97,12 @@
     {
       "id": "crossorigin",
       "count": 1,
-      "firstOffset": 512011
+      "firstOffset": 512010
     },
     {
       "id": "drm-wait-guard",
       "count": 1,
-      "firstOffset": 1378066
+      "firstOffset": 1378038
     },
     {
       "id": "element-create",
@@ -117,22 +117,22 @@
     {
       "id": "hls-attach",
       "count": 1,
-      "firstOffset": 1377931
+      "firstOffset": 1377903
     },
     {
       "id": "fade-ramp",
       "count": 1,
-      "firstOffset": 483975
+      "firstOffset": 483974
     },
     {
       "id": "players-extend-base",
       "count": 2,
-      "firstOffset": 953439
+      "firstOffset": 953411
     },
     {
       "id": "source-then-connect",
       "count": 99,
-      "firstOffset": 509009
+      "firstOffset": 509008
     }
   ],
   "rea": {

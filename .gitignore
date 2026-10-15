@@ -8,3 +8,4 @@ tools/probe/package.json
 tools/probe/package-lock.json
 tools/probe/udd/
 tools/probe/shots/
+tools/soundcloud-guard/cache/

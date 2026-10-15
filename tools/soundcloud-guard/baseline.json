@@ -1,0 +1,147 @@
+{
+  "recorded": "2026-10-15T06:44:18.991Z",
+  "page": "https://soundcloud.com/discover",
+  "scripts": [
+    {
+      "name": "59-ac0a49ce.js",
+      "sha256": "1e652f80e309758c55f61aec11a4781380367b6f11bb33826e3732a8a88d1e54",
+      "bytes": 1583
+    },
+    {
+      "name": "57-f301081c.js",
+      "sha256": "fbccca8d53a77ff4a00b8a3bc097f65045fc92080c364acf953ebecdf116f405",
+      "bytes": 52980
+    },
+    {
+      "name": "58-ccf1b1a8.js",
+      "sha256": "d549bed5784c554735a73c9406b24044f558ca643e59a868c386f4fecc05c6ce",
+      "bytes": 3247
+    },
+    {
+      "name": "2-6d1224c7.js",
+      "sha256": "5a0f50ecd93ce86e8d8bfa480508697f5313cafff1a7b85831663367324483d1",
+      "bytes": 933600
+    },
+    {
+      "name": "0-d4276671.js",
+      "sha256": "b7a6286d8a8aaf2dde6d36e76da3eca7501bc23fbdf5b6cf67b387ee7fe65715",
+      "bytes": 1009937
+    },
+    {
+      "name": "1-8a7baab3.js",
+      "sha256": "03d19b018974133b1a51c5b2059c50dd06d7e28bb872e02434af3f96e0948dfd",
+      "bytes": 315405
+    },
+    {
+      "name": "56-0455fbd6.js",
+      "sha256": "47f03041e817b995277dfa1d06bcede57e3d602ba104bbb81951323ca4bcf210",
+      "bytes": 683616
+    },
+    {
+      "name": "55-313c5966.js",
+      "sha256": "f55e13a645505ed67f58d30742b760cce948dd5c59de51de2bacf27e717fb90c",
+      "bytes": 2910970
+    }
+  ],
+  "chunk": {
+    "name": "55-313c5966.js",
+    "sha256": "f55e13a645505ed67f58d30742b760cce948dd5c59de51de2bacf27e717fb90c",
+    "bytes": 2910970
+  },
+  "probes": [
+    {
+      "id": "source-call",
+      "count": 1,
+      "firstOffset": 509009
+    },
+    {
+      "id": "source-method",
+      "count": 2,
+      "firstOffset": 508752
+    },
+    {
+      "id": "source-connect",
+      "count": 1,
+      "firstOffset": 509108
+    },
+    {
+      "id": "gain-chain",
+      "count": 1,
+      "firstOffset": 514913
+    },
+    {
+      "id": "gain-names",
+      "count": 1,
+      "firstOffset": 515044
+    },
+    {
+      "id": "one-context",
+      "count": 1,
+      "firstOffset": 487698
+    },
+    {
+      "id": "no-other-source-kinds",
+      "count": 0,
+      "firstOffset": null
+    },
+    {
+      "id": "rate-reset",
+      "count": 1,
+      "firstOffset": 512224
+    },
+    {
+      "id": "no-preserves-pitch",
+      "count": 0,
+      "firstOffset": null
+    },
+    {
+      "id": "crossorigin",
+      "count": 1,
+      "firstOffset": 512011
+    },
+    {
+      "id": "drm-wait-guard",
+      "count": 1,
+      "firstOffset": 1378066
+    },
+    {
+      "id": "element-create",
+      "count": 1,
+      "firstOffset": 342447
+    },
+    {
+      "id": "no-new-audio",
+      "count": 0,
+      "firstOffset": null
+    },
+    {
+      "id": "hls-attach",
+      "count": 1,
+      "firstOffset": 1377931
+    },
+    {
+      "id": "fade-ramp",
+      "count": 1,
+      "firstOffset": 483975
+    },
+    {
+      "id": "players-extend-base",
+      "count": 2,
+      "firstOffset": 953439
+    },
+    {
+      "id": "source-then-connect",
+      "count": 99,
+      "firstOffset": 509009
+    }
+  ],
+  "rea": {
+    "sliceBytes": [
+      481651,
+      517638
+    ],
+    "evidence_id": "ev_1d958e2fa1016db742f2f264264ba551d0736b700dc45df7df293d1403051398",
+    "artifact_sha256": "5d1c4498edcf433cb7e5705600a26e04bc677baf98afdc149f5bd0e3b7023137",
+    "evidencePath": "cache/f55e13a645505ed67f58d30742b760cce948dd5c59de51de2bacf27e717fb90c/slice/evidence.json"
+  }
+}

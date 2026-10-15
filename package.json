@@ -18,7 +18,8 @@
     "watch": "node scripts/build.mjs --watch",
     "test": "node --test tests/*.test.mjs",
     "bench": "node bench/bench_rb.mjs",
-    "zip": "rm -f kari-extension.zip && npm run build && cd extension && zip -qr ../kari-extension.zip . -x '*.DS_Store'"
+    "zip": "rm -f kari-extension.zip && npm run build && cd extension && zip -qr ../kari-extension.zip . -x '*.DS_Store'",
+    "check:soundcloud": "node tools/soundcloud-guard/check.mjs"
   },
   "dependencies": {
     "rubberband-wasm": "3.3.0",

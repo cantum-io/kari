@@ -29,6 +29,24 @@ measurements start from a fresh load each time. Ears and devices ran in Jesse's 
 | 17 | Keyboard: Alt+arrows | steps land; YouTube's keys don't fire while dock focused | **UNVERIFIED for the shortcuts** (synthetic Alt+Arrow does not reach Chrome's command layer; needs a real Option+↑). The second half was a FAIL and is fixed: a blanket `stopPropagation` killed every YouTube shortcut after any click in the dock and Space re-fired the last button (3a50315: keys are swallowed only when the focused control consumes them, and clicks no longer park focus). |
 | 18 | Restore-from-memory before any click | video not muted; attach waits for first click | **PASS** (Jesse's Chrome, page load with a remembered +4 %): rate 1.04 applied, `muted=false`, engine "wire", a/v 0 ms before any click. Strict variant with a remembered pitch after a hard reload: UNVERIFIED. |
 
+## SoundCloud (hook not built yet: every row UNVERIFIED, for Jesse to fill)
+
+Harness: `node tools/probe/soundcloud.mjs <track> --kari` on the test build (`KARI_TEST_HOSTS=soundcloud npm run build`),
+see `tools/probe/README.md`. Baseline with today's Kari, 2026-10-15 00:08 PT: "SoundCloud graph present, Kari not
+attached" (one AudioContext, one MediaElementAudioSourceNode, MediaElementSource → Gain → Gain → Gain → destination,
+`crossorigin="anonymous"`, `playbackRate` set to 1 twice before play, no mediaKeys, −23.2 dBFS at the destination).
+Use free Creative Commons tracks; the baseline used "Cave" by LOFI LION (CC BY).
+
+| # | Check | Pass | Result |
+|---|---|---|---|
+| S1 | Hook fires | `hook order` shows the hook wrapped `createMediaElementSource` and `connect`; one source node per element; verdict "Kari attached"; a `[kari]` line names the route | **UNVERIFIED.** |
+| S2 | Worklet + WASM load under SoundCloud (no CSP sent) | `AudioWorkletNode` in the page graph, dock engine `R3` within 2 s of the first change, no worklet or chrome-extension errors | **UNVERIFIED.** |
+| S3 | Pitch accuracy on SoundCloud | same bar as row 3: ±0.05 c on a tone, in tune by ear | **UNVERIFIED.** Needs the iso-probe taps on SoundCloud's context (harness RMS only today) or a CC tone track. |
+| S4 | Rate guard survives SoundCloud's `playbackRate = 1` reset | after a seek, a track change and a pause/play, the element's rate returns to Kari's value (`rateSets` in `--json` shows SoundCloud's 1 followed by Kari's) and the dock speed holds | **UNVERIFIED.** |
+| S5 | Seek and pause fades, no click | SoundCloud's pausePlay/seek fades still act on Kari's output (they are downstream); max sample step at the destination no larger than the input's across pause, play and seek | **UNVERIFIED.** |
+| S6 | SPA navigation between tracks | clicking to the next track keeps one dock, the bottom bar (`.playControls`) keeps playing, no second source node per element, params follow the track | **UNVERIFIED.** |
+| S7 | Go+ track (Widevine) | speed only: the rate change works, Kari does not route the audio through the engine, no silence; `mediaKeys` present in the table | **UNVERIFIED.** Whether a Widevine track is audible through the source node at all is open (`docs/SOUNDCLOUD-GRAPH-2026-10-14.md`). Needs a Go+ account in a normal Chrome; headless Chromium has no Widevine. |
+
 ## Defects found and fixed today (all reproduced in Chrome, all committed on `main`)
 
 1. Build script broke on a folder name containing `~` (`%7E`) — `cb4b04d`.

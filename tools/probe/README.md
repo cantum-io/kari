@@ -38,6 +38,24 @@ panel and gear go), miniplayer, collapsed, reduced motion. `--shots dir` saves s
 node tools/probe/dock.mjs --shots test-build/dock-shots      # 19/19 rows hold, 2026-10-15
 ```
 
+## Tempo readout, YouTube (`tempo.mjs`)
+
+The production build on a watch page, headless, no click anywhere first: the player is started from page script (the
+autoplay case; Playwright's Chromium lets media and audio contexts start without a gesture, like a Chrome profile that
+listens to youtube.com often) and the dock's tempo readout, the engine readout, the controller's detector state and the
+`[kari]` console lines are sampled every second for 20 s; if no bpm came, one click on the player and 20 s more. Exit 0
+= a bpm appeared on its own. `--no-click` stops after the first window; `--watch ms` sets the windows; `--json` dumps it.
+
+```
+npm run build
+node tools/probe/tempo.mjs                                   # 60 bpm metronome ymJIXzvDvj4
+node tools/probe/tempo.mjs https://www.youtube.com/watch?v=…
+```
+
+The readout contract it watches (`src/content/ui/tempo-readout.ts`): `play to learn` until something plays through Kari ·
+`click to learn` while the track plays but Chrome will not start the context before the page's first click · `learning…`
+only while the detector listens · `N bpm` · `tap` only once it listened for 12 s of audio and found no steady beat.
+
 ## SoundCloud (`soundcloud.mjs`)
 
 One command, one track, one table: what SoundCloud's own Web Audio graph is doing and whether Kari is in it. Built for

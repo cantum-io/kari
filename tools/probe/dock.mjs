@@ -4,7 +4,8 @@
 //   1. With Full control OFF the loop row (½ · 1 · 1 bar · 2 bars + the tempo readout) sits directly under the Pitch
 //      and Speed steppers, pills disabled until a tempo exists; with Full control ON the same row is still there and
 //      Tap / bpm / MIDI sit in the full panel.
-//   2. The readout: "learning…" while the detector listens, "128 bpm" once a tempo exists, "tap" when nothing came.
+//   2. The readout: "play to learn" / "click to learn" before the detector runs, "learning…" while it listens, "128 bpm"
+//      once a tempo exists, "tap" only when it listened and found nothing, hidden where there is no detector.
 //   3. A latched length is lit; clicking it calls release(); clicking another length calls latch(other).
 //   4. YouTube's controls hidden (data-hidden-with-controls=1): the panel and the gear are invisible, Kari's blob
 //      (.anchor) stays visible and clickable — on every skin's anchor. Miniplayer (data-small) and collapsed too.
@@ -35,7 +36,7 @@ await page.evaluate(() => {
     midi: { state: { supported: false, connected: false, inputs: 0, learning: null, lastNote: null, error: null }, learn() {}, connect() { return Promise.resolve(false); } },
   };
   const dock = (window.__dock = new KariDock.Dock(document.getElementById("player"), deps));
-  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false, ...patch });
+  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", ...patch });
   window.__status({});
 });
 const q = (sel, what) => page.evaluate(([sel, what]) => {
@@ -63,17 +64,25 @@ const ORG = '.skin[data-skin="org"] ';
   row("pills disabled until a tempo exists", pills.every(p => p.disabled), JSON.stringify(pills.map(p => p.disabled)));
   await shot("01-full-off-no-tempo");
 }
-// 2. readout states
+// 2. readout states (src/content/ui/tempo-readout.ts): what the detector waits for before it runs, "learning…" only while
+//    it listens, a bpm once found, "tap" only once it listened and found nothing
 {
   const ro = async () => q(ORG + '[data-b="tempo"]', "text");
-  await page.evaluate(() => window.__status({ learning: true }));
+  const idle = await ro();
+  await page.evaluate(() => window.__status({ tempo: "gesture" }));
+  const gesture = await ro();
+  await page.evaluate(() => window.__status({ tempo: "learning" }));
   const learning = await ro(), learnAnim = (await q(ORG + '[data-b="tempo"]')).anim;
-  await page.evaluate(() => window.__status({ bpm: 128, gridSource: "auto" }));
+  await page.evaluate(() => window.__status({ bpm: 128, gridSource: "auto", tempo: "found" }));
   const found = await ro(); const enabled = (await q(ORG + '[data-a="loop"][data-v="4"]')).disabled === false;
   await shot("02-full-off-128bpm");
-  await page.evaluate(() => window.__status({ learning: false }));
+  await page.evaluate(() => window.__status({ tempo: "none" }));
   const none = await ro();
-  row("tempo readout: learning… → 128 bpm → tap", learning === "learning…" && found === "128 bpm" && none === "tap" && enabled, `"${learning}" (anim ${learnAnim}) → "${found}" (pills enabled ${enabled}) → "${none}"`);
+  await page.evaluate(() => window.__status({ tempo: "off" }));
+  const off = await q(ORG + '[data-b="tempo"]');
+  row("tempo readout: play to learn → click to learn → learning… → 128 bpm → tap → (hidden)", idle === "play to learn" && gesture === "click to learn" && learning === "learning…" && found === "128 bpm" && none === "tap" && enabled && off.display === "none",
+    `"${idle}" → "${gesture}" → "${learning}" (anim ${learnAnim}) → "${found}" (pills enabled ${enabled}) → "${none}" → off display ${off.display}`);
+  await page.evaluate(() => window.__status({}));
 }
 // 3. toggle semantics
 {
@@ -132,7 +141,7 @@ const ORG = '.skin[data-skin="org"] ';
   await page.evaluate(() => window.__status({ bpm: 128, gridSource: "auto", loop: 4, loopMs: 1875, learning: false }));
   const pill = await q(ORG + '[data-a="loop"][data-v="4"]'), body = await q(ORG + ".body");
   const after = await page.evaluate(() => { const sr = document.querySelector("#kari-dock").shadowRoot; return getComputedStyle(sr.querySelector('.skin[data-skin="org"] [data-a="loop"][data-v="4"]'), "::after").animationName; });
-  await page.evaluate(() => window.__status({ learning: true }));
+  await page.evaluate(() => window.__status({ tempo: "learning" }));
   const ro = await q(ORG + '[data-b="tempo"]');
   row("reduced motion: no sweep on the lit pill, no breath on the readout, no bob", after === "none" && ro.anim === "none" && body.anim === "none" && pill.anim === "none", `pill::after ${after}, readout ${ro.anim}, body ${body.anim}`);
   await page.emulateMedia({ reducedMotion: "no-preference" });

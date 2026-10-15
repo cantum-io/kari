@@ -6,6 +6,7 @@ import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
 import { type LoopBeats, LOOP_BEATS, fmtBpm, loopLabel, loopAria, BPM_MIN, BPM_MAX } from "../beat/grid";
 import type { Midi, MidiAction, MidiState } from "../midi";
+import { tempoReadout } from "./tempo-readout";
 
 export type DockDeps = {
   getParams(): Params;
@@ -242,11 +243,12 @@ export class Dock {
     const s = this.status;
     const bpm = s?.bpm ?? null, loop = s?.loop ?? 0;
     const yt = s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? ` · ${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "";
-    // the tempo readout on the loop row: the bpm once there is one, "learning…" while the detector listens, "tap" when it has nothing
-    const tempoState = !this.deps.loop ? "idle" : bpm ? "found" : s?.learning ? "learning" : "none";
+    // the tempo readout on the loop row (tempo-readout.ts): the bpm once there is one, "learning…" only while the detector
+    // listens, "tap" only once it listened and found nothing, "play to learn" / "click to learn" before it runs
+    const { state: tempoState, text: tempoText } = tempoReadout(s, !!this.deps.loop);
     const map: Record<string, string> = {
       speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), yt, bpm: bpm ? `${fmtBpm(bpm)} bpm` : "",
-      tempo: tempoState === "found" ? `${fmtBpm(bpm!)} bpm` : tempoState === "learning" ? "learning…" : tempoState === "none" ? "tap" : "",
+      tempo: tempoText,
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",

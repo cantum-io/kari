@@ -196,7 +196,7 @@ test("accept: same window, same origin, namespace, direction and nonce; handshak
 
 test("sanitizeStatus rebuilds a safe status from hostile input", () => {
   const s = sanitizeStatus({ attached: "yes", engine: "evil", engineLatencyMs: 1e12, avOffsetMs: -5, underruns: NaN, load: "x", fault: "<img>", baseRate: Infinity, route: "late", ctxState: "running".repeat(10) });
-  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false, route: "late", ctxState: "runningrunningru" });
+  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", route: "late", ctxState: "runningrunningru" });
   assert.equal(sanitizeStatus(null).engine, "bypass");
   assert.equal(sanitizeStatus({ attached: true, engine: "r3", fault: "drm-silent", route: 0 }).fault, "drm-silent");
 });
@@ -227,13 +227,13 @@ test("parseLoopCommand: the six actions, with beats, bpm and delta checked and c
 });
 
 test("sanitizeStatus carries the loop fields and rejects off-grid values", () => {
-  const full = { ...EMPTY_STATUS, attached: true, engine: "bypass", loop: 0.5, loopMs: 234, loopClamped: true, bpm: 128, gridSource: "auto", learning: false, route: 0, ctxState: "running" };
+  const full = { ...EMPTY_STATUS, attached: true, engine: "bypass", loop: 0.5, loopMs: 234, loopClamped: true, bpm: 128, gridSource: "auto", tempo: "found", route: 0, ctxState: "running" };
   assert.deepEqual(sanitizeStatus(full), full, "a clean status survives untouched");
-  const s = sanitizeStatus({ loop: 0.25, loopMs: -5, bpm: "128", gridSource: "<img>", learning: "yes", loopClamped: 1 });
+  const s = sanitizeStatus({ loop: 0.25, loopMs: -5, bpm: "128", gridSource: "<img>", tempo: "evil", loopClamped: 1 });
   assert.equal(s.loop, 0, "¼ is no longer a loop length"); assert.equal(s.loopMs, 0); assert.equal(s.bpm, null); assert.equal(s.gridSource, null);
-  assert.equal(s.learning, false); assert.equal(s.loopClamped, false);
+  assert.equal(s.tempo, "idle", "an unknown phase reads as idle, never as tap"); assert.equal(s.loopClamped, false);
   assert.equal(sanitizeStatus({ loop: 8, loopMs: 1e9, bpm: 5, gridSource: "manual" }).loopMs, 60000);
-  assert.equal(sanitizeStatus({ loop: 8 }).loop, 8); assert.equal(sanitizeStatus({ learning: true }).learning, true);
+  assert.equal(sanitizeStatus({ loop: 8 }).loop, 8); for (const ph of ["off", "idle", "gesture", "learning", "found", "none"]) assert.equal(sanitizeStatus({ tempo: ph }).tempo, ph);
   assert.equal(sanitizeStatus({ bpm: 5 }).bpm, 5); for (const bad of [Infinity, 0, 5000, "128"]) assert.equal(sanitizeStatus({ bpm: bad }).bpm, null, String(bad));
   assert.deepEqual(EMPTY_STATUS.loop, 0); assert.equal(EMPTY_STATUS.bpm, null);
 });
@@ -274,7 +274,7 @@ test("loop round trip: dock latch → bridge message → hook routes to the cont
   assert.deepEqual(ctl.calls.slice(1), [["latch", 1], ["release"], ["tap"], ["bpm", 128], ["nudge", -1], ["grid", null]]);
   assert.equal(w.hookLog.filter(t => t === "rejected").length, 0);
   // the hook's loop fields reach the dock through status, sanitized
-  w.hookPost({ type: "status", status: { attached: true, engine: "bypass", loop: 4, loopMs: 1875, bpm: 128, gridSource: "auto", learning: false, route: 0, ctxState: "running" } });
+  w.hookPost({ type: "status", status: { attached: true, engine: "bypass", loop: 4, loopMs: 1875, bpm: 128, gridSource: "auto", tempo: "found", route: 0, ctxState: "running" } });
   assert.equal(w.status().loop, 4); assert.equal(w.status().loopMs, 1875); assert.equal(w.status().bpm, 128); assert.equal(w.status().gridSource, "auto");
   // every loop message carried the namespace, the bridge→hook direction and the nonce
   for (const m of w.sent.filter(m => m.type === "loop")) { assert.equal(m.ns, NS); assert.equal(m.dir, "b2h"); assert.equal(m.nonce, w.nonce); }

@@ -236,6 +236,21 @@ export class TempoTracker {
 /* ------------------------------------------------------------------ the detector the controller holds */
 
 export type DetectorState = "idle" | "learning" | "found" | "none";
+/**
+ * What the readout should say about tempo detection on this element: the detector's own state, or why it is not
+ * running. `muted` = a tap or a typed bpm owns the grid (a bpm is shown anyway); `blocked` = protected audio, Kari never
+ * attaches; `gesture` = the chain is waiting for the page's first click before it may start; `heard` = the detector has
+ * counted at least one playing frame (a detector started while the element sat paused has listened to nothing yet, so
+ * the readout keeps asking for play instead of claiming to learn).
+ */
+export type TempoPhase = "off" | "idle" | "gesture" | DetectorState;
+export function tempoPhase(state: DetectorState, ctx: { muted: boolean; blocked: boolean; gesture: boolean; heard: boolean }): TempoPhase {
+  if (ctx.blocked || ctx.muted) return "off";
+  if (ctx.gesture && state !== "found") return "gesture";
+  if (state === "idle") return "idle";
+  if (state === "learning" && !ctx.heard) return "idle";
+  return state;
+}
 /** Both clocks at once, read synchronously when a batch arrives; `playing` gates what counts as real playback. */
 export type DetectorClock = () => { media: number; ctx: number; rate: number; playing: boolean };
 const SILENT_RMS = 1e-3;          // a batch under −60 dBFS …
@@ -270,6 +285,9 @@ export class AutoBeatDetector implements BeatDetector {
     if (on) { this.pending = null; this.setState("idle"); } else if (this.active) { this.lastConf = 0; this.reset(); }
   }
   get listening() { return this.active && !this.muted; }
+  get isMuted() { return this.muted; }
+  /** Playing, non-silent frames counted since the last reset: 0 = the detector has heard nothing yet. */
+  get heard() { return this.played; }
   private setState(s: DetectorState) { if (s !== this._state) { this._state = s; this.stateCb?.(s); } }
 
   /** One batch from the worklet. */
@@ -284,7 +302,9 @@ export class AutoBeatDetector implements BeatDetector {
     if (!this.tracker) { this.rate = rate; this.tracker = new TempoTracker(m.hop * rate); }
     const start = c.media - (c.ctx - m.t) * rate, dt = m.hop * rate;
     for (let k = 0; k < m.odf.length; k++) this.tracker.push(m.odf[k], m.low[k], start + k * dt);
+    const first = this.played === 0;
     this.played += m.odf.length; this.sinceRun += m.odf.length;
+    if (first && this._state === "learning") this.stateCb?.(this._state);   // the first heard frame: the readout may now say "learning…"
     const win = this.tracker.size, every = Math.round(REFINE_SEC / m.hop);
     if (this.played < win || this.sinceRun < every) return;
     this.sinceRun = 0; this.runs++;

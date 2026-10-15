@@ -220,6 +220,55 @@ plus SoundCloud's own pause/seek fades downstream of the loop); the 100 ms first
 the first second; Web MIDI from the isolated world on soundcloud.com; the dock in the bottom bar with the two extra
 rows on a narrow window.
 
+## Tempo readout and attach (2026-10-15, branch claude/tempo-fix)
+
+Jesse, with 0.3.0 live in his Chrome: "tempo autodetect still not working." What the readout had been saying, read live.
+
+### What was measured
+
+| Where | Reading | Meaning |
+|---|---|---|
+| Jesse's Chrome (Profile 16), the open `soundcloud.com/lofilion/cave` tab, 0.3.0+ed68a837, read through the dock's open shadow root | readout **`tap`** (state `none`), engine `wire`, a/v `0 ms`, fault none, bar at **0:00**, nothing had played | "tap" shown before the detector ever listened: the dock drew `tap` whenever `learning` was false and no bpm existed, which is also the state before any playback |
+| same tab, the bar's play (the queued mix; his layout has no hero play button on the track page) | the element called `play()`, then `waiting` at t = 0; after 40 s still `readyState 0`, `currentTime 0` (no media data arrived in the background tab); readout `tap` throughout | no audio ever reached Kari, and the readout still claimed a verdict. The hook had patched the page (createMediaElementSource / connect / createElement all wrapped), so Kari was in place |
+| headless, production build, YouTube `ymJIXzvDvj4`, no click (`tools/probe/tempo.mjs`, before the fix) | video paused at 0 s for 20 s, detector `idle`, readout **`tap`**; one click → play → `learning…` → **`60 bpm`** 6 s later | same misleading `tap` while idle; the detector itself works |
+| headless, test build, SoundCloud "Cave" (`soundcloud.mjs --loop`, before and after) | `learning…` → **`70 bpm`** 1.5–1.8 s after the probe starts watching (≈ 8 s after play) | the detector works on real music in Chromium 153 |
+
+Root cause: the readout had three states (`learning…`, bpm, `tap`) for a detector with five situations, and `tap` was the
+default for "not learning and no bpm", i.e. also for "nothing has played yet". Two attach gaps sat behind it: the chain
+attaches on the element's `playing` event only, so an element already running when Kari arrived (a watch page whose
+video started before the content script ran at `document_idle`, an SPA rebind onto a running element) never attached
+until a pause or a seek; and on YouTube the attach always waited for the page's first click, silently, even where
+Chrome would have started the context without one.
+
+### What changed
+
+| Piece | Where | What |
+|---|---|---|
+| Phase | `detect.ts` `TempoPhase`, `tempoPhase()` | `off · idle · gesture · learning · found · none`: the detector's state, or why it is not running (protected audio or a tap/typed grid → `off`; waiting for the page's first click → `gesture`; started but no playing frame counted yet → still `idle`). The detector re-announces `learning` on its first heard frame, so the readout flips idle → learning only once audio counts. |
+| Status | `controller.ts` `AudioStatus.tempo` (replaces `learning: boolean`), `protocol.ts` `HookStatus.tempo` + sanitizer (unknown phase → `idle`, never `none`) | emitted whenever an input moves: detector state, pause/playing, seek, DRM, grid ownership, the gesture wait |
+| Readout | `src/content/ui/tempo-readout.ts` (pure, Node-tested), `dock.ts` | `play to learn` · `click to learn` · `learning…` · `N bpm` · `tap` · hidden. `tap` only when the detector listened for 12 s of audio and found nothing. |
+| Attach | `controller.listen()` | an element already playing when Kari starts listening is treated as its `playing` event: attach now |
+| Gesture | `controller._attach()`, `contextRunning()` | YouTube: the context is created and tried first (400 ms); Chrome runs it without a click on a site the profile listens to often (media-engagement index), so the detector starts on autoplay. Only a context Chrome keeps suspended waits for the first click, and the readout says `click to learn` while it does. SoundCloud's graph belongs to the page and never waited. |
+| Tests | `tests/readout.test.mjs` (+3), `tests/soundcloud.test.mjs` | every readout state; the phase table; the detector's first-heard-frame announcement; the sanitizer's phase set. 79/79. |
+| Probes | `tools/probe/tempo.mjs` (new), `dock.mjs` (readout row covers all six states), `soundcloud.mjs` (verdict = bpm or tap) | |
+
+Measured after the change: YouTube, production build, headless, the metronome started from page script with no click:
+`play to learn` (attached, 0 frames heard) → `learning…` 1 s after play → **`60 bpm`** 7 s after play, engine `wire`,
+no click at all. SoundCloud test build, "Cave": `learning…` → **`70 bpm`** after 1531 ms, status `tempo: found`, then
+the whole `--loop` row as before (5 taps → 119 bpm, 1 bar · 2017 ms, release). `dock.mjs` 19/19 with the six-state row.
+
+Not measured, and the one live check this needs: a bpm appearing in Jesse's Chrome on a track that actually plays.
+Headless Chromium reports user activation on its own, so the `click to learn` branch is covered by the unit test and the
+dock probe, not by a live run.
+
+### Live check for Jesse
+
+`chrome://extensions` → Reload on the Kari card (0.3.1), then open a SoundCloud track page or a YouTube watch page in a
+new tab and press play. The readout under Pitch / Speed says `play to learn` until the music runs through Kari,
+`learning…` for about six seconds, then the bpm. If it says `click to learn` (YouTube, a profile Chrome does not yet
+trust with autoplay audio), one click anywhere on the page starts it. `tap` now means only one thing: twelve seconds of
+music went by with no steady beat found.
+
 ## Follow-ups (not built)
 
 - Per-video bpm memory next to pitch/speed (today the grid is cleared on every new video).

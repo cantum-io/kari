@@ -10,3 +10,4 @@ tools/probe/udd/
 tools/probe/shots/
 tools/soundcloud-guard/cache/
 test-build/
+tools/probe/node_modules

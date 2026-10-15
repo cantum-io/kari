@@ -4,7 +4,8 @@
 // namespace- and nonce-checked (protocol.ts). The worklet and WASM bytes come from the bridge on first use only.
 import { installSoundCloudHook, type Chain, type ChainSpec } from "./hook-core";
 import { AudioController, type AudioStatus } from "../content/audio/controller";
-import { NS, accept, type HookStatus } from "./protocol";
+import { NS, accept, parseLoopCommand, type HookStatus } from "./protocol";
+import { runLoopCommand } from "./loops";
 import type { Params } from "../shared/math";
 
 (() => {
@@ -60,6 +61,10 @@ import type { Params } from "../shared/math";
 
   /* ---- chain factory: the YouTube controller, pointed at the page's graph ---- */
   let enginePref: "auto" | "r3" | "signalsmith" | null = null;
+  // The controller behind each chain: loop commands from the bridge are routed to the active unit's controller. It
+  // listens to the real element (pause, seeking, ended, emptied), so a loop lets go on SoundCloud's own seek and on a
+  // track change exactly as on YouTube; the bridge adds a grid clear when the track key changes.
+  const controllers = new WeakMap<Chain, AudioController>();
   const makeChain = (spec: ChainSpec): Chain => {
     const c = new AudioController(spec.el, { worklet: "", wasm: "" }, {
       ctx: spec.ctx, src: spec.src, sink: spec.sink, loadWorklet, wasm: () => needEngine().then(e => e.wasm),
@@ -67,8 +72,10 @@ import type { Params } from "../shared/math";
     });
     if (enginePref) c.setEnginePreference(enginePref);
     c.onStatus((s: AudioStatus) => { const st: HookStatus = { ...s, route: spec.route, ctxState: String(spec.ctx.state) }; post({ type: "status", status: st }); });
+    controllers.set(c, c);
     return c;
   };
+  const activeController = (): AudioController | null => { const u = hook.active(); return u ? controllers.get(u.chain) ?? null : null; };
 
   const hook = installSoundCloudHook(
     { AudioContext, AudioNode, HTMLMediaElement, Document, setTimeout: (f, ms) => window.setTimeout(f, ms), clearTimeout: (t) => window.clearTimeout(t) },
@@ -101,6 +108,11 @@ import type { Params } from "../shared/math";
       case "apply": if (isParams(d.params)) hook.apply({ st: d.params.st, cents: d.params.cents, tempo: d.params.tempo, keyLock: d.params.keyLock, range: d.params.range }); return;
       case "compare": hook.setCompare(d.on === true); return;
       case "engine-pref": if (d.pref === "auto" || d.pref === "r3" || d.pref === "signalsmith") { enginePref = d.pref; hook.setEnginePreference(d.pref); } return;
+      case "loop": {
+        const cmd = parseLoopCommand(d); if (!cmd) return;
+        runLoopCommand(cmd, activeController()).catch(() => false).then(ok => { if (cmd.action === "latch") post({ type: "loop-ack", seq: cmd.seq, ok }); });
+        return;
+      }
     }
   });
   post({ type: "hello" }); // the bridge answers with init {nonce}; if it loaded first it already posted init and answers again

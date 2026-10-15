@@ -4,7 +4,7 @@
 import { plan, type Params, DEFAULT_PARAMS } from "../../shared/math";
 import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../beat/grid";
 import { TapTempo } from "../beat/tap";
-import { NullBeatDetector, type BeatDetector } from "../beat/detect";
+import { AutoBeatDetector, type OnsetBatch, type DetectorState, type TempoEstimate } from "../beat/detect";
 
 export type EngineName = "r3" | "ss" | "bypass";
 export type AudioStatus = {
@@ -19,8 +19,10 @@ export type AudioStatus = {
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
   loop: LoopBeats | 0;       // latched loop length in beats, 0 = none
   loopMs: number;            // its length in real-time ms
-  bpm: number | null;        // the beat grid's bpm, null until tapped or typed
+  loopClamped: boolean;      // the asked length exceeded the ring: the loop runs at the ring's ceiling
+  bpm: number | null;        // the beat grid's bpm, null until detected, tapped or typed
   gridSource: BeatGrid["source"] | null;
+  learning: boolean;         // the tempo detector is listening and has no verdict yet
 };
 
 /** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
@@ -68,7 +70,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, bpm: null, gridSource: null };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -84,15 +86,46 @@ export class AudioController {
   private tapper = new TapTempo();
   private loopBeats: LoopBeats | 0 = 0;
   private matchedFrames = 0;    // the dry-matched delay in frames; the bypass engine is delayed to the same figure
-  private detector: BeatDetector = new NullBeatDetector();
+  private loopMax = (1 << 19) - 288;   // the ring's ceiling in frames; the worklet reports the real figure on 'ready'
+  // Tempo: the worklet posts onset strength (100 frames/s) from the live input; the detector turns it into a grid in
+  // media time, publishing after 6 s of real playback and refining every 2 s, never under a latched loop, never once a
+  // tap or a typed bpm owns the grid. Both clocks are read in one go when a batch arrives (see detect.ts).
+  private detector = new AutoBeatDetector(() => {
+    const v = this.video;
+    return { media: v.currentTime, ctx: this.ctx ? this.ctx.currentTime : 0, rate: v.playbackRate || 1, playing: !v.paused && !v.ended && v.readyState >= 3 && !this.adActive };
+  });
   private static INTERRUPTS = ["pause", "seeking", "ended", "emptied"] as const;
 
   constructor(private video: HTMLMediaElement, private urls: { worklet: string; wasm: string }, private ext: ExternalGraph | null = null) {
-    video.addEventListener("ratechange", this.onRateChange);
-    for (const t of AudioController.INTERRUPTS) video.addEventListener(t, this.onInterrupt);
+    this.detector.onGrid(g => this.onAutoGrid(g));
+    this.detector.onState(s => this.emit({ learning: s === "learning" }));
+    this.listen(video);
   }
-  /** A loop has no track underneath to slip back into once the element stops or jumps: let go. */
-  private onInterrupt = () => { if (this.loopBeats) this.releaseLoop(); };
+  private listen(v: HTMLMediaElement) {
+    v.addEventListener("ratechange", this.onRateChange);
+    for (const t of AudioController.INTERRUPTS) v.addEventListener(t, this.onInterrupt);
+    v.addEventListener("playing", this.onPlaying);
+  }
+  private unlisten(v: HTMLMediaElement) {
+    v.removeEventListener("ratechange", this.onRateChange);
+    for (const t of AudioController.INTERRUPTS) v.removeEventListener(t, this.onInterrupt);
+    v.removeEventListener("playing", this.onPlaying);
+  }
+  /** A loop has no track underneath to slip back into once the element stops or jumps: let go. A seek also empties the detector's window. */
+  private onInterrupt = (e: Event) => { if (this.loopBeats) this.releaseLoop(); if (e.type === "seeking" || e.type === "emptied") this.detector.reset(); };
+  /**
+   * Playback started: attach now (a straight, delay-free wire) so the tempo detector hears the track from its first
+   * beat. Not on a protected element (mediaKeys: the source would go silent) and not under an ad. On YouTube the
+   * attach still waits for the page's first click (a context made without a gesture would mute the video).
+   */
+  private onPlaying = () => {
+    if (this.src || this.adActive || (this.video as any).mediaKeys) return;
+    // attach, then the normal apply: it sets the engine (bypass on a neutral video) and the routing, exactly as the first change would
+    this.attach().then(() => this.apply(this.params, true)).catch(() => { /* reported through status */ });
+  };
+  get detectorState(): DetectorState { return this.detector.state; }
+  get detectorDebug() { return this.detector.debug; }
+  get lastEstimate(): TempoEstimate | null { return this.detector.last; }
 
   /** Drop the engine's buffered audio (seek, new track, pause). The worklet re-primes and re-reports 'warm'. */
   flush() { this.node?.port.postMessage({ type: "reset" }); }
@@ -113,18 +146,17 @@ export class AudioController {
   /** Rebind to a (possibly new) video element after SPA navigation. */
   rebind(video: HTMLMediaElement) {
     if (video === this.video) return;
-    this.video.removeEventListener("ratechange", this.onRateChange);
-    for (const t of AudioController.INTERRUPTS) this.video.removeEventListener(t, this.onInterrupt);
+    this.unlisten(this.video);
     if (this.loopBeats) this.releaseLoop();
     this.video = video;
-    video.addEventListener("ratechange", this.onRateChange);
-    for (const t of AudioController.INTERRUPTS) video.addEventListener(t, this.onInterrupt);
+    this.listen(video);
+    this.detector.reset();
     // The old MediaElementSource belongs to the old element; if YouTube replaced the element we need a new graph.
     if (this.src) { try { this.src.disconnect(); } catch (_) { /* ignore */ } this.src = null; this.emit({ attached: false }); }
     this.apply(this.params, true);
   }
 
-  setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.apply(this.params, true); }
+  setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.detector.reset(); this.apply(this.params, true); }
 
   getParams() { return this.params; }
   get status() { return this._status; }
@@ -162,22 +194,41 @@ export class AudioController {
   setGrid(g: BeatGrid | null) {
     this.grid = g;
     if (!g) { this.tapper.reset(); if (this.loopBeats) this.releaseLoop(); }
-    this.emit({ bpm: g ? g.bpm : null, gridSource: g ? g.source : null });
+    // A tap or a typed bpm owns the grid from then on: the detector stops publishing (and the worklet stops posting)
+    // until the grid is cleared (a new track).
+    this.detector.mute(!!g && g.source !== "auto"); this.syncOnset();
+    this.emit({ bpm: g ? g.bpm : null, gridSource: g ? g.source : null, learning: this.detector.state === "learning" });
     // A grid means loops are coming: attach now so the capture ring has history by the first latch (needs a prior click).
     if (g && !this.src) this.attach().catch(() => { /* reported through status */ });
   }
-  /** One tap at the current media time. Returns the running bpm estimate (null until the second tap). */
+  /** The detector found or refined a grid: taken unless a tap or a typed bpm already owns it. */
+  private onAutoGrid(g: BeatGrid) { if (this.grid && this.grid.source !== "auto") return; this.setGrid(g); }
+  /**
+   * One tap at the current media time. Returns the running bpm estimate (null until the second tap). On an auto grid
+   * the first tap keeps the detected bpm and moves the "1" to the tap; more taps override the bpm as well.
+   */
   tap(): number | null {
     const t = this.video.currentTime;
     const bpm = this.tapper.tap(t);
     if (bpm) this.setGrid({ bpm, phase: t, source: "tap" });
+    else if (this.grid?.source === "auto") this.setGrid({ bpm: this.grid.bpm, phase: t, source: "tap" });
     else if (!this.src) this.attach().catch(() => { /* reported through status */ });
     return bpm;
   }
+  private syncOnset() { this.node?.port.postMessage({ type: "config", onset: this.detector.listening }); }
   setBpm(bpm: number) { if (!Number.isFinite(bpm)) return; this.setGrid(withBpm(this.grid, bpm, this.video.currentTime)); }
   nudgeBpm(delta: number) { if (this.grid) this.setGrid(nudgeBpm(this.grid, delta)); }
   get loop() { return this.loopBeats; }
-  /** Latch (or re-latch) a loop of `beats` on the grid line at or before now. Resolves false without a grid or while paused. */
+  /** The button and the pad: a lit length releases, anything else latches (a different length switches in one step). */
+  toggleLoop(beats: LoopBeats): Promise<boolean> {
+    if (this.loopBeats === beats) { this.releaseLoop(); return Promise.resolve(true); }
+    return this.latchLoop(beats);
+  }
+  /**
+   * Latch (or re-latch) a loop of `beats` on the grid line at or before now. Resolves false without a grid or while
+   * paused. A re-latch while a loop runs starts the new body from the live position under the stage's fade (no gap).
+   * A length past the ring's ceiling is clamped to it and flagged on the status.
+   */
   async latchLoop(beats: LoopBeats): Promise<boolean> {
     if (!this.grid || this.video.paused || this.video.ended) return false;
     if (!this.src) await this.attach();
@@ -185,9 +236,11 @@ export class AudioController {
     const v = this.video, rate = v.playbackRate || 1;
     // Read the clock as late as possible: the attach above can take 30-40 ms cold.
     const p = loopPlan(this.grid, v.currentTime, rate, this.ctx.sampleRate, beats);
-    this.node.port.postMessage({ type: "loop", on: true, lenFrames: p.lenFrames, backFrames: p.backFrames });
+    const clamped = p.lenFrames > this.loopMax, len = clamped ? this.loopMax : p.lenFrames;
+    this.node.port.postMessage({ type: "loop", on: true, lenFrames: len, backFrames: Math.min(len, p.backFrames) });
     this.loopBeats = beats;
-    this.emit({ loop: beats, loopMs: Math.round(p.lenFrames / this.ctx.sampleRate * 1000) });
+    this.detector.freeze(true);   // the grid never moves under a loop
+    this.emit({ loop: beats, loopMs: Math.round(len / this.ctx.sampleRate * 1000), loopClamped: clamped });
     await this.apply(this.params, true);
     return true;
   }
@@ -196,8 +249,9 @@ export class AudioController {
     if (!this.loopBeats) return;
     this.node?.port.postMessage({ type: "loop", on: false });
     this.loopBeats = 0;
-    this.emit({ loop: 0, loopMs: 0 });
+    this.emit({ loop: 0, loopMs: 0, loopClamped: false });
     this.apply(this.params, true);
+    this.detector.freeze(false);  // a grid refined meanwhile lands now
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */
@@ -231,6 +285,7 @@ export class AudioController {
       this.emit({ baseRate: this.baseRate });
       this.apply(this.params, true);
     }
+    this.detector.reset();   // the window's frame spacing in media time changed: start over (the published grid stays)
   };
 
   private attaching: Promise<void> | null = null;
@@ -274,7 +329,7 @@ export class AudioController {
       src.connect(this.dryDelay); this.dryDelay.connect(this.dryMatched); this.dryMatched.connect(this.analyser);
       src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter); this.limiter.connect(this.trim); this.trim.connect(this.analyser);
       this.analyser.connect(ext ? ext.sink : ctx.destination);
-      this.detector.start(ctx, src);   // the null detector today; the seam for auto-detect once the licence decision lands
+      this.detector.start(ctx, src); this.syncOnset();   // the worklet posts onset batches from here on (unless a tap/typed bpm owns the grid)
       this.dryDirect.gain.value = 1; this.dryMatched.gain.value = 0; this.wet.gain.value = 0;
       ext?.onWired?.(); // same task as the connects above: the straight wire and Kari's graph swap on one render quantum
       if (!ext || ext.ownsContext) {
@@ -325,7 +380,8 @@ export class AudioController {
   }
   private onWorklet(m: any) {
     switch (m.type) {
-      case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; break;
+      case "ready": this.latencyFrames = { r3: m.latency.r3 || 0, ss: m.latency.ss || 0 }; if (typeof m.loopMax === "number" && m.loopMax > 0) this.loopMax = m.loopMax; break;
+      case "onset": this.detector.feed(m as OnsetBatch); break;
       case "engine": this.emit({ engine: m.engine, engineLatencyMs: Math.round((m.latency || 0) / (this.ctx?.sampleRate || 48000) * 1000) }); this.updateAv(); break;
       case "warm": {
         // The worklet measured the engine's real stream latency (zeros emitted before it went live with a ring cushion).

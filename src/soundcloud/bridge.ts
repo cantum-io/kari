@@ -2,10 +2,12 @@
 // per-track memory, and relays parameters to the MAIN-world hook. The hook's world is hostile: every message from it
 // goes through protocol.accept and sanitizeStatus before it touches the dock.
 import { Dock } from "../content/ui/dock";
-import type { AudioStatus } from "../content/audio/controller";
 import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, type Settings } from "../shared/storage";
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
-import { NS, accept, makeNonce, sanitizeStatus, EMPTY_STATUS, type HookStatus } from "./protocol";
+import { NS, accept, makeNonce, sanitizeStatus, parseLoopAck, EMPTY_STATUS, type HookStatus } from "./protocol";
+import { LoopRequests } from "./loops";
+import { Midi, type MidiAction } from "../content/midi";
+import type { LoopBeats } from "../content/beat/grid";
 import { bar, barPlaying, barShown, waitForBar, onBarChange, currentTrackKey } from "./sc";
 import { memoryId } from "./track-key";
 
@@ -20,6 +22,7 @@ import { memoryId } from "./track-key";
   let settings: Settings;
   let params: Params = { ...DEFAULT_PARAMS };
   let dock: Dock | null = null;
+  let midi: Midi | null = null;
   let currentKey = "";
   let hookReady = false;
   let late = false;        // the hook said it ran after the page loaded (injected, not document_start)
@@ -33,6 +36,17 @@ import { memoryId } from "./track-key";
   const note = (s: string) => { log.push(`${new Date().toISOString().slice(11, 23)} ${s}`); if (log.length > 60) log.shift(); };
 
   const post = (m: Record<string, unknown>, transfer?: Transferable[]) => window.postMessage({ ns: NS, dir: "b2h", nonce, ...m }, origin, transfer || []);
+
+  // Beat loops: the grid and the latch live in the hook's controller (it reads the clock from the real element); the
+  // dock's buttons and the MIDI pads post commands, state comes back in status. A latch resolves on the hook's ack.
+  const loops = new LoopRequests(cmd => post({ type: "loop", ...cmd }));
+  const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
+  function loopAction(a: MidiAction) { // from a MIDI pad; the dock's own buttons call loops directly. Click + MIDI only.
+    const beats = LOOP_BEATS[a];
+    if (beats) { if (status.loop === beats) loops.release(); else loops.latch(beats).then(ok => { if (ok) dock?.react(); dock?.render(); }); } // a pad toggles, like the button
+    else if (a === "tap") { loops.tap(); dock?.react(); }
+    dock?.render();
+  }
 
   async function applyParams(p: Params) {
     params = p;
@@ -63,9 +77,8 @@ import { memoryId } from "./track-key";
     catch (err) { note("worklet source fetch failed " + String(err)); }
   }
 
-  // The hook reports no loop state (no loop path on SoundCloud in this build); the dock's status type carries the fields, so fill them.
-  const asAudioStatus = (s: HookStatus): AudioStatus => ({ loop: 0, loopMs: 0, bpm: null, gridSource: null, ...s });
-  function setStatus(s: HookStatus) { status = s; dock?.setStatus(asAudioStatus(lateFault && !s.fault ? { ...s, fault: "late" } : s)); }
+  // HookStatus is AudioStatus plus route and ctxState. The "late" overlay (below) rides on top of what the hook says.
+  function setStatus(s: HookStatus) { status = s; dock?.setStatus(lateFault && !s.fault ? { ...s, fault: "late" } : s); }
 
   // Injected after SoundCloud built its graph (it does so at hydration, ~6.5 s after load, before any click — measured
   // 2026-10-15): the hook cannot wrap a source node that already exists, and the page plays on without Kari. Say so on
@@ -85,7 +98,9 @@ import { memoryId } from "./track-key";
   async function syncTrack(reason: string) {
     const key = currentTrackKey() || "";
     if (key === currentKey) return;
+    const hadKey = !!currentKey;
     currentKey = key;
+    if (hadKey) loops.clear(); // the beat grid belongs to the song: a new track starts without one (and lets any loop go), as on YouTube
     settings = settings || await loadSettings();
     const mem = settings.rememberPerVideo && key ? await loadVideo(memoryId(key)) : null;
     params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange, keyLock: settings.keyLockDefault };
@@ -100,6 +115,7 @@ import { memoryId } from "./track-key";
     settings = settings || await loadSettings();
     if (getComputedStyle(host).position === "static") host.style.position = "relative";
     if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; }
+    if (!midi) midi = new Midi(settings.midiMap, loopAction, (m) => { saveSettings({ midiMap: m }).then(s => { settings = s; }); }, (st) => dock?.setMidiState(st));
     if (!dock) {
       dock = new Dock(host, {
         getParams: () => params,
@@ -116,11 +132,14 @@ import { memoryId } from "./track-key";
         // below the bar's top edge, off-screen; and `visibility:visible`, because SoundCloud's .playControls container is
         // visibility:hidden (its __inner section re-shows itself) and the dock would inherit hidden.
         mountStyle: "position:absolute;left:0;right:0;top:auto;bottom:100%;height:320px;visibility:visible;pointer-events:none;z-index:60",
+        loop: { latch: (beats) => loops.latch(beats), release: () => loops.release(), tap: () => loops.tap(), setBpm: (bpm) => loops.setBpm(bpm), nudge: (d) => loops.nudge(d) },
+        midi,
       });
+      dock.setMidiState(midi.state);
       setStatus(status);
-      // The bar slides in with `m-visible` on .playControls (nothing queued = no bar); the dock follows it the way it
-      // follows YouTube's autohide, through the same hide switch.
-      const followBar = () => dock?.setControlsHidden(!barShown(host));
+      // The bar slides in with `m-visible` on .playControls (nothing queued = no bar): the whole dock, Kari included,
+      // goes with it (not the YouTube autohide switch, which keeps Kari on screen by Jesse's ruling).
+      const followBar = () => dock?.setBarHidden(!barShown(host));
       followBar();
       onBarChange(host, () => { syncTrack("bar"); followBar(); if (!host.contains(dock!.hostEl)) mount(); });
       post({ type: "engine-pref", pref: settings.engine });
@@ -140,6 +159,7 @@ import { memoryId } from "./track-key";
       case "need-engine": sendEngine(); return;
       case "need-worklet-source": sendWorkletSource(); return;
       case "status": setStatus(sanitizeStatus(d.status)); return;
+      case "loop-ack": { const a = parseLoopAck(d); if (a) loops.ack(a.seq, a.ok); return; }
       case "level": level = typeof d.v === "number" && Number.isFinite(d.v) ? Math.min(1, Math.max(0, d.v)) : 0; return;
       case "event": {
         const ev = d.ev as any;
@@ -167,9 +187,12 @@ import { memoryId } from "./track-key";
   });
 
   // Debug surface for the live probe — isolated world only, invisible to the page.
-  (globalThis as any).__kari = { site: "soundcloud", get params() { return params; }, get status() { return status; }, get dock() { return dock; }, get settings() { return settings; }, get key() { return currentKey; }, get hookReady() { return hookReady; }, get late() { return late; }, get lateFault() { return lateFault; }, get log() { return log.slice(); }, apply: (p: Params) => applyParams(p) };
+  (globalThis as any).__kari = {
+    site: "soundcloud", get params() { return params; }, get status() { return status; }, get dock() { return dock; }, get settings() { return settings; }, get key() { return currentKey; }, get hookReady() { return hookReady; }, get late() { return late; }, get lateFault() { return lateFault; }, get log() { return log.slice(); }, apply: (p: Params) => applyParams(p),
+    get midi() { return midi; }, tap: () => loops.tap(), setBpm: (b: number) => loops.setBpm(b), latch: (beats: LoopBeats) => loops.latch(beats), release: () => loops.release(),
+  };
 
-  onSettingsChange(s => { settings = s; dock?.applySettings(s); post({ type: "engine-pref", pref: s.engine }); });
+  onSettingsChange(s => { settings = s; dock?.applySettings(s); post({ type: "engine-pref", pref: s.engine }); midi?.setMap(s.midiMap || {}); });
   post({ type: "init" }); // in case the hook loaded first; it answers hello → init again otherwise
   if (bar()) mount(); else waitForBar().then(b => { if (b) mount(); });
 })();

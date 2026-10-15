@@ -7,6 +7,7 @@
 import { RubberBandInterface, RubberBandOption as O } from "rubberband-wasm";
 import SignalsmithFactory from "./generated/signalsmith-core.js";
 import { LoopStage, DelayLine } from "./loop.js";
+import { OnsetFeature } from "../content/beat/detect";
 
 const QUANTUM = 128;
 const RING = 1 << 15; // 32768 frames per channel, ~680 ms at 48k — plenty for pitch-ratio jitter
@@ -47,6 +48,9 @@ class KariProcessor extends AudioWorkletProcessor {
     // line so a loop with no key change sits at the matched dry path's latency (the controller sets config.bypassDelay).
     this.loop = new LoopStage(sampleRate, { seconds: po.loopSeconds, fadeMs: po.loopFadeMs });
     this.bypassDelay = new DelayLine(16384); this.latency.bypass = 0;
+    // Tempo detection front end (src/content/beat/detect.ts): onset strength at 100 frames/s from the stage's input (the
+    // live track underneath, loop or not), posted in 100 ms batches while the controller asks for it (config.onset).
+    this.onset = new OnsetFeature(sampleRate); this.onsetOn = false;
     this.port.onmessage = (e) => this.onMessage(e.data);
     this.initR3(po.rbWasm || po.rbModule).catch(err => this.post({ type: "error", where: "r3-init", message: String(err) }));
     if (po.signalsmith !== false) this.initSS().catch(err => this.post({ type: "error", where: "ss-init", message: String(err) }));
@@ -155,7 +159,7 @@ class KariProcessor extends AudioWorkletProcessor {
   }
 
   /* ---------- control ---------- */
-  announce() { this.post({ type: "ready", engines: { ...this.ready }, latency: { ...this.latency }, sampleRate }); }
+  announce() { this.post({ type: "ready", engines: { ...this.ready }, latency: { ...this.latency }, sampleRate, loopMax: this.loop.maxLen, loopFade: this.loop.xf }); }
   pickEngine() {
     const want = this.wanted;
     let next = "bypass";
@@ -182,11 +186,12 @@ class KariProcessor extends AudioWorkletProcessor {
       case "config":
         if (m.dropStart !== undefined) this.dropStart = m.dropStart; if (m.cushion !== undefined) this.cushion = +m.cushion;
         if (m.bypassDelay !== undefined) { this.bypassDelay.setDelay(m.bypassDelay); this.latency.bypass = this.bypassDelay.d; }
+        if (m.onset !== undefined) { this.onsetOn = !!m.onset; if (!this.onsetOn) this.onset.reset(); }
         break;
       case "loop": {
         // Applied here, between render quanta, so the next process() already plays it: engage within one quantum.
         if (m.on) this.loop.engage(m.lenFrames, m.backFrames); else this.loop.release();
-        this.post({ type: "loop", on: this.loop.on, len: this.loop.len, start: this.loop.start, w: this.loop.w });
+        this.post({ type: "loop", on: this.loop.on, len: this.loop.len, start: this.loop.start, w: this.loop.w, max: this.loop.maxLen });
         break;
       }
       case "reset": if (this.engine === "r3") this.primeR3(); if (this.engine === "ss" && this.ss) this.ss._reset(); this.underruns = 0; break;
@@ -208,6 +213,7 @@ class KariProcessor extends AudioWorkletProcessor {
     const n = output[0].length;
     const t0 = Date.now();
     try {
+      if (this.onsetOn) { const b = this.onset.push(input, n, currentFrame); if (b) this.post(b); }   // tempo: reads the live input, never the loop
       const stage = this.loop.process(input, n);   // beat loop / slip; a straight copy when no loop is latched
       if (this.engine === "r3" && this.ready.r3) this.processR3(stage, output, n);
       else if (this.engine === "ss" && this.ready.ss) this.processSS(stage, output, n);

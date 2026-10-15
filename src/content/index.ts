@@ -33,13 +33,14 @@ async function applyParams(p: Params) {
   }
 }
 
-// Beat-loop actions, from the dock's buttons or a MIDI pad. Click + MIDI only: the page's keyboard is never taken.
-const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-q": 0.25, "loop-h": 0.5, "loop-1": 1 };
+// Beat-loop actions from a MIDI pad (the dock's own buttons call the controller directly). A pad on a length toggles
+// it, exactly like the button: lit = release, unlit = latch, another length = switch. Click + MIDI only: the page's
+// keyboard is never taken.
+const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
 function loopAction(a: MidiAction) {
   if (!audio) return;
   const beats = LOOP_BEATS[a];
-  if (beats) audio.latchLoop(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
-  else if (a === "release") audio.releaseLoop();
+  if (beats) audio.toggleLoop(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
   else if (a === "tap") { audio.tap(); dock?.react(); }
   dock?.render();
 }
@@ -117,6 +118,7 @@ chrome.runtime.onMessage.addListener((m) => {
   get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p),
   get grid() { return audio?.getGrid() ?? null; }, get midi() { return midi; },
   tap: () => audio?.tap() ?? null, setBpm: (b: number) => audio?.setBpm(b), latch: (beats: LoopBeats) => audio?.latchLoop(beats), release: () => audio?.releaseLoop(),
+  toggle: (beats: LoopBeats) => audio?.toggleLoop(beats), get tempo() { return audio?.detectorState ?? null; }, get estimate() { return audio?.lastEstimate ?? null; }, get tempoDebug() { return audio?.detectorDebug ?? null; },
 };
 
 onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); });

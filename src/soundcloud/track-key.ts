@@ -8,6 +8,7 @@ const RESERVED_FIRST = new Set([
   "messages", "library", "feed", "mobile", "terms-of-use", "jobs", "imprint", "popular", "explore", "stations", "sets",
   "tracks", "playlists", "go", "pro", "signin", "logout", "login", "connect", "oauth", "activity", "dashboard", "trending",
   "genres", "moods", "premium", "artist", "creators", "for", "insights", "legal", "help", "community-guidelines",
+  "undefined", "null", // SoundCloud renders a missing user permalink as the literal string (badge href "/undefined/cave", seen live 2026-10-15)
 ]);
 const RESERVED_SECOND = new Set([
   "sets", "tracks", "albums", "reposts", "likes", "followers", "following", "popular-tracks", "comments", "playlists",

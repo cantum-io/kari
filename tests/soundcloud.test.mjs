@@ -5,6 +5,12 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { installSoundCloudHook } from "../src/soundcloud/hook-core.ts";
 import { trackKeyFromHref, memoryId } from "../src/soundcloud/track-key.ts";
+
+test("track key: SoundCloud's missing-user link (\"/undefined/slug\") is not a key", () => {
+  assert.equal(trackKeyFromHref("/undefined/cave"), null);
+  assert.equal(trackKeyFromHref("https://soundcloud.com/null/cave"), null);
+  assert.equal(trackKeyFromHref("/lofilion/cave"), "/lofilion/cave");
+});
 import { accept, sanitizeStatus, makeNonce, NS } from "../src/soundcloud/protocol.ts";
 
 /* ---------- fakes ---------- */

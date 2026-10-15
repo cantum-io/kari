@@ -4,7 +4,10 @@
 
 export type GridSource = "tap" | "manual" | "auto";
 export type BeatGrid = { bpm: number; phase: number; source: GridSource };
-export type LoopBeats = 0.25 | 0.5 | 1;
+/** Loop lengths in beats: ½ beat, 1 beat, 1 bar and 2 bars (4/4: 4 and 8 beats). The ¼ was dropped on 2026-10-15. */
+export type LoopBeats = 0.5 | 1 | 4 | 8;
+export const LOOP_BEATS: readonly LoopBeats[] = [0.5, 1, 4, 8];
+export const isLoopBeats = (x: unknown): x is LoopBeats => typeof x === "number" && (LOOP_BEATS as readonly number[]).includes(x);
 
 export const BPM_MIN = 40, BPM_MAX = 300;
 export const clampBpm = (bpm: number) => Math.min(BPM_MAX, Math.max(BPM_MIN, bpm));
@@ -12,7 +15,7 @@ export const clampBpm = (bpm: number) => Math.min(BPM_MAX, Math.max(BPM_MIN, bpm
 /** Media seconds per beat. */
 export const beatSeconds = (g: BeatGrid) => 60 / g.bpm;
 
-/** Media time of the nearest line of the `beats`-grid (¼, ½, 1 beat cells) at or before `mediaTime`. */
+/** Media time of the nearest line of the `beats`-grid (½, 1, 4, 8 beat cells, counted from the phase = the "1") at or before `mediaTime`. */
 export function gridLineAtOrBefore(g: BeatGrid, mediaTime: number, beats: number): number {
   const cell = beatSeconds(g) * beats;
   return g.phase + Math.floor((mediaTime - g.phase) / cell + 1e-9) * cell;
@@ -43,4 +46,5 @@ export function withBpm(g: BeatGrid | null, bpm: number, phaseIfNew: number, sou
 export const nudgeBpm = (g: BeatGrid, delta: number): BeatGrid => ({ ...g, bpm: clampBpm(+(g.bpm + delta).toFixed(1)), source: "manual" });
 
 export const fmtBpm = (bpm: number) => (Math.round(bpm * 10) / 10).toFixed(1).replace(/\.0$/, "");
-export const loopLabel = (beats: LoopBeats) => beats === 0.25 ? "¼" : beats === 0.5 ? "½" : "1";
+export const loopLabel = (beats: LoopBeats) => beats === 0.5 ? "½" : beats === 1 ? "1" : beats === 4 ? "1 bar" : "2 bars";
+export const loopAria = (beats: LoopBeats) => beats === 0.5 ? "Loop half a beat" : beats === 1 ? "Loop one beat" : beats === 4 ? "Loop one bar" : "Loop two bars";

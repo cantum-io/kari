@@ -13,13 +13,15 @@
 //
 // --kari   also reads Kari: [kari] console lines (page and service worker), the dock's engine and a/v readouts if the
 //          dock mounted, and __kari.audio.status from the extension's isolated world when it exists.
-// --loop   (implies --kari) beat loops through the dock: switch Full control on, click Tap five times 500 ms apart,
-//          click ¼, then read the loop status from the dock and from __kari.status, the RMS at the destination while
-//          the loop runs, the element clock (slip: the track underneath keeps moving) and the release on ×.
+// --loop   (implies --kari) beat loops through the dock, v2: the loop row sits under the steppers with Full control
+//          OFF; first let the in-house tempo detector listen (the readout goes "learning…" → "N bpm" within ~8 s of
+//          play, or "tap"), then click Tap five times 500 ms apart (a tap overrides the detector), click "1 bar", read
+//          the loop status from the dock and from __kari.status, the RMS at the destination while the loop runs, the
+//          element clock (slip: the track underneath keeps moving), then click the lit "1 bar" again: it releases.
 // --json   print the report as JSON (for assertions) instead of the table.
 //
 // Exit: 0 played · 1 play never started within 20 s · 2 setup failed (no test build, page did not load) · 3 the --loop
-// check failed (played, but no ¼ loop latched, or it was silent, or × did not release it).
+// check failed (played, but no 1-bar loop latched, or it was silent, or the second click did not release it).
 import { chromium } from "playwright";
 import fs from "node:fs";
 import os from "node:os";
@@ -254,44 +256,51 @@ const elClock = () => page.evaluate(() => { const P = window.__scProbe; const r 
 let loop = null;
 if (LOOP && played) {
   const ORG = '.skin[data-skin="org"] ';
-  const L = { taps: 0, bpmText: null, latchMs: null, status: null, rms: null, slip: null, released: null, ok: false, fail: null };
+  const L = { auto: null, taps: 0, bpmText: null, latchMs: null, status: null, rms: null, slip: null, released: null, ok: false, fail: null };
   const fail = (why) => { L.fail = L.fail || why; return L; };
+  const tempoRo = () => inDock(ORG + '[data-b="tempo"]', "text");
   try {
     if (!(await until(() => inDock(ORG + ".ctl", "attr"), 4000))) throw new Error("dock not mounted");
-    // 1. Full control on (the loop row lives in the full panel). The toggle saves a setting; the panel follows the save.
+    // 1. The loop row shows with Full control OFF (v2); the MIDI group lives in the settings aside regardless.
     const full = await inDock(ORG + '[data-a="full"]', "attr");
-    if (full && full.pressed !== "true") await inDock(ORG + '[data-a="full"]', "click");
-    if (!(await until(async () => (await inDock(ORG + '.ctl[data-full="1"]', "attr")) !== null, 3000))) throw new Error("full control did not open");
+    if (full && full.pressed === "true") { await inDock(ORG + '[data-a="full"]', "click"); await until(async () => (await inDock(ORG + '.ctl[data-full="0"]', "attr")) !== null, 3000); }
     const loopsRow = await inDock(ORG + ".loops", "attr"); L.loopRowShown = !!loopsRow && !loopsRow.hidden;
+    L.fullOff = (await inDock(ORG + '.ctl[data-full="0"]', "attr")) !== null;
     const midiGroup = await inDock('[data-el="midisg"]', "attr"); L.midiGroupShown = !!midiGroup && !midiGroup.hidden;
     if (!L.loopRowShown) throw new Error("loop row hidden (dock has no loop deps)");
-    // 2. Tap tempo: five taps 500 ms apart = 120 bpm in media time at 1×. The first tap also attaches the chain.
+    L.pillsBefore = []; for (const v of ["0.5", "1", "4", "8"]) L.pillsBefore.push((await inDock(ORG + `[data-a="loop"][data-v="${v}"]`, "attr"))?.disabled);
+    // 2. The in-house detector: the chain attaches on `playing`, the readout says "learning…", then "N bpm" (or "tap").
+    const t0a = Date.now();
+    L.auto = { first: await tempoRo(), verdict: null, ms: null, status: null };
+    const verdict = await until(async () => { const t = await tempoRo(); return t && t !== "learning…" && t !== "" ? t : null; }, 14000, 250);
+    L.auto.verdict = verdict; L.auto.ms = verdict ? Date.now() - t0a : null; L.auto.status = await kariStatus();
+    // 3. Tap tempo: five taps 500 ms apart = 120 bpm in media time at 1×. A tap overrides the detector's grid.
     for (let i = 0; i < 5; i++) { if (await inDock(ORG + '[data-a="tap"]', "click")) L.taps++; await page.waitForTimeout(500); }
-    L.bpmText = await until(async () => { const t = await inDock(ORG + '[data-b="bpm"]', "text"); return t && /bpm/.test(t) ? t : null; }, 3000);
-    if (!L.bpmText) throw new Error("no bpm after five taps");
-    // 3. Latch ¼ and wait for the dock to say so.
+    L.bpmText = await until(async () => { const t = await tempoRo(); const st = await kariStatus(); return t && /bpm/.test(t) && st && st.gridSource === "tap" ? t : null; }, 3000);
+    if (!L.bpmText) throw new Error("no tapped bpm after five taps");
+    // 4. Latch 1 bar and wait for the dock to say so.
     const t1 = Date.now();
-    if (!(await inDock(ORG + '[data-a="loop"][data-v="0.25"]', "click"))) throw new Error("¼ button disabled or missing");
-    const info = await until(async () => { const t = await inDock(ORG + '[data-b="loopinfo"]', "text"); return t && t.startsWith("¼") ? t : null; }, 4000);
+    if (!(await inDock(ORG + '[data-a="loop"][data-v="4"]', "click"))) throw new Error("1 bar button disabled or missing");
+    const info = await until(async () => { const t = await inDock(ORG + '[data-b="loopinfo"]', "text"); return t && t.startsWith("1 bar") ? t : null; }, 4000);
     L.latchMs = info ? Date.now() - t1 : null; L.loopInfo = info;
-    if (!info) throw new Error("dock never showed a ¼ loop");
+    if (!info) throw new Error("dock never showed a 1-bar loop");
     L.status = await kariStatus();
-    L.quarterPressed = (await inDock(ORG + '[data-a="loop"][data-v="0.25"]', "attr"))?.pressed === "true";
+    L.quarterPressed = (await inDock(ORG + '[data-a="loop"][data-v="4"]', "attr"))?.pressed === "true";
     // 4. Output while looping, and the element clock across it (slip: nothing is seeked, the track underneath moves on).
     const c0 = await elClock();
     L.rms = await page.evaluate((ms) => window.__scProbe.rms(ms), RMS_MS);
     const c1 = await elClock();
     L.slip = { before: c0, after: c1, advanced: c0 !== null && c1 !== null && c1 - c0 > RMS_MS / 1000 * 0.5 };
     L.snap = await page.evaluate(() => { const s = window.__scProbe.snapshot(); return { worklets: s.worklets, chain: s.chain }; });
-    // 5. Release on ×.
-    if (!(await inDock(ORG + '[data-a="loop-off"]', "click"))) throw new Error("× disabled or missing");
+    // 5. Release: a second click on the lit "1 bar" (there is no × in v2).
+    if (!(await inDock(ORG + '[data-a="loop"][data-v="4"]', "click"))) throw new Error("lit 1 bar button disabled or missing");
     const off = await until(async () => { const t = await inDock(ORG + '[data-b="loopinfo"]', "text"); return t === "—" ? t : null; }, 3000);
     L.statusAfter = await kariStatus();
-    L.released = off === "—" && !!L.statusAfter && L.statusAfter.loop === 0 && L.statusAfter.loopMs === 0;
+    L.released = off === "—" && !!L.statusAfter && L.statusAfter.loop === 0 && L.statusAfter.loopMs === 0 && (await inDock(ORG + '[data-a="loop"][data-v="4"]', "attr"))?.pressed === "false";
     // 6. The live track again after the slip release: still sound, not silence (a loud loop vs a quiet intro is the song, not a doubled path).
     L.rmsAfter = await page.evaluate((ms) => window.__scProbe.rms(ms), RMS_MS);
     const st = L.status;
-    L.ok = !!st && st.loop === 0.25 && st.loopMs > 0 && st.bpm !== null && st.gridSource === "tap" && st.attached === true
+    L.ok = !!st && st.loop === 4 && st.loopMs > 0 && st.bpm !== null && st.gridSource === "tap" && st.attached === true && L.fullOff
       && !!L.rms && L.rms.mean > 1e-3 && L.rms.silent === 0 && L.slip.advanced && L.released && L.quarterPressed
       && !!L.rmsAfter && L.rmsAfter.mean > 1e-3 && L.rmsAfter.silent === 0;
     if (!L.ok) fail("a loop assertion did not hold (see the loop rows)");
@@ -301,7 +310,7 @@ if (LOOP && played) {
 
 const graph = !!(snap && snap.contexts.length && snap.sources.length);
 const attached = !!(snap && (snap.worklets > 0 || (kari && kari.dock) || (kari && kari.isolated && kari.isolated.value && kari.isolated.value.status && kari.isolated.value.status.attached)));
-const verdict = `${graph ? "SoundCloud graph present" : "SoundCloud graph NOT seen"}, ${attached ? "Kari attached" : "Kari not attached"}${loop ? (loop.ok ? ", ¼ loop latched and released" : `, ¼ LOOP FAILED (${loop.fail})`) : ""}`;
+const verdict = `${graph ? "SoundCloud graph present" : "SoundCloud graph NOT seen"}, ${attached ? "Kari attached" : "Kari not attached"}${loop ? (loop.ok ? ", 1-bar loop latched and released" : `, 1-BAR LOOP FAILED (${loop.fail})`) : ""}`;
 const report = { url, title: status, played, playMs, clicked, verdict, graph: snap, rms, kari, loop, browser: context.browser()?.version() || null };
 
 if (JSON_OUT) console.log(JSON.stringify(report, null, 1));
@@ -330,14 +339,15 @@ else {
   }
   if (loop) {
     const st = loop.status, sa = loop.statusAfter;
-    row("loop: dock rows", `loop row ${loop.loopRowShown ? "shown" : "HIDDEN"}, MIDI group ${loop.midiGroupShown ? "shown" : "HIDDEN"}`);
+    row("loop: dock rows", `Full control ${loop.fullOff ? "off" : "ON"}, loop row ${loop.loopRowShown ? "shown" : "HIDDEN"}, pills disabled before a tempo ${JSON.stringify(loop.pillsBefore)}, MIDI group ${loop.midiGroupShown ? "shown" : "HIDDEN"}`);
+    if (loop.auto) row("loop: auto tempo", `readout "${loop.auto.first || ""}" → "${loop.auto.verdict || "(nothing within 14 s)"}"${loop.auto.ms ? ` after ${loop.auto.ms} ms` : ""}; status bpm ${loop.auto.status?.bpm ?? "null"}, grid ${loop.auto.status?.gridSource ?? "null"}, learning ${loop.auto.status?.learning}, attached ${loop.auto.status?.attached}`);
     row("loop: tap", `${loop.taps} taps 500 ms apart → readout "${loop.bpmText || "(none)"}"`);
-    row("loop: ¼ latch", loop.loopInfo ? `dock "${loop.loopInfo}" ${loop.latchMs} ms after the click, ¼ pill pressed ${loop.quarterPressed}` : "NOT latched");
+    row("loop: 1-bar latch", loop.loopInfo ? `dock "${loop.loopInfo}" ${loop.latchMs} ms after the click, 1 bar pill pressed ${loop.quarterPressed}` : "NOT latched");
     row("loop: __kari.status", st ? `loop ${st.loop}, loopMs ${st.loopMs}, bpm ${st.bpm}, grid ${st.gridSource}, engine ${st.engine}, attached ${st.attached}, route ${st.route}` : "none");
     row("loop: RMS at destination, 2 s", loop.rms ? `mean ${loop.rms.mean} (${loop.rms.dBFS} dBFS), min ${loop.rms.min}, max ${loop.rms.max}, ${loop.rms.silent}/${loop.rms.windows} windows silent` : "not measured");
     row("loop: slip", loop.slip ? `element clock ${loop.slip.before} → ${loop.slip.after} s while looping (${loop.slip.advanced ? "kept moving" : "STALLED"})` : "—");
     row("loop: graph", loop.snap ? `${loop.snap.worklets} worklet node(s): ${loop.snap.chain}` : "—");
-    row("loop: × release", loop.released ? `dock "—", status loop ${sa.loop}, loopMs ${sa.loopMs}` : `NOT released${sa ? ` (status loop ${sa.loop})` : ""}`);
+    row("loop: release (2nd click)", loop.released ? `dock "—", status loop ${sa.loop}, loopMs ${sa.loopMs}, pill unlit` : `NOT released${sa ? ` (status loop ${sa.loop})` : ""}`);
     row("loop: RMS after release, 2 s", loop.rmsAfter ? `mean ${loop.rmsAfter.mean} (${loop.rmsAfter.dBFS} dBFS), min ${loop.rmsAfter.min}, max ${loop.rmsAfter.max}, ${loop.rmsAfter.silent}/${loop.rmsAfter.windows} windows silent` : "not measured");
     if (loop.fail) row("loop: failure", loop.fail);
   }

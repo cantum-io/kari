@@ -196,7 +196,7 @@ test("accept: same window, same origin, namespace, direction and nonce; handshak
 
 test("sanitizeStatus rebuilds a safe status from hostile input", () => {
   const s = sanitizeStatus({ attached: "yes", engine: "evil", engineLatencyMs: 1e12, avOffsetMs: -5, underruns: NaN, load: "x", fault: "<img>", baseRate: Infinity, route: "late", ctxState: "running".repeat(10) });
-  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, bpm: null, gridSource: null, route: "late", ctxState: "runningrunningru" });
+  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false, route: "late", ctxState: "runningrunningru" });
   assert.equal(sanitizeStatus(null).engine, "bypass");
   assert.equal(sanitizeStatus({ attached: true, engine: "r3", fault: "drm-silent", route: 0 }).fault, "drm-silent");
 });
@@ -206,9 +206,11 @@ import { parseLoopCommand, parseLoopAck, EMPTY_STATUS, MAX_NUDGE } from "../src/
 import { LoopRequests, runLoopCommand } from "../src/soundcloud/loops.ts";
 
 test("parseLoopCommand: the six actions, with beats, bpm and delta checked and clamped", () => {
-  assert.deepEqual(parseLoopCommand({ action: "latch", beats: 0.25, seq: 3 }), { action: "latch", beats: 0.25, seq: 3 });
+  assert.deepEqual(parseLoopCommand({ action: "latch", beats: 0.5, seq: 3 }), { action: "latch", beats: 0.5, seq: 3 });
   assert.deepEqual(parseLoopCommand({ action: "latch", beats: 1, seq: 0 }), { action: "latch", beats: 1, seq: 0 });
-  for (const bad of [{ action: "latch", beats: 0.3, seq: 1 }, { action: "latch", beats: "0.25", seq: 1 }, { action: "latch", beats: 0.5 }, { action: "latch", beats: 0.5, seq: 1.5 }, { action: "latch", beats: 0.5, seq: -1 }])
+  assert.deepEqual(parseLoopCommand({ action: "latch", beats: 4, seq: 1 }), { action: "latch", beats: 4, seq: 1 });
+  assert.deepEqual(parseLoopCommand({ action: "latch", beats: 8, seq: 1 }), { action: "latch", beats: 8, seq: 1 });
+  for (const bad of [{ action: "latch", beats: 0.25, seq: 1 }, { action: "latch", beats: 0.3, seq: 1 }, { action: "latch", beats: "0.5", seq: 1 }, { action: "latch", beats: 0.5 }, { action: "latch", beats: 0.5, seq: 1.5 }, { action: "latch", beats: 0.5, seq: -1 }, { action: "latch", beats: 2, seq: 1 }])
     assert.equal(parseLoopCommand(bad), null, JSON.stringify(bad));
   assert.deepEqual(parseLoopCommand({ action: "release", extra: 1 }), { action: "release" });
   assert.deepEqual(parseLoopCommand({ action: "tap" }), { action: "tap" });
@@ -225,11 +227,13 @@ test("parseLoopCommand: the six actions, with beats, bpm and delta checked and c
 });
 
 test("sanitizeStatus carries the loop fields and rejects off-grid values", () => {
-  const full = { ...EMPTY_STATUS, attached: true, engine: "bypass", loop: 0.25, loopMs: 117, bpm: 128, gridSource: "tap", route: 0, ctxState: "running" };
+  const full = { ...EMPTY_STATUS, attached: true, engine: "bypass", loop: 0.5, loopMs: 234, loopClamped: true, bpm: 128, gridSource: "auto", learning: false, route: 0, ctxState: "running" };
   assert.deepEqual(sanitizeStatus(full), full, "a clean status survives untouched");
-  const s = sanitizeStatus({ loop: 0.3, loopMs: -5, bpm: "128", gridSource: "<img>" });
-  assert.equal(s.loop, 0); assert.equal(s.loopMs, 0); assert.equal(s.bpm, null); assert.equal(s.gridSource, null);
-  assert.equal(sanitizeStatus({ loop: 1, loopMs: 1e9, bpm: 5, gridSource: "manual" }).loopMs, 60000);
+  const s = sanitizeStatus({ loop: 0.25, loopMs: -5, bpm: "128", gridSource: "<img>", learning: "yes", loopClamped: 1 });
+  assert.equal(s.loop, 0, "¼ is no longer a loop length"); assert.equal(s.loopMs, 0); assert.equal(s.bpm, null); assert.equal(s.gridSource, null);
+  assert.equal(s.learning, false); assert.equal(s.loopClamped, false);
+  assert.equal(sanitizeStatus({ loop: 8, loopMs: 1e9, bpm: 5, gridSource: "manual" }).loopMs, 60000);
+  assert.equal(sanitizeStatus({ loop: 8 }).loop, 8); assert.equal(sanitizeStatus({ learning: true }).learning, true);
   assert.equal(sanitizeStatus({ bpm: 5 }).bpm, 5); for (const bad of [Infinity, 0, 5000, "128"]) assert.equal(sanitizeStatus({ bpm: bad }).bpm, null, String(bad));
   assert.deepEqual(EMPTY_STATUS.loop, 0); assert.equal(EMPTY_STATUS.bpm, null);
 });
@@ -260,8 +264,8 @@ test("loop round trip: dock latch → bridge message → hook routes to the cont
   const w = loopWorlds(() => ctl);
   w.handshake();
   assert.equal(w.hookNonce(), w.nonce); assert.deepEqual(w.bridgeLog, ["ready"]);
-  assert.equal(await w.loops.latch(0.25), true);
-  assert.deepEqual(ctl.calls, [["latch", 0.25]]); assert.equal(w.loops.inFlight, 0);
+  assert.equal(await w.loops.latch(4), true);
+  assert.deepEqual(ctl.calls, [["latch", 4]]); assert.equal(w.loops.inFlight, 0);
   ctl.ok = false;                                               // the controller refuses (no grid, or paused)
   assert.equal(await w.loops.latch(1), false, "a refused latch resolves false, not true");
   w.loops.release(); w.loops.tap(); w.loops.setBpm(128); w.loops.nudge(-1); w.loops.clear();
@@ -270,8 +274,8 @@ test("loop round trip: dock latch → bridge message → hook routes to the cont
   assert.deepEqual(ctl.calls.slice(1), [["latch", 1], ["release"], ["tap"], ["bpm", 128], ["nudge", -1], ["grid", null]]);
   assert.equal(w.hookLog.filter(t => t === "rejected").length, 0);
   // the hook's loop fields reach the dock through status, sanitized
-  w.hookPost({ type: "status", status: { attached: true, engine: "bypass", loop: 0.25, loopMs: 117, bpm: 128, gridSource: "tap", route: 0, ctxState: "running" } });
-  assert.equal(w.status().loop, 0.25); assert.equal(w.status().loopMs, 117); assert.equal(w.status().bpm, 128); assert.equal(w.status().gridSource, "tap");
+  w.hookPost({ type: "status", status: { attached: true, engine: "bypass", loop: 4, loopMs: 1875, bpm: 128, gridSource: "auto", learning: false, route: 0, ctxState: "running" } });
+  assert.equal(w.status().loop, 4); assert.equal(w.status().loopMs, 1875); assert.equal(w.status().bpm, 128); assert.equal(w.status().gridSource, "auto");
   // every loop message carried the namespace, the bridge→hook direction and the nonce
   for (const m of w.sent.filter(m => m.type === "loop")) { assert.equal(m.ns, NS); assert.equal(m.dir, "b2h"); assert.equal(m.nonce, w.nonce); }
 });
@@ -283,7 +287,7 @@ test("loop round trip guards: wrong nonce or no controller → no action and the
   w.handshake();
   // a page script forging a loop message with the wrong nonce: dropped by the hook, the dock's promise times out to false
   const t0 = Date.now();
-  w.postMessage({ ns: NS, dir: "b2h", nonce: "0".repeat(32), type: "loop", action: "latch", beats: 0.25, seq: 99 }, w.origin);
+  w.postMessage({ ns: NS, dir: "b2h", nonce: "0".repeat(32), type: "loop", action: "latch", beats: 0.5, seq: 99 }, w.origin);
   w.postMessage({ ns: NS, dir: "b2h", nonce: w.nonce, type: "loop", action: "latch", beats: 7, seq: 100 }, w.origin); // right nonce, bad beats
   await wait(5);
   assert.deepEqual(ctl.calls, []); assert.deepEqual(w.hookLog.filter(t => t === "rejected"), ["rejected"]);
@@ -292,7 +296,7 @@ test("loop round trip guards: wrong nonce or no controller → no action and the
   have = true;
   // an ack for a sequence number nobody is waiting on, or with the hook's nonce missing, changes nothing
   assert.equal(w.loops.ack(12345, true), false);
-  const p = w.loops.latch(0.25);
+  const p = w.loops.latch(0.5);
   w.postMessage({ ns: NS, dir: "h2b", nonce: null, type: "loop-ack", seq: 1, ok: true }, w.origin);
   assert.equal(await p, true, "the real ack still lands"); assert.ok(Date.now() - t0 < 1000);
 });

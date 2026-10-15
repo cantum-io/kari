@@ -2,10 +2,20 @@
 // Click + MIDI only: Kari never takes the page's keyboard. The browser asks the user once per origin when connect()
 // runs, so it is only ever called from a click on the dock. Sysex is never requested.
 
-export type MidiAction = "loop-q" | "loop-h" | "loop-1" | "release" | "tap";
+// A pad on a loop length toggles it: lit = release, unlit = latch, another length = switch (no separate release pad,
+// the same as the dock's buttons since 2026-10-15). A saved map from an older build may still carry "loop-q" or
+// "release": unknown actions are dropped, known ones kept, the rest filled from the defaults.
+export type MidiAction = "loop-h" | "loop-1" | "loop-bar" | "loop-2bar" | "tap";
 export type MidiMap = Record<MidiAction, number>;   // note number, any channel
-export const MIDI_ACTIONS: MidiAction[] = ["loop-q", "loop-h", "loop-1", "release", "tap"];
-export const DEFAULT_MIDI_MAP: MidiMap = { "loop-q": 36, "loop-h": 37, "loop-1": 38, release: 39, tap: 40 }; // C1..E1, the first pads on most controllers
+export const MIDI_ACTIONS: MidiAction[] = ["loop-h", "loop-1", "loop-bar", "loop-2bar", "tap"];
+export const DEFAULT_MIDI_MAP: MidiMap = { "loop-h": 36, "loop-1": 37, "loop-bar": 38, "loop-2bar": 39, tap: 40 }; // C1..E1, the first pads on most controllers
+
+/** A valid map from whatever was saved: known actions with a note 0–127 survive, everything else falls back to the default pad. */
+export function validMidiMap(saved: Record<string, unknown> | undefined | null): MidiMap {
+  const m: MidiMap = { ...DEFAULT_MIDI_MAP };
+  if (saved && typeof saved === "object") for (const a of MIDI_ACTIONS) { const v = (saved as Record<string, unknown>)[a]; if (typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 127) m[a] = v; }
+  return m;
+}
 
 export type MidiState = { supported: boolean; connected: boolean; inputs: number; learning: MidiAction | null; lastNote: number | null; error: string | null };
 
@@ -13,8 +23,10 @@ export class Midi {
   private access: MIDIAccess | null = null;
   private map: MidiMap;
   private _state: MidiState = { supported: typeof navigator !== "undefined" && "requestMIDIAccess" in navigator, connected: false, inputs: 0, learning: null, lastNote: null, error: null };
-  constructor(map: Partial<MidiMap> | undefined, private onAction: (a: MidiAction) => void, private onMap: (m: MidiMap) => void, private onState: (s: MidiState) => void) {
-    this.map = { ...DEFAULT_MIDI_MAP, ...(map || {}) };
+  private onAction: (a: MidiAction) => void; private onMap: (m: MidiMap) => void; private onState: (s: MidiState) => void;
+  constructor(map: Record<string, unknown> | undefined, onAction: (a: MidiAction) => void, onMap: (m: MidiMap) => void, onState: (s: MidiState) => void) {
+    this.onAction = onAction; this.onMap = onMap; this.onState = onState;   // no parameter properties: Node strips types only
+    this.map = validMidiMap(map);
   }
   get state() { return this._state; }
   get mapping() { return this.map; }
@@ -39,7 +51,7 @@ export class Midi {
   }
   /** Learn mode: the next note-on binds to `action` (null leaves learn mode). */
   learn(action: MidiAction | null) { this.set({ learning: action }); }
-  setMap(map: Partial<MidiMap>) { this.map = { ...DEFAULT_MIDI_MAP, ...map }; }
+  setMap(map: Record<string, unknown> | undefined) { this.map = validMidiMap(map); }
 
   private onMessage = (e: MIDIMessageEvent) => {
     const d = e.data; if (!d || d.length < 3) return;

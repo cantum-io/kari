@@ -26,12 +26,27 @@ function run(stage, input, at = {}) {
   return { out, outR };
 }
 
-test("ring and fade sizes at 44.1 and 48 kHz", () => {
+test("ring and fade sizes at 44.1 and 48 kHz: 2 bars fit down to 44 bpm at 1× (v2 ceiling)", () => {
   const a = new LoopStage(48000), b = new LoopStage(44100);
-  assert.equal(a.N, 131072); assert.equal(b.N, 131072);          // ≥ 2 s, power of two
+  assert.equal(a.N, 524288); assert.equal(b.N, 524288);          // ≥ 7 s, power of two (2^19)
   assert.equal(a.xf, 288); assert.equal(b.xf, 265);              // 6 ms
-  assert.equal(a.maxLen, 131072 - 288);
-  assert.ok(a.maxLen / 48000 > 2.7, "holds a 1-beat loop down to 22 bpm at 1×");
+  assert.equal(a.maxLen, 524288 - 288);                          // 524000 frames = 10.92 s at 48 kHz
+  assert.ok(a.maxLen / 48000 > 10.9 && b.maxLen / 44100 > 11.8);
+  assert.ok(8 * 60 / 70 * 48000 < a.maxLen, "2 bars at 70 bpm, 1×, fits");
+  assert.ok(8 * 60 / 44 * 48000 < a.maxLen && 8 * 60 / 43 * 48000 > a.maxLen, "the 2-bar floor at 1× is 44 bpm");
+  assert.ok(8 * 60 / 88 / 0.5 * 48000 < a.maxLen, "at half speed, 2 bars down to 88 bpm");
+  assert.equal(a.engage(a.maxLen + 100000, 0), 0); assert.equal(a.len, a.maxLen, "a longer loop is clamped to the ceiling");
+  assert.equal((a.ring0.byteLength + a.ring1.byteLength + a.body0.byteLength + a.body1.byteLength) / 1048576, 8, "8 MB for the ring and the body, stereo float32");
+});
+
+test("a 2-bar loop at 70 bpm (329143 frames) repeats exactly through the full ring", () => {
+  const st = new LoopStage(SR);
+  const len = 329143, back = 100000, E = Q * 1000, total = E + 2 * len + Q * 50;
+  const x = noise(total, 31);
+  const { out } = run(st, x, { [E]: () => assert.equal(st.engage(len, back), 0) });
+  const S = E - back;
+  for (let o = S + len + st.xf; o < total; o++) assert.equal(out[o], out[o - len], `period at ${o}`);
+  for (let j = 0; j < len - st.xf; j += 97) assert.equal(out[S + len + j], x[S + j]);
 });
 
 test("live until the body ends, then exact repeats: out[o] == out[o - len] after the first wrap", () => {

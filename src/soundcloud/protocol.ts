@@ -13,17 +13,18 @@ export type EngineName = "r3" | "ss" | "bypass";
 export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing";
 
 /**
- * What the hook reports about the audio chain. Same shape the dock consumes on YouTube (AudioStatus, loop fields
- * included: the controller and its beat grid live in the hook's world), plus route and context state.
+ * What the hook reports about the audio chain. Same shape the dock consumes on YouTube (AudioStatus, loop and tempo
+ * fields included: the controller, its beat grid and the tempo detector live in the hook's world), plus route and
+ * context state.
  */
 export type HookStatus = {
   attached: boolean; engine: EngineName; engineLatencyMs: number; outputLatencyMs: number; avOffsetMs: number;
   underruns: number; load: number; fault: Fault; baseRate: number;
-  loop: LoopBeats | 0; loopMs: number; bpm: number | null; gridSource: GridSource | null;
+  loop: LoopBeats | 0; loopMs: number; loopClamped: boolean; bpm: number | null; gridSource: GridSource | null; learning: boolean;
   route: Route; ctxState: string;
 };
 
-export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, bpm: null, gridSource: null, route: null, ctxState: "" };
+export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, learning: false, route: null, ctxState: "" };
 
 /**
  * Beat-loop commands, bridge → hook as `{ type: "loop", ...command }`. The dock's buttons and the MIDI pads live in the
@@ -65,11 +66,11 @@ export function accept(e: { source: unknown; origin: string; data: unknown }, wi
 const ENGINES = new Set<EngineName>(["r3", "ss", "bypass"]);
 const FAULTS = new Set<Fault>([null, "drm-silent", "capture-failed", "worklet-failed", "hook-missing"]);
 const GRID_SOURCES = new Set<GridSource>(["tap", "manual", "auto"]);
-const LOOP_BEATS: readonly LoopBeats[] = [0.25, 0.5, 1];
+const LOOP_BEATS: readonly LoopBeats[] = [0.5, 1, 4, 8];   // mirrors grid.ts LOOP_BEATS (no runtime import: Node runs the tests from this file)
 const num = (x: unknown, lo: number, hi: number, d = 0) => (typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d);
 const isBeats = (x: unknown): x is LoopBeats => typeof x === "number" && LOOP_BEATS.includes(x as LoopBeats);
 export const MAX_NUDGE = 10;      // bpm per nudge message; the dock steps by 1
-export const MAX_LOOP_MS = 60000; // 1 beat at 40 bpm is 1.5 s at 1× and the worklet ring clamps at 2.72 s; a loose sanity bound
+export const MAX_LOOP_MS = 60000; // 2 bars at 40 bpm is 12 s at 1× and the worklet ring clamps at 10.9 s; a loose sanity bound
 // A bpm is a finite number in a sane range here; the grid's own 40–300 clamp is the controller's (withBpm / clampBpm).
 const isBpm = (x: unknown): x is number => typeof x === "number" && Number.isFinite(x) && x >= 1 && x <= 1000;
 
@@ -108,8 +109,10 @@ export function sanitizeStatus(x: unknown): HookStatus {
     baseRate: num(s.baseRate, 0.0625, 16, 1),
     loop: isBeats(s.loop) ? s.loop : 0,
     loopMs: num(s.loopMs, 0, MAX_LOOP_MS),
+    loopClamped: s.loopClamped === true,
     bpm: isBpm(s.bpm) ? s.bpm : null,
     gridSource: GRID_SOURCES.has(s.gridSource as GridSource) ? (s.gridSource as GridSource) : null,
+    learning: s.learning === true,
     route,
     ctxState: typeof s.ctxState === "string" ? s.ctxState.slice(0, 16) : "",
   };

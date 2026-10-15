@@ -4,11 +4,15 @@ export const DOCK_CSS = `
 *,*::before,*::after{box-sizing:border-box}
 .root{position:absolute;inset:0;z-index:60;pointer-events:none;font-family:"Instrument Sans",system-ui,-apple-system,"Helvetica Neue",sans-serif;color:#efece4;
   --ink:#07070b;--bone:#efece4;--bone-2:#b9b6ad;--mute:#6d6c76;--cyan:#5cf2ff;--amber:#ffb454;--rose:#ff7ad9;--line:rgba(239,236,228,.14);
-  --ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--mono:"Space Mono",ui-monospace,Menlo,monospace;
-  transition:opacity 200ms ease,visibility 0s linear 0s}
-/* fade with YouTube's controls: visibility (not just opacity) so faded controls cannot take clicks meant for the player */
-.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
-.root[data-hidden-with-controls="1"] .anchor{opacity:1}
+  --ease-out:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1);--mono:"Space Mono",ui-monospace,Menlo,monospace}
+/* Fade with YouTube's controls: the panel, the gear, the settings and the constellation's figures go (visibility, not
+   just opacity, so faded controls cannot take clicks meant for the player); Kari's anchor (the blob, the orb, the
+   cloudlet, the moon) never does. v1 faded the whole root, and opacity on a parent cannot be undone by a child, so the
+   blob vanished a few seconds into playback (Jesse, 2026-10-15). */
+.absorb,.gear,.settings,.intro,.fault,.plush,.suncap{transition:opacity 200ms ease,visibility 0s linear 0s}
+.root[data-hidden-with-controls="1"]:not([data-collapsed="1"]) :is(.absorb,.gear,.settings,.intro,.fault,.plush,.suncap,.cons .lab,.cons .lab2,.cons .orbit,.cons .tick,.cons .arc,.cons .sun,.cons .ray,.cons .star){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
+.root[data-hidden-with-controls="1"] .anchor{opacity:1;visibility:visible;pointer-events:auto}
+.root[data-hidden-with-controls="1"] .void-orb{opacity:1;pointer-events:auto}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0;touch-action:manipulation;pointer-events:auto}
 button:focus-visible,input:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 button:active{transform:scale(.97)}
@@ -40,12 +44,15 @@ button:active{transform:scale(.97)}
 .meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em;flex-wrap:wrap;gap:2px 12px}
 .meta em{font-style:normal;color:var(--bone-2)}
 .meta em.warn{color:var(--amber)}
-/* beat loops: three latch pills, a release, tap tempo and the bpm field. Disabled until a grid exists. */
+/* beat loops: four length toggles (½ · 1 · 1 bar · 2 bars) and the tempo readout, directly under the steppers with Full
+   control on or off; tap tempo, the bpm field and MIDI stay in the full panel. Lengths are disabled until a tempo exists. */
 .loops,.tempo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
-.loops .lab,.tempo .lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-.pill.loop{min-width:30px;text-align:center;font-size:11px;letter-spacing:0;padding:4px 8px;position:relative;overflow:hidden}
+.tempo .lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
+.pill.loop{min-width:30px;text-align:center;font-size:11px;letter-spacing:0;padding:4px 7px;white-space:nowrap;position:relative;overflow:hidden}
 .pill.loop[aria-pressed="true"]{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
-.pill.off{color:var(--bone-2);padding:4px 7px}
+.tro{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mute);white-space:nowrap}
+.tro[data-state="found"]{color:var(--bone-2)}
+.tro:empty{display:none}
 .pill[data-arm="1"]{border-color:var(--amber);color:var(--amber)}
 button:disabled{opacity:.35;cursor:default}
 button:disabled:active{transform:none}
@@ -59,6 +66,9 @@ button:disabled:active{transform:none}
   /* the latched pill sweeps once per pass: the one motion token here is the loop length itself */
   .pill.loop[aria-pressed="true"]::after{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(255,255,255,.45),transparent 40%);transform:translateX(-100%);animation:kari-loopsweep var(--loop-ms,500ms) linear infinite}
   @keyframes kari-loopsweep{to{transform:translateX(100%)}}
+  /* the readout breathes while the detector listens (the six seconds after play), then holds still */
+  .tro[data-state="learning"]{animation:kari-learn 1.6s ease-in-out infinite}
+  @keyframes kari-learn{50%{opacity:.45}}
 }
 .rowend{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .hidebtn{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:2px 0;text-decoration:underline dotted}

@@ -8,11 +8,14 @@
 // release, or a fresh latch while a loop is already wrapping, jumps back to the live position under the same
 // crossfade. The media element is never seeked.
 //
-// Memory at 48 kHz: ring 131072 frames (2.73 s) + body of the same size + a few hundred frames of fades,
-// stereo float32: about 2 MB.
+// Size. The ring must hold the longest loop plus one fade: 2 bars (8 beats) down to about 70 bpm at 1× is 6.9 s, so
+// the ring is the next power of two above 7 s: 2^19 = 524288 frames at either 44.1 or 48 kHz. maxLen = 524000 frames =
+// 10.92 s at 48 kHz (11.88 s at 44.1): 2 bars down to 44 bpm at 1×, 1 bar down to 22 bpm. Memory: ring + body, stereo
+// float32 = 8 MB, plus a few hundred frames of fades. (v1 was 2^17 = 2.73 s, 2 MB.) A longer loop is clamped to maxLen
+// by engage(); the controller tells the user on the readout.
 
 export const DEFAULT_FADE_MS = 6;
-export const DEFAULT_SECONDS = 2;
+export const DEFAULT_SECONDS = 7;
 
 export class LoopStage {
   constructor(sampleRate, { seconds = DEFAULT_SECONDS, fadeMs = DEFAULT_FADE_MS } = {}) {

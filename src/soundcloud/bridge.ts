@@ -32,11 +32,10 @@ import { memoryId } from "./track-key";
   // Beat loops: the grid and the latch live in the hook's controller (it reads the clock from the real element); the
   // dock's buttons and the MIDI pads post commands, state comes back in status. A latch resolves on the hook's ack.
   const loops = new LoopRequests(cmd => post({ type: "loop", ...cmd }));
-  const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-q": 0.25, "loop-h": 0.5, "loop-1": 1 };
+  const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
   function loopAction(a: MidiAction) { // from a MIDI pad; the dock's own buttons call loops directly. Click + MIDI only.
     const beats = LOOP_BEATS[a];
-    if (beats) loops.latch(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
-    else if (a === "release") loops.release();
+    if (beats) { if (status.loop === beats) loops.release(); else loops.latch(beats).then(ok => { if (ok) dock?.react(); dock?.render(); }); } // a pad toggles, like the button
     else if (a === "tap") { loops.tap(); dock?.react(); }
     dock?.render();
   }

@@ -26,6 +26,18 @@ YouTube throttles the automation profile (`googlevideo.com` 403s after ~15–45 
 each measurement starts from a fresh load. Rows that need ears or a real device (AirPods, fullscreen, global
 shortcuts) are run in a normal Chrome with the extension loaded unpacked.
 
+## Dock layout (`dock.mjs`)
+
+The real `Dock` class on a blank page, headless, no YouTube: bundles `src/content/ui/dock.ts` into `test-build/`, mounts
+it with fake deps and reads computed styles, never the extension's readouts. Rows (loops v2): the loop row under the
+steppers with Full control off and on, the four pills, disabled until a tempo, the tempo readout's three states, latch /
+lit-release / switch calls, the clamp text, controls hidden on every skin (Kari's anchor stays visible and clickable,
+panel and gear go), miniplayer, collapsed, reduced motion. `--shots dir` saves screenshots.
+
+```
+node tools/probe/dock.mjs --shots test-build/dock-shots      # 19/19 rows hold, 2026-10-15
+```
+
 ## SoundCloud (`soundcloud.mjs`)
 
 One command, one track, one table: what SoundCloud's own Web Audio graph is doing and whether Kari is in it. Built for
@@ -42,7 +54,7 @@ Flags: `--kari` reads Kari too · `--loop` (implies `--kari`) drives beat loops 
 prints the report as JSON for assertions · `--verbose` logs clicks and page warnings · `--headed` shows the window ·
 `--ext <dir>` another build · `--settle <ms>` wait after play starts (2500).
 Exit `0` played · `1` play never started within 20 s of the page load · `2` setup failed (no test build, no load) ·
-`3` the `--loop` check failed (played, but no ¼ loop latched, or it was silent, or × did not release it).
+`3` the `--loop` check failed (played, but no 1-bar loop latched, or it was silent, or the second click did not release it).
 
 **Why a test build.** Kari asks for SoundCloud as an optional permission, and automation cannot click Chrome's
 permission prompt. `scripts/test-hosts.mjs` (run by `npm run build`, a no-op unless `KARI_TEST_HOSTS` is set) copies
@@ -113,18 +125,43 @@ against a scratch build that registered today's `content.js` as `soundcloud.js`:
 "__kari present, audio not created" (that script only attaches on YouTube). The dock and `[kari]` line readers have
 not seen a positive case yet; the hook's first run is their test.
 
-### Beat loops (`--loop`)
+### Beat loops (`--loop`), v2
 
-What a listener would do, done to the dock's own buttons inside its open shadow root, with the answers read from three
-independent places: the dock's readouts, `__kari.status` in the isolated world (the hook's status after
-`sanitizeStatus`) and the harness's analyser at the destination. Steps: switch Full control on (the loop row lives in
-the full panel) · click Tap five times 500 ms apart (120 bpm in media time at 1×) and wait for the bpm readout · click
-¼ and wait for `loop ¼ · … ms` · read `__kari.status`, 2 s of RMS at the destination and the element clock across it
-(slip: the track underneath must keep moving, nothing is seeked) · click × and wait for `loop —` · 2 s of RMS again.
-Pass = status `loop 0.25` with a positive `loopMs`, a bpm from `tap`, `attached`, the ¼ pill pressed, no silent RMS
-window while looping or after the release, the clock advanced, and `loop 0` after ×.
+Everything a user would do, done to the dock's own buttons inside its open shadow root; the answers come from three
+independent places: the dock's readouts, `__kari.status` in the isolated world (the hook's status, sanitized by
+`sanitizeStatus`) and the harness's analyser at the destination. Steps (v2, 2026-10-15): Full control OFF (the loop row
+sits under the steppers now) · read the row: shown, four pills disabled before a tempo · watch the tempo readout leave
+`learning…` on its own (the in-house detector; up to 14 s) and record what it said · click Tap five times 500 ms apart
+(a tap overrides the detector; wait for `gridSource: "tap"`) · click `1 bar` and wait for `1 bar · … ms` · read
+`__kari.status`, 2 s of RMS at the destination and the element clock across it (slip: the track underneath must keep
+moving, nothing is seeked) · click the lit `1 bar` again (there is no ×) and wait for `loop —` · 2 s of RMS again.
+Pass = status `loop 4` with a positive `loopMs`, a bpm from `tap`, `attached`, Full control off, the `1 bar` pill
+pressed, no silent RMS window while looping or after the release, the clock advanced, and `loop 0` with the pill unlit
+after the second click. The auto-tempo row is reported, not gated (a track with no beat is allowed to say `tap`).
 
-### Run: 2026-10-15 00:5x PT, Kari with the SoundCloud loop bridge (branch claude/infallible-tharp-1c2f4a), Chromium 153 headless, MacBook Air M4
+### Run: 2026-10-15 ~02:00 PT, loops v2 (branch claude/loops-v2-a3a0ea), Chromium 153 headless, MacBook Air M4
+
+Same track (LOFI LION, "Cave", CC BY). `node tools/probe/soundcloud.mjs https://soundcloud.com/lofilion/cave --loop`, exit 0, twice.
+
+```
+loop: dock rows                Full control off, loop row shown, pills disabled before a tempo [true,true,true,true], MIDI group shown
+loop: auto tempo               readout "learning…" → "70 bpm" after 1775 ms; status bpm 69.95, grid auto, learning false, attached true
+loop: tap                      5 taps 500 ms apart → readout "118.8 bpm"
+loop: 1-bar latch              dock "1 bar · 2019 ms" 4 ms after the click, 1 bar pill pressed true
+loop: __kari.status            loop 4, loopMs 2019, bpm 118.85, grid tap, engine r3, attached true, route 0
+loop: RMS at destination, 2 s  mean 0.0718 (-22.9 dBFS), min 0.036, max 0.2123, 0/38 windows silent
+loop: slip                     element clock 9.282 → 11.336 s while looping (kept moving)
+loop: release (2nd click)      dock "—", status loop 0, loopMs 0, pill unlit
+loop: RMS after release, 2 s   mean 0.0906 (-20.9 dBFS), min 0.0504, max 0.2045, 0/39 windows silent
+verdict                        SoundCloud graph present, Kari attached, 1-bar loop latched and released
+```
+
+Read from the run: the chain attached on `playing` (v2: Kari is in the chain from play, a straight wire, so the
+detector hears the first beat); the detector called "Cave" 70 bpm on its own before anyone tapped; the taps overrode
+it (`grid tap`); a 1-bar latch at 118.8 bpm is 2019 ms and showed 4 ms after the click; the second click on the lit
+pill released it. The v1 run below is kept for the ¼ numbers.
+
+### Run: 2026-10-15 00:5x PT, v1 loops (branch claude/infallible-tharp-1c2f4a), Chromium 153 headless, MacBook Air M4 — superseded by v2 above (¼ and × no longer exist)
 
 Same track as above (LOFI LION, "Cave", CC BY). `node tools/probe/soundcloud.mjs https://soundcloud.com/lofilion/cave --loop`, exit 0.
 

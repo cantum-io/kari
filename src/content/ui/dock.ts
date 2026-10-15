@@ -4,7 +4,7 @@ declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
 import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
-import { type LoopBeats, fmtBpm, loopLabel, BPM_MIN, BPM_MAX } from "../beat/grid";
+import { type LoopBeats, LOOP_BEATS, fmtBpm, loopLabel, loopAria, BPM_MIN, BPM_MAX } from "../beat/grid";
 import type { Midi, MidiAction, MidiState } from "../midi";
 
 export type DockDeps = {
@@ -18,7 +18,8 @@ export type DockDeps = {
   site?: "yt" | "sc";     // copy and placement differ per host page (default "yt")
   mountStyle?: string;    // the wrapper's inline style; default fills the host (YouTube's player box)
   // beat loops: click + MIDI only; the grid and the loop live in the audio controller, state comes back through setStatus
-  // (on SoundCloud the controller sits in the MAIN-world hook and these calls cross src/soundcloud/loops.ts).
+  // (on SoundCloud the controller sits in the MAIN-world hook and these calls cross src/soundcloud/loops.ts). A length
+  // button toggles: the dock reads the lit length from status and calls release() on it, latch() on any other.
   // Absent = no loop path on this host: the dock hides the loop row and the MIDI group.
   loop?: { latch(beats: LoopBeats): Promise<boolean>; release(): void; tap(): number | null; setBpm(bpm: number): void; nudge(delta: number): void };
   midi?: Midi;
@@ -28,18 +29,20 @@ const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
   yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
   sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
 };
-const LOOP_ACTION: Record<string, MidiAction> = { "0.25": "loop-q", "0.5": "loop-h", "1": "loop-1", off: "release", tap: "tap" };
+const LOOP_ACTION: Record<string, MidiAction> = { "0.5": "loop-h", "1": "loop-1", "4": "loop-bar", "8": "loop-2bar", tap: "tap" };
+const LOOP_PILLS = LOOP_BEATS.map(b => `<button class="pill loop" data-a="loop" data-v="${b}" aria-pressed="false" aria-label="${loopAria(b)}" disabled>${loopLabel(b)}</button>`).join("");
 
 const GEAR = `<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3H9l-.4 2.7a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L9 21h6l.4-2.7a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>`;
 
 const CTL = `
 <div class="ctl absorb" data-full="0">
-  <div class="read"><b class="ro"><span data-b="speed">1.00×</span></b><span class="p ro">pitch <span data-b="st">0</span> · <span data-b="bpm"></span></span></div>
+  <div class="read"><b class="ro"><span data-b="speed">1.00×</span></b><span class="p ro">pitch <span data-b="st">0</span><span data-b="yt"></span></span></div>
   <div class="slider"><span>slow</span><input class="range" type="range" min="-50" max="50" step="0.5" value="0" data-a="tempo" aria-label="Speed: left slower, right faster"><span>fast</span></div>
   <div class="btns">
     <div class="step"><button data-a="st-" aria-label="Pitch down">−</button><span>Pitch</span><button data-a="st+" aria-label="Pitch up">+</button></div>
     <div class="step"><button data-a="tempo-" aria-label="Slow down">−</button><span>Speed</span><button data-a="tempo+" aria-label="Speed up">+</button></div>
   </div>
+  <div class="loops">${LOOP_PILLS}<span class="tro ro" data-b="tempo" data-state="idle" aria-live="polite"></span></div>
   <div class="full">
     <div class="pills">
       <button class="pill" data-a="vinyl" aria-pressed="true">Vinyl</button>
@@ -49,13 +52,6 @@ const CTL = `
     <div class="pills">
       <button class="pill hold" data-a="compare">Hold to compare</button>
       <button class="pill" data-a="reset">Reset</button>
-    </div>
-    <div class="loops">
-      <span class="lab">loop</span>
-      <button class="pill loop" data-a="loop" data-v="0.25" aria-pressed="false" aria-label="Loop a quarter beat" disabled>¼</button>
-      <button class="pill loop" data-a="loop" data-v="0.5" aria-pressed="false" aria-label="Loop half a beat" disabled>½</button>
-      <button class="pill loop" data-a="loop" data-v="1" aria-pressed="false" aria-label="Loop one beat" disabled>1</button>
-      <button class="pill off" data-a="loop-off" aria-label="Release the loop" disabled>×</button>
     </div>
     <div class="tempo">
       <button class="pill" data-a="tap" aria-label="Tap tempo">Tap</button>
@@ -170,7 +166,7 @@ const TEMPLATE = `
         <label class="ul"><input type="checkbox" data-set="shoes"> <span>Chunky sneakers</span></label></div></div>
     <div class="sg"><b>Extras</b><div class="row col"><label class="ul"><input type="checkbox" data-set="plush"> <span>Plush trophy in corner</span></label></div></div>
     <div class="sg" data-el="midisg"><b>MIDI</b><div class="row"><button class="chip" data-m="connect">Connect</button><button class="chip" data-m="learn" aria-pressed="false">Learn</button><span class="mst" data-el="midist">not connected</span></div>
-      <span class="mst">learn: switch it on, click a loop, tap or × button, then hit the pad</span></div>
+      <span class="mst">learn: switch it on, click a loop length or Tap, then hit the pad · a pad on the lit length releases</span></div>
     <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
     <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
     <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
@@ -256,20 +252,23 @@ export class Dock {
     const p = this.deps.getParams();
     const s = this.status;
     const bpm = s?.bpm ?? null, loop = s?.loop ?? 0;
-    const yt = s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? `${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "";
+    const yt = s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? ` · ${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "";
+    // the tempo readout on the loop row: the bpm once there is one, "learning…" while the detector listens, "tap" when it has nothing
+    const tempoState = !this.deps.loop ? "idle" : bpm ? "found" : s?.learning ? "learning" : "none";
     const map: Record<string, string> = {
-      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), bpm: [yt, bpm ? `${fmtBpm(bpm)} bpm` : ""].filter(Boolean).join(" · "),
+      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), yt, bpm: bpm ? `${fmtBpm(bpm)} bpm` : "",
+      tempo: tempoState === "found" ? `${fmtBpm(bpm!)} bpm` : tempoState === "learning" ? "learning…" : tempoState === "none" ? "tap" : "",
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",
-      loopinfo: !this.deps.loop ? "—" : loop ? `${loopLabel(loop)} · ${s!.loopMs} ms` : bpm ? "—" : "tap first",
+      loopinfo: !this.deps.loop ? "—" : loop ? `${loopLabel(loop)} · ${s!.loopMs} ms${s!.loopClamped ? " · at the ring's ceiling" : ""}` : bpm ? "—" : "no tempo yet",
     };
     this.$$("[data-b]").forEach(el => { const v = map[el.dataset.b!]; if (v !== undefined && el.textContent !== v) el.textContent = v; });
-    // loops: three latch buttons, a release, the bpm field (left alone while being typed in)
+    // loops: four length toggles and the tempo readout under the steppers (Full control on or off), the bpm field in the full panel (left alone while being typed in)
     const loopsRow = this.shadow.querySelector(".loops") as HTMLElement | null; if (loopsRow) loopsRow.hidden = !this.deps.loop;
+    this.$$('[data-b="tempo"]').forEach(el => { if (el.dataset.state !== tempoState) el.dataset.state = tempoState; });
     const midiGroup = this.shadow.querySelector('[data-el="midisg"]') as HTMLElement | null; if (midiGroup) midiGroup.hidden = !this.deps.midi;
     (this.$$('[data-a="loop"]') as HTMLButtonElement[]).forEach(b => { const on = loop > 0 && +b.dataset.v! === loop; b.setAttribute("aria-pressed", String(on)); b.disabled = !bpm; if (on) b.style.setProperty("--loop-ms", `${s!.loopMs}ms`); });
-    (this.$$('[data-a="loop-off"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !loop; });
     (this.$$('[data-a="bpm-"],[data-a="bpm+"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !bpm; });
     (this.$$('input[data-a="bpm"]') as HTMLInputElement[]).forEach(i => { if (this.shadow.activeElement === i) return; const v = bpm ? fmtBpm(bpm) : ""; if (i.value !== v) i.value = v; });
     const m = this.midiState;
@@ -305,12 +304,16 @@ export class Dock {
         case "hide": this.deps.saveSettings({ collapsed: true }); this.react(); break;
         case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Kari is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
-        // beat loops (click + MIDI only). In learn mode a click arms the button for the next MIDI note instead.
-        case "loop": case "loop-off": case "tap": {
-          const key = a === "loop" ? el.dataset.v! : a === "loop-off" ? "off" : "tap";
+        // beat loops (click + MIDI only). A length toggles: lit releases, unlit latches, another length switches.
+        // In learn mode a click arms the button for the next MIDI note instead.
+        case "loop": case "tap": {
+          const key = a === "loop" ? el.dataset.v! : "tap";
           if (this.learnOn && this.midiState?.connected) { this.$$("[data-arm]").forEach(b => b.removeAttribute("data-arm")); el.dataset.arm = "1"; this.deps.midi?.learn(LOOP_ACTION[key]); break; }
-          if (a === "loop") this.deps.loop?.latch(+el.dataset.v! as LoopBeats)?.then(ok => { if (ok) this.react(); this.render(); });
-          else if (a === "loop-off") this.deps.loop?.release();
+          if (a === "loop") {
+            const beats = +el.dataset.v! as LoopBeats;
+            if ((this.status?.loop ?? 0) === beats) this.deps.loop?.release();
+            else this.deps.loop?.latch(beats)?.then(ok => { if (ok) this.react(); this.render(); });
+          }
           else { this.deps.loop?.tap(); this.react(); }
           this.render(); break;
         }

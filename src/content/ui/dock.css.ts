@@ -8,7 +8,10 @@ export const DOCK_CSS = `
 /* Fade with YouTube's controls: the panel, the gear, the settings and the constellation's figures go (visibility, not
    just opacity, so faded controls cannot take clicks meant for the player); Kari's anchor (the blob, the orb, the
    cloudlet, the moon) never does. v1 faded the whole root, and opacity on a parent cannot be undone by a child, so the
-   blob vanished a few seconds into playback (Jesse, 2026-10-15). */
+   blob vanished a few seconds into playback (Jesse, 2026-10-15). The dock sets data-hidden-with-controls only when the
+   panel is not in use (dock.ts kept): a pointer parked on a pill is idle to YouTube but not to Kari. While kept under
+   the autohide, YouTube's cursor:none on the player must not reach the panel. */
+.root[data-kept="1"]{cursor:default}
 .absorb,.gear,.settings,.intro,.fault,.suncap{transition:opacity 200ms ease,visibility 0s linear 0s}
 .root[data-hidden-with-controls="1"]:not([data-collapsed="1"]) :is(.absorb,.gear,.settings,.intro,.fault,.suncap,.cons .lab,.cons .lab2,.cons .orbit,.cons .tick,.cons .arc,.cons .sun,.cons .ray,.cons .star){opacity:0;visibility:hidden;pointer-events:none;transition:opacity 200ms ease,visibility 0s linear 200ms}
 .root[data-hidden-with-controls="1"] .anchor{opacity:1;visibility:visible;pointer-events:auto}

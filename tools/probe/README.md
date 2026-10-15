@@ -56,7 +56,60 @@ The readout contract it watches (`src/content/ui/tempo-readout.ts`): `play to le
 `click to learn` while the track plays but Chrome will not start the context before the page's first click · `learning…`
 only while the detector listens · `N bpm` · `tap` only once it listened for 12 s of audio and found no steady beat.
 
-## SoundCloud (`soundcloud.mjs`)
+## Tap tempo + panel fade, YouTube (`tapfade.mjs`)
+
+Built 2026-10-15 for Jesse's ear test on 0.4.0 ("tap works sometimes and sometimes not" · "the control screen keeps
+fading away and doesn't stick with kari"). The production build on a watch page, headless; everything a user would do is
+done with Playwright's mouse on the dock's own buttons (trusted input), and the answers come from YouTube's own
+`ytp-autohide` class, computed styles inside the dock's open shadow root, the controller's tap log in the isolated world
+(`AudioController.tap` is wrapped there: what it returned, the tapper's taps, the media time, paused, the grid) and the
+`[kari]` console lines.
+
+```
+npm run build
+node tools/probe/tapfade.mjs https://www.youtube.com/watch?v=…   [--only ABC] [--stage ms] [--json] [--headed]
+```
+
+Phases, each from a fresh load (YouTube throttles the automation profile after ~15–45 s): **A** the stage — play from
+page script, sample the readout and the detector's estimate every second until a bpm or `--stage` ms · **B** idle under
+the pointer — park the pointer still over the video, YouTube's own control bar, Kari's Tap pill, Kari's blob and the
+panel's top edge, 5 s each, and watch `ytp-autohide` and the panel's visibility · **C** taps — five clicks on the Tap
+pill 500 ms apart, then a 4 s hold still on the pill, then five more clicks at the same spot: did they reach `tap()` or
+the player? Exit 0 = the panel held under the pointer and every click reached `tap()`.
+
+### Run: 2026-10-15 ~12:30 PT, 0.4.0 as shipped (f8b62bc), Chromium 153 headless, MacBook Air M4
+
+Both of Jesse's links. The defect, in one line: a pointer parked on the dock is idle to YouTube (the dock stops clicks at
+its host, never mousemove), so `ytp-autohide` lands after 3–4.5 s, the dock hides its panel with it (visibility hidden),
+and the next click at the same spot falls through to the player and pauses the video; every tap after that is a bounce
+(media time frozen) and returns nothing.
+
+```
+                                      V3bLpIXaFp8 (link 1)              IcxJHQ0N13s (link 2)
+A  bpm on its own                     none in 30 s: "tap" at 15.0 s     "135 bpm" 12.1 s after play (conf 0.47)
+   detector's estimate meanwhile      82 / 122 / 153 bpm, conf 0.17–0.27 (bar 0.35), E 0.09–0.17
+B1 pointer still over the video       autohide 3.0 s, panel hidden      autohide 3.0 s, panel hidden
+B2 … over YouTube's own control bar   autohide 3.0 s                    autohide 3.0 s
+B3 … over Kari's Tap pill             autohide 4.5 s, PANEL HIDDEN      autohide never (5 s), panel stayed
+B4 … over Kari's blob                 autohide never, blob visible      autohide 4.0 s, blob visible
+B5 … over the panel's top edge        —                                 autohide 3.0 s, PANEL HIDDEN
+C1 5 clicks on Tap, 500 ms apart      5/5 reached tap(): null, 116.5, 116.3, 116.5, 116.8 → "116.8 bpm"; gaps 0.511–0.517 s
+C2 4 s hold still on the pill         autohide true, panel hidden/0     same
+C3 5 more clicks at the same spot     #6 fell through to the player → video paused; #7–#10 reached tap() while paused → null ×4
+```
+
+B3/B4 differ between the links only in whether YouTube's timer happened to be fed by the approach move; the panel's
+fate under the autohide was the same everywhere. C3 is the mechanism of "sometimes": one lost click pauses the video,
+and a paused video makes every later tap a 0 s gap (a bounce, ignored by design).
+
+### Fix and re-run (same session; dock.ts `kept`)
+
+The dock now keeps the panel through the autohide while it is in use: pointer inside the panel, the gear or the
+settings; focus inside the dock; or a real (trusted) click, pointer-down, key or input within the last 3 s. A
+synthetic click (a MIDI pad, a test) is not use. Under the autohide `.root[data-kept="1"]` sets `cursor:default` so
+YouTube's `cursor:none` on the player does not reach the panel. `dock.mjs` gained five rows for it (24/24).
+
+
 
 One command, one track, one table: what SoundCloud's own Web Audio graph is doing and whether Kari is in it. Built for
 the SoundCloud hook (route 0, `docs/SOUNDCLOUD-GRAPH-2026-10-14.md`) so it can be checked headless before anyone

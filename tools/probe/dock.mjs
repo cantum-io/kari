@@ -9,6 +9,8 @@
 //   3. A latched length is lit; clicking it calls release(); clicking another length calls latch(other).
 //   4. YouTube's controls hidden (data-hidden-with-controls=1): the panel and the gear are invisible, Kari's blob
 //      (.anchor) stays visible and clickable — on every skin's anchor. Miniplayer (data-small) and collapsed too.
+//   4b. In use (pointer on the panel, focus inside, a real click within 3 s) the panel is kept through the autohide;
+//      a synthetic click is not use.
 //   5. prefers-reduced-motion: no animation on the pills, the readout or the body.
 import { build } from "esbuild";
 import { chromium } from "playwright";
@@ -134,6 +136,40 @@ const ORG = '.skin[data-skin="org"] ';
   const col = await q(ORG + ".anchor"), colCtl = await q(ORG + ".ctl");
   row("collapsed + controls hidden: Kari visible, panel absorbed", col.visibility === "visible" && +col.opacity === 1 && +colCtl.opacity === 0, `anchor vis ${col.visibility} op ${col.opacity}; ctl op ${colCtl.opacity}`);
   await page.evaluate(() => { window.__dock.applySettings({ ...window.__dock.deps.settings, collapsed: false }); window.__dock.setControlsHidden(false); });
+}
+// 4b. in use, controls hidden: the panel is kept (2026-10-15, after a tap burst's next click fell through to the player).
+//     Real pointer input (Playwright's mouse is trusted); the synthetic el.click() rows above do not count as use.
+{
+  const ctl = await q(ORG + ".ctl"), pill = await q(ORG + '[data-a="loop"][data-v="4"]');
+  await page.mouse.move(pill.left + pill.w / 2, pill.top + pill.h / 2, { steps: 4 }); await page.waitForTimeout(100);
+  await page.evaluate(() => window.__dock.setControlsHidden(true)); await page.waitForTimeout(300);
+  const kept = await q(ORG + ".ctl"), gearKept = await q(".gear"), rootKept = await page.evaluate(() => { const r = document.querySelector("#kari-dock").shadowRoot.querySelector(".root"); return { kept: r.dataset.kept, hidden: r.dataset.hiddenWithControls, cursor: getComputedStyle(r).cursor }; });
+  row("controls hidden with the pointer on a pill: panel and gear stay, cursor default", kept.visibility === "visible" && +kept.opacity === 1 && gearKept.visibility === "visible" && rootKept.kept === "1" && rootKept.hidden === "0" && rootKept.cursor === "default",
+    `panel vis ${kept.visibility} op ${kept.opacity}; gear vis ${gearKept.visibility}; root kept ${rootKept.kept} hidden ${rootKept.hidden} cursor ${rootKept.cursor}`);
+  await shot("05b-controls-hidden-kept");
+  await page.mouse.move(100, 650, { steps: 6 }); await page.waitForTimeout(350);
+  const left = await q(ORG + ".ctl");
+  row("pointer leaves the panel (no click): it fades at once", left.visibility === "hidden" && +left.opacity === 0, `panel vis ${left.visibility} op ${left.opacity}`);
+  await page.evaluate(() => window.__dock.setControlsHidden(false)); await page.waitForTimeout(300);
+  // a real click on a pill, then the pointer leaves: kept for HOLD_MS (3 s), then gone
+  await page.mouse.click(pill.left + pill.w / 2, pill.top + pill.h / 2); await page.waitForTimeout(50);
+  await page.mouse.move(100, 650, { steps: 6 }); await page.evaluate(() => window.__dock.setControlsHidden(true)); await page.waitForTimeout(1500);
+  const soon = await q(ORG + ".ctl"); await page.waitForTimeout(2000); const later = await q(ORG + ".ctl");
+  row("a real click, pointer away, controls hidden: panel kept at 1.5 s, gone by 3.5 s", soon.visibility === "visible" && later.visibility === "hidden", `1.5 s vis ${soon.visibility}; 3.5 s vis ${later.visibility}`);
+  // focus inside the dock (the bpm field) keeps it; blur lets it go
+  await page.evaluate(() => { window.__dock.setControlsHidden(false); window.__dock.applySettings({ ...window.__dock.deps.settings, fullControl: true }); }); await page.waitForTimeout(300);
+  await page.evaluate(() => document.querySelector("#kari-dock").shadowRoot.querySelector('input[data-a="bpm"]').focus()); await page.waitForTimeout(100);
+  await page.evaluate(() => window.__dock.setControlsHidden(true)); await page.waitForTimeout(300);
+  const focused = await q(ORG + ".ctl");
+  await page.evaluate(() => document.querySelector("#kari-dock").shadowRoot.querySelector('input[data-a="bpm"]').blur()); await page.waitForTimeout(350);   // the hide transition delays visibility by 200 ms
+  const blurred = await q(ORG + ".ctl");
+  row("focus in the bpm field, then controls hidden: the panel stays; blur releases it", focused.visibility === "visible" && blurred.visibility === "hidden", `focused vis ${focused.visibility}; blurred vis ${blurred.visibility}`);
+  // a synthetic click (a MIDI pad, a test) is not use
+  await q(ORG + '[data-a="loop"][data-v="4"]', "click"); await page.waitForTimeout(350);
+  const synth = await q(ORG + ".ctl");
+  row("a synthetic click does not keep the panel", synth.visibility === "hidden", `panel vis ${synth.visibility}`);
+  await page.evaluate(() => { window.__dock.setControlsHidden(false); window.__dock.applySettings({ ...window.__dock.deps.settings, fullControl: false }); });
+  await page.waitForTimeout(300);
 }
 // 5. reduced motion
 {

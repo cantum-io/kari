@@ -164,6 +164,8 @@ const TEMPLATE = `
 </div>`;
 
 const CX = 330, CY = 200, RX = 120, RY = 52, BASE_KEY = 8; // A♭m shown as the reference key until detection exists
+/** How long the panel stays after the last real interaction once YouTube's controls have gone (YouTube's own idle figure). */
+export const HOLD_MS = 3000;
 
 export class Dock {
   private root: HTMLElement; private shadow: ShadowRoot; private wrap: HTMLElement;
@@ -173,6 +175,13 @@ export class Dock {
   private status: AudioStatus | null = null;
   private midiState: MidiState | null = null; private learnOn = false;
   private raf = 0; private visible = true; private consDrag = false;
+  // YouTube fades its controls after ~3 s without a pointer move, and a pointer parked on the dock is "idle" to it (the
+  // dock stops clicks at its host, never mousemove). Until 2026-10-15 the panel went with them even while in use: a tap
+  // burst's next click landed on the player and paused the video, and every tap after that was a bounce (probe
+  // tools/probe/tapfade.mjs, Jesse's ear test the same day). The autohide is now held off while the pointer is inside
+  // the panel, the gear or the settings, while anything in the dock has focus, and for HOLD_MS after the last real
+  // interaction. Kari's anchor never faded (his earlier ruling); this keeps the panel beside her while he uses it.
+  private ytHidden = false; private over = new Set<Element>(); private keptUntil = 0; private keptTimer = 0;
 
   constructor(private host: HTMLElement, private deps: DockDeps) {
     const wrap = document.createElement("div");
@@ -195,7 +204,7 @@ export class Dock {
     this.startPulse();
   }
 
-  destroy() { cancelAnimationFrame(this.raf); this.host.querySelector("#kari-dock")?.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); clearTimeout(this.keptTimer); this.host.querySelector("#kari-dock")?.remove(); }
 
   /* ---------- public updates ---------- */
   setStatus(s: AudioStatus) {
@@ -206,7 +215,18 @@ export class Dock {
     this.shadow.querySelector(".org")?.setAttribute("data-fault", s.fault ? "1" : "0");
     this.render();
   }
-  setControlsHidden(hidden: boolean) { this.root.dataset.hiddenWithControls = hidden ? "1" : "0"; }
+  /** YouTube's controls are hidden (ytp-autohide): the panel follows unless it is in use (see `kept`). */
+  setControlsHidden(hidden: boolean) { this.ytHidden = hidden; this.syncHidden(); }
+  /** The panel is kept through the autohide: pointer inside it, focus inside the dock, or a real interaction within HOLD_MS. */
+  get kept() { return this.over.size > 0 || this.focusInside() || performance.now() < this.keptUntil; }
+  private focusInside() { const a = this.shadow.activeElement; return !!a && !a.matches(".anchor"); }
+  private syncHidden() {
+    const kept = this.kept, hidden = this.ytHidden && !kept ? "1" : "0", k = kept ? "1" : "0";
+    if (this.root.dataset.hiddenWithControls !== hidden) this.root.dataset.hiddenWithControls = hidden;
+    if (this.root.dataset.kept !== k) this.root.dataset.kept = k;
+  }
+  /** A real interaction: keep the panel for HOLD_MS, then re-read the state. */
+  private used() { this.keptUntil = performance.now() + HOLD_MS; clearTimeout(this.keptTimer); this.keptTimer = window.setTimeout(() => this.syncHidden(), HOLD_MS + 50); this.syncHidden(); }
   /** SoundCloud: the host bar itself is away (nothing queued) — everything hides, Kari too; distinct from YouTube's autohide, which keeps Kari. */
   setBarHidden(hidden: boolean) { this.root.dataset.barHidden = hidden ? "1" : "0"; }
   setMidiState(m: MidiState) {
@@ -225,6 +245,7 @@ export class Dock {
     org.dataset.kari = s.kariColor; org.dataset.cap = s.cap ? "1" : "0"; org.dataset.shades = s.shades ? "1" : "0"; org.dataset.shoes = s.shoes ? "1" : "0";
     this.$$("[data-kari]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kari === s.kariColor)));
     (this.$$("input[data-set]") as HTMLInputElement[]).forEach(i => i.checked = !!(s as any)[i.dataset.set!]);
+    if (s.collapsed && this.root.dataset.collapsed !== "1") { this.over.clear(); this.syncHidden(); }   // absorbed under the pointer: no leave event comes
     this.root.dataset.collapsed = s.collapsed ? "1" : "0";
     this.$$(".ctl").forEach(c => c.dataset.full = s.fullControl ? "1" : "0");
     this.$$('[data-a="full"]').forEach(b => b.setAttribute("aria-pressed", String(s.fullControl)));
@@ -362,6 +383,16 @@ export class Dock {
     svg.addEventListener("pointerdown", (e) => { if (this.deps.settings.collapsed) return; if ((e.target as Element).closest(".hit,.moon")) { this.consDrag = true; svg.setPointerCapture(e.pointerId); const v = toSt(e); const p = this.deps.getParams(); if (v !== p.st) { this.deps.apply({ ...p, st: v }); this.render(); } } });
     svg.addEventListener("pointermove", (e) => { if (!this.consDrag) return; const v = toSt(e); const p = this.deps.getParams(); if (v !== p.st) { this.deps.apply({ ...p, st: v }); this.render(); } });
     ["pointerup", "pointercancel"].forEach(t => svg.addEventListener(t, () => { if (this.consDrag) { this.consDrag = false; this.react(); } }));
+    // The panel is in use: keep it through YouTube's autohide (pointer inside, focus inside, or a real interaction just now;
+    // synthetic clicks from a MIDI pad or a test do not count). pointerleave only re-reads the state: the move that leaves
+    // the panel has already woken YouTube's own timer.
+    for (const el of this.$$(".absorb, .gear, .settings, .intro, .fault")) {
+      el.addEventListener("pointerenter", () => { this.over.add(el); this.syncHidden(); });
+      el.addEventListener("pointerleave", () => { this.over.delete(el); this.syncHidden(); });
+    }
+    sh.addEventListener("focusin", () => this.syncHidden());
+    sh.addEventListener("focusout", () => { setTimeout(() => this.syncHidden(), 0); });
+    ["pointerdown", "click", "input", "keydown"].forEach(t => sh.addEventListener(t, (e) => { if (e.isTrusted) this.used(); }));
     // Stop clicks reaching YouTube's player (which toggles play/pause on click). Listen on the HOST, not inside the
     // shadow tree: events bubble through the dock's own handlers first, then retarget to the host, then we stop them.
     ["click", "dblclick", "pointerdown", "pointerup", "mousedown", "mouseup", "wheel", "contextmenu"].forEach(t => this.wrap.addEventListener(t, (e) => e.stopPropagation()));

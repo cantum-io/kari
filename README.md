@@ -7,7 +7,7 @@ Source: https://github.com/cantum-io/kari · Privacy: [docs/PRIVACY.md](docs/PRI
 - Slide left to slow the song down, right to speed it up; pitch moves with it, like a record. Tap Pitch −/+ to change the key. Everything starts at 0. Key lock (pitch held while speed changes) is under Full control.
 - Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
 - Accuracy: within 0.02 cents at every step from −12 to +12 semitones, measured on the audio that reaches the speakers on youtube.com; key lock holds 440.00 Hz at ±16 % speed. Engine delay 61 ms at 44.1 kHz (56 ms at 48 kHz) plus 6 ms of limiter look-ahead; total sound-behind-picture 97 ms on a MacBook Air's built-in output. See `docs/SPRINT-0-BENCH.md` and `docs/LIVE-PROBE.md`.
-- YouTube `/watch` pages only. No data leaves your browser. No accounts.
+- YouTube `/watch` pages, and soundcloud.com once you switch it on in settings (an optional permission Chrome asks for once; Kari sits on the player bar and rides SoundCloud's own audio graph). No data leaves your browser. No accounts.
 
 ## Install (no building needed)
 1. Download **[kari-extension.zip](https://github.com/cantum-io/kari/releases/latest/download/kari-extension.zip)** and unzip it.

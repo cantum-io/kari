@@ -14,6 +14,14 @@ function render(s: Settings) {
 }
 async function set(patch: Partial<Settings>) { render(await saveSettings(patch)); }
 
+// SoundCloud is an optional host: Chrome asks the user once, the service worker registers the page scripts on grant.
+const SC = { origins: ["https://soundcloud.com/*"] };
+let scGranted = false;
+async function renderSc() {
+  try { scGranted = await chrome.permissions.contains(SC); } catch (_) { scGranted = false; }
+  document.getElementById("scPerm")?.setAttribute("aria-pressed", String(scGranted));
+}
+
 document.addEventListener("click", (e) => {
   const el = (e.target as HTMLElement).closest("button") as HTMLElement | null; if (!el) return;
   if (el.dataset.skin) set({ skin: el.dataset.skin as Settings["skin"] });
@@ -23,7 +31,10 @@ document.addEventListener("click", (e) => {
   else if (el.dataset.engine) set({ engine: el.dataset.engine as Settings["engine"] });
   else if (el.id === "resetAll") set({ ...DEFAULT_SETTINGS });
   else if (el.id === "showIntro") set({ seenIntro: false });
+  else if (el.id === "scPerm") (scGranted ? chrome.permissions.remove(SC) : chrome.permissions.request(SC)).then(renderSc, renderSc); // request needs this click's gesture
 });
+renderSc();
+try { chrome.permissions.onAdded.addListener(renderSc); chrome.permissions.onRemoved.addListener(renderSc); } catch (_) { /* no permissions API */ }
 
 loadSettings().then(render);
 onSettingsChange(render);

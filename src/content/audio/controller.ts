@@ -12,8 +12,29 @@ export type AudioStatus = {
   avOffsetMs: number;        // sound behind picture, total
   underruns: number;
   load: number;              // 0..1 of the audio budget
-  fault: null | "drm-silent" | "capture-failed" | "worklet-failed";
+  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing";
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
+};
+
+/** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
+export type SourceLike = { connect(n: AudioNode): unknown; disconnect(): void };
+
+/**
+ * External-graph mode (SoundCloud, route 0/1): the context and the source node belong to the page (or to the hook), the
+ * worklet and WASM bytes come from the isolated bridge, Kari's output goes to `sink` instead of the destination, and the
+ * element's playbackRate is written through the hook's guard. See src/soundcloud/hook-core.ts.
+ */
+export type ExternalGraph = {
+  ctx: AudioContext;
+  src: SourceLike;
+  sink: AudioNode;
+  loadWorklet(ctx: AudioContext): Promise<void>;
+  wasm(): Promise<ArrayBuffer>;
+  writeRate(rate: number): void;
+  onWired?(): void;
+  ownsContext: boolean;       // true = Kari may resume it (route 1); false = the page owns suspend/resume (route 0)
+  silenceMs?: number;         // "playing but silent" window before the protected-audio notice (YouTube: 2500)
+  speedOnlyOnDrm?: boolean;   // true = a protected track drops the engine and keeps the dry path + rate
 };
 
 export type Stepdown = "r3" | "ss" | "bypass";
@@ -28,7 +49,7 @@ const COMPRESSOR_LOOKAHEAD_SEC = 0.006;
 
 export class AudioController {
   private ctx: AudioContext | null = null;
-  private src: MediaElementAudioSourceNode | null = null;
+  private src: SourceLike | null = null;
   private node: AudioWorkletNode | null = null;
   // Two dry branches: dryDirect (straight wire, 0 ms) until the engine has measured its delay once, then dryMatched
   // (delay = the engine's real stream latency) for the rest of the page. Delay is never automated while audible, so no
@@ -51,9 +72,20 @@ export class AudioController {
   private lastWantedEngine: EngineName | null = null;
   private lastRing = 0;
 
-  constructor(private video: HTMLVideoElement, private urls: { worklet: string; wasm: string }) {
+  constructor(private video: HTMLMediaElement, private urls: { worklet: string; wasm: string }, private ext: ExternalGraph | null = null) {
     video.addEventListener("ratechange", this.onRateChange);
   }
+
+  /** Drop the engine's buffered audio (seek, new track, pause). The worklet re-primes and re-reports 'warm'. */
+  flush() { this.node?.port.postMessage({ type: "reset" }); }
+
+  /** The element carries mediaKeys (DRM): say so and, in speed-only mode, keep the engine off this element. */
+  noteDrm() {
+    if (this._status.fault === "drm-silent") return;
+    this.emit({ fault: "drm-silent" });
+    if (this.ext?.speedOnlyOnDrm) this.apply(this.params, true);
+  }
+  private get speedOnly() { return !!this.ext?.speedOnlyOnDrm && this._status.fault === "drm-silent"; }
 
   onStatus(cb: (s: AudioStatus) => void) { this.listeners.add(cb); cb(this._status); return () => this.listeners.delete(cb); }
   private emit(patch: Partial<AudioStatus>) { this._status = { ...this._status, ...patch }; for (const l of this.listeners) l(this._status); }
@@ -61,7 +93,7 @@ export class AudioController {
   setEnginePreference(p: "auto" | "r3" | "signalsmith") { this.pinned = p; this.tier = p === "signalsmith" ? "ss" : "r3"; this.hotBlocks = 0; this.applyEngine(); }
 
   /** Rebind to a (possibly new) video element after SPA navigation. */
-  rebind(video: HTMLVideoElement) {
+  rebind(video: HTMLMediaElement) {
     if (video === this.video) return;
     this.video.removeEventListener("ratechange", this.onRateChange);
     this.video = video;
@@ -84,8 +116,8 @@ export class AudioController {
     this.setVideoRate(rate);
     // Key lock holds the pitch against YouTube's own speed menu too (baseRate), not only against Kari's slider.
     const engineRatio = p.keyLock ? pl.engineRatio / this.baseRate : pl.engineRatio;
-    const engineActive = Math.abs(engineRatio - 1) > 1e-6;
-    const wantAttach = (engineActive && !this.adActive) || this.compare;
+    const engineActive = Math.abs(engineRatio - 1) > 1e-6 && !this.speedOnly;
+    const wantAttach = (engineActive && !this.adActive) || (this.compare && !this.speedOnly);
     if (wantAttach && !this.src) await this.attach();
     if (!this.src) return;
     const ratio = this.adActive ? 1 : engineRatio;
@@ -114,8 +146,8 @@ export class AudioController {
     const v = this.video;
     try {
       (v as any).preservesPitch = false; (v as any).mozPreservesPitch = false; (v as any).webkitPreservesPitch = false;
-      if (Math.abs(v.playbackRate - rate) > 1e-4) { this.lastSetRate = rate; v.playbackRate = rate; }
-      else this.lastSetRate = rate;
+      if (Math.abs(v.playbackRate - rate) > 1e-4) { this.lastSetRate = rate; if (this.ext) this.ext.writeRate(rate); else v.playbackRate = rate; }
+      else { this.lastSetRate = rate; if (this.ext) this.ext.writeRate(rate); }
     } catch (_) { /* rate out of range on some videos */ }
   }
   private onRateChange = () => {
@@ -146,14 +178,15 @@ export class AudioController {
     });
   }
   private async _attach() {
-    await this.waitForActivation();
+    const ext = this.ext;
+    if (!ext) await this.waitForActivation(); // external: the page's context already exists (route 0) or `playing` fired (route 1)
     if (this.src) return;
     try {
-      const ctx = new AudioContext({ latencyHint: "interactive" });
+      const ctx = ext ? ext.ctx : new AudioContext({ latencyHint: "interactive" });
       this.ctx = ctx;
-      await ctx.audioWorklet.addModule(this.urls.worklet);
-      const wasmBytes = await (await fetch(this.urls.wasm)).arrayBuffer();
-      const src = ctx.createMediaElementSource(this.video); // once per element, for the life of the page
+      if (ext) await ext.loadWorklet(ctx); else await ctx.audioWorklet.addModule(this.urls.worklet);
+      const wasmBytes = ext ? await ext.wasm() : await (await fetch(this.urls.wasm)).arrayBuffer();
+      const src: SourceLike = ext ? ext.src : ctx.createMediaElementSource(this.video); // once per element, for the life of the page
       this.src = src;
       this.dryDirect = ctx.createGain(); this.dryMatched = ctx.createGain(); this.wet = ctx.createGain(); this.dryDelay = ctx.createDelay(1);
       this.matchedReady = false;
@@ -170,10 +203,13 @@ export class AudioController {
       src.connect(this.dryDirect); this.dryDirect.connect(this.analyser);
       src.connect(this.dryDelay); this.dryDelay.connect(this.dryMatched); this.dryMatched.connect(this.analyser);
       src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter); this.limiter.connect(this.trim); this.trim.connect(this.analyser);
-      this.analyser.connect(ctx.destination);
+      this.analyser.connect(ext ? ext.sink : ctx.destination);
       this.dryDirect.gain.value = 1; this.dryMatched.gain.value = 0; this.wet.gain.value = 0;
-      if (ctx.state !== "running") { try { await ctx.resume(); } catch (_) { /* needs gesture */ } }
-      if (ctx.state !== "running") { const kick = () => { ctx.resume(); window.removeEventListener("pointerdown", kick, true); window.removeEventListener("keydown", kick, true); }; window.addEventListener("pointerdown", kick, true); window.addEventListener("keydown", kick, true); }
+      ext?.onWired?.(); // same task as the connects above: the straight wire and Kari's graph swap on one render quantum
+      if (!ext || ext.ownsContext) {
+        if (ctx.state !== "running") { try { await ctx.resume(); } catch (_) { /* needs gesture */ } }
+        if (ctx.state !== "running") { const kick = () => { ctx.resume(); window.removeEventListener("pointerdown", kick, true); window.removeEventListener("keydown", kick, true); }; window.addEventListener("pointerdown", kick, true); window.addEventListener("keydown", kick, true); }
+      }
       this.emit({ attached: true, outputLatencyMs: Math.round(((ctx as any).outputLatency || 0) * 1000) });
       this.watchSilence();
     } catch (err) {
@@ -253,14 +289,22 @@ export class AudioController {
     this.emit({ outputLatencyMs: out, avOffsetMs: out + chain + base });
   }
   private watchSilence() {
+    const silenceMs = this.ext?.silenceMs ?? 2500;
+    let lastTime = -1;
     const tick = () => {
       if (!this.ctx || !this.src) return;
       const v = this.video;
       const playing = !v.paused && !v.ended && v.readyState >= 3 && !v.muted && v.volume > 0;
+      // SoundCloud: the clock must be advancing too (a stalled stream is silent for honest reasons), and mediaKeys is DRM outright.
+      const advancing = this.ext ? v.currentTime > lastTime : true; lastTime = v.currentTime;
+      const drm = !!this.ext && !!(v as any).mediaKeys;
       const lvl = this.level();
       const now = performance.now();
-      if (playing && lvl < 1e-4) { if (!this.silentSince) this.silentSince = now; else if (now - this.silentSince > 2500 && this._status.fault !== "drm-silent") this.emit({ fault: "drm-silent" }); }
-      else { this.silentSince = 0; if (this._status.fault === "drm-silent") this.emit({ fault: null }); }
+      if (playing && (drm || (lvl < 1e-4 && advancing))) {
+        if (!this.silentSince) this.silentSince = now;
+        else if ((drm || now - this.silentSince > silenceMs) && this._status.fault !== "drm-silent") { this.emit({ fault: "drm-silent" }); if (this.speedOnly) this.apply(this.params, true); }
+      }
+      else { this.silentSince = 0; if (this._status.fault === "drm-silent") { this.emit({ fault: null }); if (this.ext?.speedOnlyOnDrm) this.apply(this.params, true); } }
       setTimeout(tick, 500);
     };
     setTimeout(tick, 1500);

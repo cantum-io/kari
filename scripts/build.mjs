@@ -46,6 +46,9 @@ const entries = [
   { entryPoints: [path.join(root, "src/worklet/processor.js")], outfile: path.join(out, "worklet.js"), format: "iife" },
   { entryPoints: [path.join(root, "src/background/sw.ts")], outfile: path.join(out, "sw.js"), format: "esm" },
   { entryPoints: [path.join(root, "src/options/options.ts")], outfile: path.join(out, "options.js"), format: "iife" },
+  // SoundCloud: registered at runtime by sw.ts (chrome.scripting) once the optional host permission is granted.
+  { entryPoints: [path.join(root, "src/soundcloud/hook.ts")], outfile: path.join(out, "sc-hook.js"), format: "iife" },     // MAIN world
+  { entryPoints: [path.join(root, "src/soundcloud/bridge.ts")], outfile: path.join(out, "sc-bridge.js"), format: "iife" }, // isolated world
 ];
 
 const watch = process.argv.includes("--watch");

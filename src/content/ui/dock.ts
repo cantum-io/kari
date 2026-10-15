@@ -13,6 +13,13 @@ export type DockDeps = {
   saveSettings(patch: Partial<Settings>): void;
   level(): number;        // 0..1 RMS for Kari's pulse
   optionsUrl: string;
+  site?: "yt" | "sc";     // copy and placement differ per host page (default "yt")
+  mountStyle?: string;    // the wrapper's inline style; default fills the host (YouTube's player box)
+};
+
+const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
+  yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
+  sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
 };
 
 const GEAR = `<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3H9l-.4 2.7a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L9 21h6l.4-2.7a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>`;
@@ -164,7 +171,7 @@ export class Dock {
     this.wrap = wrap;
     wrap.id = "kari-dock";
     wrap.dataset.build = __KARI_BUILD__;
-    wrap.style.cssText = "position:absolute;inset:0;pointer-events:none;z-index:60";
+    wrap.style.cssText = deps.mountStyle || "position:absolute;inset:0;pointer-events:none;z-index:60";
     this.shadow = wrap.attachShadow({ mode: "open" });
     const style = document.createElement("style"); style.textContent = DOCK_CSS;
     this.shadow.appendChild(style);
@@ -172,6 +179,7 @@ export class Dock {
     this.shadow.appendChild(tpl.content.cloneNode(true));
     host.appendChild(wrap);
     this.root = this.shadow.querySelector(".root") as HTMLElement;
+    this.root.dataset.site = deps.site || "yt";
     this.seedStars();
     this.wire();
     this.applySettings(deps.settings);
@@ -185,7 +193,7 @@ export class Dock {
   setStatus(s: AudioStatus) {
     this.status = s;
     const f = this.el("fault");
-    const msg = s.fault === "drm-silent" ? "this video's audio is protected — Kari can't touch it" : s.fault === "capture-failed" ? "couldn't reach the audio on this page" : s.fault === "worklet-failed" ? "engine hiccup — playing untouched audio" : "";
+    const msg = s.fault ? (FAULT_COPY[this.deps.site || "yt"][s.fault] || "") : "";
     f.hidden = !msg; f.textContent = msg;
     this.shadow.querySelector(".org")?.setAttribute("data-fault", s.fault ? "1" : "0");
     this.render();
@@ -217,7 +225,7 @@ export class Dock {
     const p = this.deps.getParams();
     const s = this.status;
     const map: Record<string, string> = {
-      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), bpm: s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? `yt ${s.baseRate.toFixed(2)}×` : "",
+      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), bpm: s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? `${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "",
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",

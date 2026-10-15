@@ -45,8 +45,8 @@ Exit `0` played · `1` play never started within 20 s of the page load · `2` se
 **Why a test build.** Kari asks for SoundCloud as an optional permission, and automation cannot click Chrome's
 permission prompt. `scripts/test-hosts.mjs` (run by `npm run build`, a no-op unless `KARI_TEST_HOSTS` is set) copies
 `extension/` to `test-build/soundcloud/`, moves `https://soundcloud.com/*` into `host_permissions`, adds it to the
-web-accessible resources, and registers the SoundCloud scripts statically: `soundcloud-main.js` (MAIN world,
-`document_start`) and `soundcloud.js` (isolated, `document_start`) when they exist in `extension/`. Rename them in the
+web-accessible resources, and registers the SoundCloud scripts statically: `sc-hook.js` (MAIN world,
+`document_start`) and `sc-bridge.js` (isolated, `document_start`), the names in `src/background/sw.ts`. Rename them in the
 `HOSTS` table at the top of the script if the hook ships other names. The switch lives outside `scripts/build.mjs`
 because that file is hashed into the build stamp; touching it would change every shipped file. Proof it changes
 nothing: sha256 of all 14 files in `extension/` identical before the change, after it, and after a test build

@@ -2,6 +2,9 @@
 // straight-wire bypass path, drives the worklet, and enforces the one-pass rule on the <video>.
 
 import { plan, type Params, DEFAULT_PARAMS } from "../../shared/math";
+import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../beat/grid";
+import { TapTempo } from "../beat/tap";
+import { NullBeatDetector, type BeatDetector } from "../beat/detect";
 
 export type EngineName = "r3" | "ss" | "bypass";
 export type AudioStatus = {
@@ -14,6 +17,10 @@ export type AudioStatus = {
   load: number;              // 0..1 of the audio budget
   fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing";
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
+  loop: LoopBeats | 0;       // latched loop length in beats, 0 = none
+  loopMs: number;            // its length in real-time ms
+  bpm: number | null;        // the beat grid's bpm, null until tapped or typed
+  gridSource: BeatGrid["source"] | null;
 };
 
 /** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
@@ -61,7 +68,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1 };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, bpm: null, gridSource: null };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -71,10 +78,21 @@ export class AudioController {
   private engineWarm = false;   // worklet reported real output from the selected engine (else the wet path is still silent)
   private lastWantedEngine: EngineName | null = null;
   private lastRing = 0;
+  private routedWet = false;    // what the gains are set to right now (wetWanted is where we want to end up)
+  // Beat loops. The grid lives here (per video; index.ts clears it on navigation); the worklet holds the audio.
+  private grid: BeatGrid | null = null;
+  private tapper = new TapTempo();
+  private loopBeats: LoopBeats | 0 = 0;
+  private matchedFrames = 0;    // the dry-matched delay in frames; the bypass engine is delayed to the same figure
+  private detector: BeatDetector = new NullBeatDetector();
+  private static INTERRUPTS = ["pause", "seeking", "ended", "emptied"] as const;
 
   constructor(private video: HTMLMediaElement, private urls: { worklet: string; wasm: string }, private ext: ExternalGraph | null = null) {
     video.addEventListener("ratechange", this.onRateChange);
+    for (const t of AudioController.INTERRUPTS) video.addEventListener(t, this.onInterrupt);
   }
+  /** A loop has no track underneath to slip back into once the element stops or jumps: let go. */
+  private onInterrupt = () => { if (this.loopBeats) this.releaseLoop(); };
 
   /** Drop the engine's buffered audio (seek, new track, pause). The worklet re-primes and re-reports 'warm'. */
   flush() { this.node?.port.postMessage({ type: "reset" }); }
@@ -96,14 +114,17 @@ export class AudioController {
   rebind(video: HTMLMediaElement) {
     if (video === this.video) return;
     this.video.removeEventListener("ratechange", this.onRateChange);
+    for (const t of AudioController.INTERRUPTS) this.video.removeEventListener(t, this.onInterrupt);
+    if (this.loopBeats) this.releaseLoop();
     this.video = video;
     video.addEventListener("ratechange", this.onRateChange);
+    for (const t of AudioController.INTERRUPTS) video.addEventListener(t, this.onInterrupt);
     // The old MediaElementSource belongs to the old element; if YouTube replaced the element we need a new graph.
     if (this.src) { try { this.src.disconnect(); } catch (_) { /* ignore */ } this.src = null; this.emit({ attached: false }); }
     this.apply(this.params, true);
   }
 
-  setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; this.apply(this.params, true); }
+  setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.apply(this.params, true); }
 
   getParams() { return this.params; }
   get status() { return this._status; }
@@ -117,17 +138,66 @@ export class AudioController {
     // Key lock holds the pitch against YouTube's own speed menu too (baseRate), not only against Kari's slider.
     const engineRatio = p.keyLock ? pl.engineRatio / this.baseRate : pl.engineRatio;
     const engineActive = Math.abs(engineRatio - 1) > 1e-6 && !this.speedOnly;
-    const wantAttach = (engineActive && !this.adActive) || (this.compare && !this.speedOnly);
+    const loopOn = this.loopBeats > 0 && !this.adActive && !this.speedOnly;   // a protected track is speed-only: no engine, no loop
+    const wantAttach = (engineActive && !this.adActive) || (this.compare && !this.speedOnly) || loopOn;
     if (wantAttach && !this.src) await this.attach();
     if (!this.src) return;
     const ratio = this.adActive ? 1 : engineRatio;
     this.node?.port.postMessage({ type: "ratio", ratio });
-    this.applyEngine(engineActive && !this.adActive);
-    const wantWet = engineActive && !this.adActive && !this.compare;
+    const engineChanged = this.applyEngine(engineActive && !this.adActive);
+    // A loop with no key change runs wet through the bypass engine (a delayed straight wire): lossless, and the loop
+    // stage sits in the worklet. Hold-to-compare still hears the track underneath.
+    const wantWet = (engineActive || loopOn) && !this.adActive && !this.compare;
     this.wetWanted = wantWet;
     // Going dry is instant; going wet waits for the worklet's 'warm' (live probe 2026-09-26: crossfading at once left a
     // ~70 ms hole while Rubber Band filled its first window).
     if (!wantWet || this.engineWarm) this.route(wantWet, force);
+    // Engine switch while already wet (a key change lands on a running loop): the engine emits zeros until warm, so sit
+    // on the matched dry path for those ~60 ms and come back on 'warm'. The loop drops out for that long: see docs.
+    else if (engineChanged && this.routedWet) this.route(false, force, true);
+  }
+
+  /* ---------------- beat loops ---------------- */
+  getGrid() { return this.grid; }
+  setGrid(g: BeatGrid | null) {
+    this.grid = g;
+    if (!g) { this.tapper.reset(); if (this.loopBeats) this.releaseLoop(); }
+    this.emit({ bpm: g ? g.bpm : null, gridSource: g ? g.source : null });
+    // A grid means loops are coming: attach now so the capture ring has history by the first latch (needs a prior click).
+    if (g && !this.src) this.attach().catch(() => { /* reported through status */ });
+  }
+  /** One tap at the current media time. Returns the running bpm estimate (null until the second tap). */
+  tap(): number | null {
+    const t = this.video.currentTime;
+    const bpm = this.tapper.tap(t);
+    if (bpm) this.setGrid({ bpm, phase: t, source: "tap" });
+    else if (!this.src) this.attach().catch(() => { /* reported through status */ });
+    return bpm;
+  }
+  setBpm(bpm: number) { if (!Number.isFinite(bpm)) return; this.setGrid(withBpm(this.grid, bpm, this.video.currentTime)); }
+  nudgeBpm(delta: number) { if (this.grid) this.setGrid(nudgeBpm(this.grid, delta)); }
+  get loop() { return this.loopBeats; }
+  /** Latch (or re-latch) a loop of `beats` on the grid line at or before now. Resolves false without a grid or while paused. */
+  async latchLoop(beats: LoopBeats): Promise<boolean> {
+    if (!this.grid || this.video.paused || this.video.ended) return false;
+    if (!this.src) await this.attach();
+    if (!this.src || !this.node || !this.ctx) return false;
+    const v = this.video, rate = v.playbackRate || 1;
+    // Read the clock as late as possible: the attach above can take 30-40 ms cold.
+    const p = loopPlan(this.grid, v.currentTime, rate, this.ctx.sampleRate, beats);
+    this.node.port.postMessage({ type: "loop", on: true, lenFrames: p.lenFrames, backFrames: p.backFrames });
+    this.loopBeats = beats;
+    this.emit({ loop: beats, loopMs: Math.round(p.lenFrames / this.ctx.sampleRate * 1000) });
+    await this.apply(this.params, true);
+    return true;
+  }
+  /** Slip release: the worklet fades back to where the track underneath is now. No seek. */
+  releaseLoop() {
+    if (!this.loopBeats) return;
+    this.node?.port.postMessage({ type: "loop", on: false });
+    this.loopBeats = 0;
+    this.emit({ loop: 0, loopMs: 0 });
+    this.apply(this.params, true);
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */
@@ -204,6 +274,7 @@ export class AudioController {
       src.connect(this.dryDelay); this.dryDelay.connect(this.dryMatched); this.dryMatched.connect(this.analyser);
       src.connect(this.node); this.node.connect(this.wet); this.wet.connect(this.limiter); this.limiter.connect(this.trim); this.trim.connect(this.analyser);
       this.analyser.connect(ext ? ext.sink : ctx.destination);
+      this.detector.start(ctx, src);   // the null detector today; the seam for auto-detect once the licence decision lands
       this.dryDirect.gain.value = 1; this.dryMatched.gain.value = 0; this.wet.gain.value = 0;
       ext?.onWired?.(); // same task as the connects above: the straight wire and Kari's graph swap on one render quantum
       if (!ext || ext.ownsContext) {
@@ -226,9 +297,15 @@ export class AudioController {
     if (audible) this.dryDelay.delayTime.setTargetAtTime(sec, this.ctx.currentTime, 0.05); // tier switch while comparing: rare, short sweep
     else this.dryDelay.delayTime.setValueAtTime(sec, this.ctx.currentTime);
     this.matchedReady = true;
+    // The bypass engine (a loop with no key change) is delayed to the same figure, so latch and release crossfades
+    // between the matched dry path and the wet path are time-aligned. Set while the engine is r3/ss, so never audible.
+    this.matchedFrames = frames;
+    this.node?.port.postMessage({ type: "config", bypassDelay: frames });
   }
-  private route(wet: boolean, force: boolean) {
-    this.wetWanted = wet;
+  /** `temporary`: park on the dry path without changing where we want to end up (an engine warm-up while wet). */
+  private route(wet: boolean, force: boolean, temporary = false) {
+    if (!temporary) this.wetWanted = wet;
+    this.routedWet = wet;
     if (!this.ctx) return;
     const t = this.ctx.currentTime, tc = XFADE / 3;
     const matched = !wet && this.matchedReady, direct = !wet && !this.matchedReady;
@@ -237,11 +314,14 @@ export class AudioController {
     this.dryDirect.gain.setTargetAtTime(direct ? 1 : 0, t, tc);
     this.updateAv();
   }
-  private applyEngine(active = true) {
-    if (!this.node) return;
+  /** Returns true when the wanted engine changed (the worklet will report 'warm' again). */
+  private applyEngine(active = true): boolean {
+    if (!this.node) return false;
     const want: EngineName = !active ? "bypass" : this.tier;
-    if (want !== this.lastWantedEngine) { this.engineWarm = false; this.lastWantedEngine = want; this.hotBlocks = 0; }
+    const changed = want !== this.lastWantedEngine;
+    if (changed) { this.engineWarm = false; this.lastWantedEngine = want; this.hotBlocks = 0; }
     this.node.port.postMessage({ type: "engine", engine: want });
+    return changed;
   }
   private onWorklet(m: any) {
     switch (m.type) {

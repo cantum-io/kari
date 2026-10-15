@@ -16,6 +16,7 @@ export type Settings = {
   keyLockDefault: boolean;
   rememberPerVideo: boolean;
   seenIntro: boolean;
+  midiMap?: Record<string, number>;   // loop/tap actions → note numbers (src/content/midi.ts); absent = the default pads
 };
 
 export const DEFAULT_SETTINGS: Settings = {

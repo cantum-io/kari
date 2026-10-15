@@ -4,6 +4,8 @@ declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
 import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
+import { type LoopBeats, fmtBpm, loopLabel, BPM_MIN, BPM_MAX } from "../beat/grid";
+import type { Midi, MidiAction, MidiState } from "../midi";
 
 export type DockDeps = {
   getParams(): Params;
@@ -15,12 +17,17 @@ export type DockDeps = {
   optionsUrl: string;
   site?: "yt" | "sc";     // copy and placement differ per host page (default "yt")
   mountStyle?: string;    // the wrapper's inline style; default fills the host (YouTube's player box)
+  // beat loops: click + MIDI only; the grid and the loop live in the audio controller, state comes back through setStatus
+  // absent on hosts without a loop path yet (SoundCloud in this build): the dock hides the loop row and the MIDI group
+  loop?: { latch(beats: LoopBeats): Promise<boolean>; release(): void; tap(): number | null; setBpm(bpm: number): void; nudge(delta: number): void };
+  midi?: Midi;
 };
 
 const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
   yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
   sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player" },
 };
+const LOOP_ACTION: Record<string, MidiAction> = { "0.25": "loop-q", "0.5": "loop-h", "1": "loop-1", off: "release", tap: "tap" };
 
 const GEAR = `<svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.5 7.5 0 0 0-1.7-1L15 3H9l-.4 2.7a7.5 7.5 0 0 0-1.7 1l-2.5-1-2 3.5L4.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1a7.5 7.5 0 0 0 1.7 1L9 21h6l.4-2.7a7.5 7.5 0 0 0 1.7-1l2.5 1 2-3.5L19.4 13zM12 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z"/></svg>`;
 
@@ -42,7 +49,19 @@ const CTL = `
       <button class="pill hold" data-a="compare">Hold to compare</button>
       <button class="pill" data-a="reset">Reset</button>
     </div>
-    <div class="meta"><span>key <em class="ro" data-b="keypair"></em></span><span>engine <em data-b="engine">—</em></span><span>a/v <em class="ro" data-b="av">—</em></span></div>
+    <div class="loops">
+      <span class="lab">loop</span>
+      <button class="pill loop" data-a="loop" data-v="0.25" aria-pressed="false" aria-label="Loop a quarter beat" disabled>¼</button>
+      <button class="pill loop" data-a="loop" data-v="0.5" aria-pressed="false" aria-label="Loop half a beat" disabled>½</button>
+      <button class="pill loop" data-a="loop" data-v="1" aria-pressed="false" aria-label="Loop one beat" disabled>1</button>
+      <button class="pill off" data-a="loop-off" aria-label="Release the loop" disabled>×</button>
+    </div>
+    <div class="tempo">
+      <button class="pill" data-a="tap" aria-label="Tap tempo">Tap</button>
+      <span class="bpmbox"><button data-a="bpm-" aria-label="BPM down">−</button><input class="bpm ro" type="number" min="${BPM_MIN}" max="${BPM_MAX}" step="0.1" data-a="bpm" inputmode="decimal" aria-label="BPM" placeholder="bpm"><button data-a="bpm+" aria-label="BPM up">+</button></span>
+      <button class="pill" data-a="midi" aria-pressed="false" aria-label="Connect MIDI">MIDI</button>
+    </div>
+    <div class="meta"><span>key <em class="ro" data-b="keypair"></em></span><span>engine <em data-b="engine">—</em></span><span>a/v <em class="ro" data-b="av">—</em></span><span>loop <em class="ro" data-b="loopinfo">—</em></span></div>
   </div>
   <div class="rowend"><button class="hidebtn" data-a="hide">Hide</button><button class="fulltog" data-a="full" aria-pressed="false">Full control <span class="sw"></span></button></div>
 </div>`;
@@ -149,6 +168,8 @@ const TEMPLATE = `
         <label class="ul"><input type="checkbox" data-set="shades"> <span>Thin black sunglasses</span></label>
         <label class="ul"><input type="checkbox" data-set="shoes"> <span>Chunky sneakers</span></label></div></div>
     <div class="sg"><b>Extras</b><div class="row col"><label class="ul"><input type="checkbox" data-set="plush"> <span>Plush trophy in corner</span></label></div></div>
+    <div class="sg" data-el="midisg"><b>MIDI</b><div class="row"><button class="chip" data-m="connect">Connect</button><button class="chip" data-m="learn" aria-pressed="false">Learn</button><span class="mst" data-el="midist">not connected</span></div>
+      <span class="mst">learn: switch it on, click a loop, tap or × button, then hit the pad</span></div>
     <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
     <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
     <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
@@ -164,6 +185,7 @@ export class Dock {
   private el = (name: string) => this.shadow.querySelector(`[data-el="${name}"]`) as HTMLElement;
   private $$ = (sel: string) => Array.from(this.shadow.querySelectorAll(sel)) as HTMLElement[];
   private status: AudioStatus | null = null;
+  private midiState: MidiState | null = null; private learnOn = false;
   private raf = 0; private visible = true; private consDrag = false;
 
   constructor(private host: HTMLElement, private deps: DockDeps) {
@@ -199,6 +221,14 @@ export class Dock {
     this.render();
   }
   setControlsHidden(hidden: boolean) { this.root.dataset.hiddenWithControls = hidden ? "1" : "0"; }
+  setMidiState(m: MidiState) {
+    this.midiState = m;
+    const armed = m.learning;
+    this.$$("[data-arm]").forEach(b => { if (!armed) b.removeAttribute("data-arm"); });
+    const txt = !m.supported ? "no Web MIDI here" : m.error ? m.error : m.connected ? `${m.inputs} input${m.inputs === 1 ? "" : "s"}${m.lastNote !== null ? ` · note ${m.lastNote}` : ""}${armed ? " · hit a pad" : ""}` : "not connected";
+    const el = this.el("midist"); if (el && el.textContent !== txt) el.textContent = txt;
+    this.render();
+  }
   setSmall(small: boolean) { this.root.dataset.small = small ? "1" : "0"; }
   applySettings(s: Settings) {
     this.$$(".skin").forEach(sk => (sk as HTMLElement).hidden = sk.dataset.skin !== s.skin);
@@ -224,13 +254,26 @@ export class Dock {
   render() {
     const p = this.deps.getParams();
     const s = this.status;
+    const bpm = s?.bpm ?? null, loop = s?.loop ?? 0;
+    const yt = s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? `${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "";
     const map: Record<string, string> = {
-      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), bpm: s?.baseRate && Math.abs(s.baseRate - 1) > 1e-3 ? `${this.deps.site === "sc" ? "sc" : "yt"} ${s.baseRate.toFixed(2)}×` : "",
+      speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), bpm: [yt, bpm ? `${fmtBpm(bpm)} bpm` : ""].filter(Boolean).join(" · "),
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",
+      loopinfo: !this.deps.loop ? "—" : loop ? `${loopLabel(loop)} · ${s!.loopMs} ms` : bpm ? "—" : "tap first",
     };
     this.$$("[data-b]").forEach(el => { const v = map[el.dataset.b!]; if (v !== undefined && el.textContent !== v) el.textContent = v; });
+    // loops: three latch buttons, a release, the bpm field (left alone while being typed in)
+    const loopsRow = this.shadow.querySelector(".loops") as HTMLElement | null; if (loopsRow) loopsRow.hidden = !this.deps.loop;
+    const midiGroup = this.shadow.querySelector('[data-el="midisg"]') as HTMLElement | null; if (midiGroup) midiGroup.hidden = !this.deps.midi;
+    (this.$$('[data-a="loop"]') as HTMLButtonElement[]).forEach(b => { const on = loop > 0 && +b.dataset.v! === loop; b.setAttribute("aria-pressed", String(on)); b.disabled = !bpm; if (on) b.style.setProperty("--loop-ms", `${s!.loopMs}ms`); });
+    (this.$$('[data-a="loop-off"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !loop; });
+    (this.$$('[data-a="bpm-"],[data-a="bpm+"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !bpm; });
+    (this.$$('input[data-a="bpm"]') as HTMLInputElement[]).forEach(i => { if (this.shadow.activeElement === i) return; const v = bpm ? fmtBpm(bpm) : ""; if (i.value !== v) i.value = v; });
+    const m = this.midiState;
+    this.$$('[data-a="midi"]').forEach(b => { b.setAttribute("aria-pressed", String(!!m?.connected)); });
+    this.$$('[data-m="learn"]').forEach(b => b.setAttribute("aria-pressed", String(this.learnOn)));
     this.$$('[data-b="av"]').forEach(el => el.classList.toggle("warn", !!s && s.avOffsetMs > 125));
     (this.$$('input[data-a="tempo"]') as HTMLInputElement[]).forEach(r => { r.min = String(-p.range); r.max = String(p.range); if (+r.value !== p.tempo) r.value = String(p.tempo); });
     this.$$('[data-a="lock"]').forEach(b => b.setAttribute("aria-pressed", String(p.keyLock)));
@@ -261,13 +304,32 @@ export class Dock {
         case "hide": this.deps.saveSettings({ collapsed: true }); this.react(); break;
         case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Kari is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
+        // beat loops (click + MIDI only). In learn mode a click arms the button for the next MIDI note instead.
+        case "loop": case "loop-off": case "tap": {
+          const key = a === "loop" ? el.dataset.v! : a === "loop-off" ? "off" : "tap";
+          if (this.learnOn && this.midiState?.connected) { this.$$("[data-arm]").forEach(b => b.removeAttribute("data-arm")); el.dataset.arm = "1"; this.deps.midi?.learn(LOOP_ACTION[key]); break; }
+          if (a === "loop") this.deps.loop?.latch(+el.dataset.v! as LoopBeats)?.then(ok => { if (ok) this.react(); this.render(); });
+          else if (a === "loop-off") this.deps.loop?.release();
+          else { this.deps.loop?.tap(); this.react(); }
+          this.render(); break;
+        }
+        case "bpm-": this.deps.loop?.nudge(-1); this.render(); break;
+        case "bpm+": this.deps.loop?.nudge(1); this.render(); break;
+        case "midi": this.deps.midi?.connect()?.then(() => this.render()); break;
       }
+    });
+    // MIDI settings: connect and learn
+    sh.addEventListener("click", (e) => {
+      const el = (e.target as HTMLElement).closest("[data-m]") as HTMLElement | null; if (!el) return;
+      if (el.dataset.m === "connect") this.deps.midi?.connect()?.then(() => this.render());
+      if (el.dataset.m === "learn") { this.learnOn = !this.learnOn; if (!this.learnOn) { this.deps.midi?.learn(null); this.$$("[data-arm]").forEach(b => b.removeAttribute("data-arm")); } this.render(); }
     });
     // Keys: only swallow what the focused control itself consumes (Enter/Space on buttons, arrows/Home/End on the
     // slider); everything else still reaches YouTube's shortcuts. A blanket stopPropagation killed k/j/l/f/space after
     // any click in the dock (review finding 2026-09-26).
     const consumes = (ke: KeyboardEvent) => {
       const t = ke.target as HTMLElement;
+      if (t.matches('input[type="number"]')) return true;   // the bpm field owns every key while it has focus, nothing outside it
       if (t.matches('input[type="range"]')) return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(ke.key);
       if (t.matches('button, [role="button"], input[type="checkbox"], a')) return ke.key === "Enter" || ke.key === " ";
       return false;
@@ -275,6 +337,7 @@ export class Dock {
     sh.addEventListener("keydown", (e: Event) => {
       const ke = e as KeyboardEvent; const el = (ke.target as HTMLElement).closest('[role="button"][data-a]') as HTMLElement | null;
       if (el && (ke.key === "Enter" || ke.key === " ")) { ke.preventDefault(); el.click(); }
+      if ((ke.target as HTMLElement).matches('input[data-a="bpm"]') && (ke.key === "Enter" || ke.key === "Escape")) { ke.preventDefault(); (ke.target as HTMLInputElement).blur(); }
       if (consumes(ke)) ke.stopPropagation();
     });
     sh.addEventListener("keyup", (e: Event) => { if (consumes(e as KeyboardEvent)) e.stopPropagation(); });
@@ -284,6 +347,7 @@ export class Dock {
     sh.addEventListener("change", (e) => {
       const t = e.target as HTMLInputElement;
       if (t.matches('input[data-a="tempo"]')) this.react();
+      if (t.matches('input[data-a="bpm"]')) { const v = parseFloat(t.value); if (Number.isFinite(v)) { this.deps.loop?.setBpm(v); this.react(); } this.render(); }
       if (t.dataset.set) this.deps.saveSettings({ [t.dataset.set]: t.checked } as Partial<Settings>);
     });
     // hold-to-compare

@@ -2,6 +2,7 @@
 // per-track memory, and relays parameters to the MAIN-world hook. The hook's world is hostile: every message from it
 // goes through protocol.accept and sanitizeStatus before it touches the dock.
 import { Dock } from "../content/ui/dock";
+import type { AudioStatus } from "../content/audio/controller";
 import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, type Settings } from "../shared/storage";
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
 import { NS, accept, makeNonce, sanitizeStatus, EMPTY_STATUS, type HookStatus } from "./protocol";
@@ -54,7 +55,9 @@ import { memoryId } from "./track-key";
     catch (err) { note("worklet source fetch failed " + String(err)); }
   }
 
-  function setStatus(s: HookStatus) { status = s; dock?.setStatus(s); }
+  // The hook reports no loop state (no loop path on SoundCloud in this build); the dock's status type carries the fields, so fill them.
+  const asAudioStatus = (s: HookStatus): AudioStatus => ({ loop: 0, loopMs: 0, bpm: null, gridSource: null, ...s });
+  function setStatus(s: HookStatus) { status = s; dock?.setStatus(asAudioStatus(s)); }
 
   /** The track under the badge changed (or the bar re-rendered): reload memory and push params, like YouTube's mount. */
   async function syncTrack(reason: string) {
@@ -88,7 +91,7 @@ import { memoryId } from "./track-key";
         // A panel above the bar: the bar is ~48 px tall, the dock needs room to stand on it.
         mountStyle: "position:absolute;left:0;right:0;bottom:100%;height:320px;pointer-events:none;z-index:60",
       });
-      dock.setStatus(status);
+      dock.setStatus(asAudioStatus(status));
       onBarChange(host, () => { syncTrack("bar"); if (!host.contains(dock!.hostEl)) mount(); });
       post({ type: "engine-pref", pref: settings.engine });
       // No hook within 3 s of the dock = the MAIN-world script never ran on this page (opened before the permission

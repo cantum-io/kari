@@ -4,9 +4,12 @@ import { Dock } from "./ui/dock";
 import { isWatchPage, videoId, waitForVideo, onNavigate, onAdState, player, isMiniplayer, controlsHidden } from "./yt";
 import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, type Settings } from "../shared/storage";
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
+import { Midi, type MidiAction } from "./midi";
+import type { LoopBeats } from "./beat/grid";
 
 let audio: AudioController | null = null;
 let dock: Dock | null = null;
+let midi: Midi | null = null;
 let params: Params = { ...DEFAULT_PARAMS };
 let settings: Settings;
 let currentId = "";
@@ -30,6 +33,17 @@ async function applyParams(p: Params) {
   }
 }
 
+// Beat-loop actions, from the dock's buttons or a MIDI pad. Click + MIDI only: the page's keyboard is never taken.
+const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-q": 0.25, "loop-h": 0.5, "loop-1": 1 };
+function loopAction(a: MidiAction) {
+  if (!audio) return;
+  const beats = LOOP_BEATS[a];
+  if (beats) audio.latchLoop(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
+  else if (a === "release") audio.releaseLoop();
+  else if (a === "tap") { audio.tap(); dock?.react(); }
+  dock?.render();
+}
+
 async function mount() {
   // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Kari alone) and keep the video id.
   if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
@@ -44,9 +58,11 @@ async function mount() {
     params = mem ? { ...DEFAULT_PARAMS, ...mem } : { ...DEFAULT_PARAMS, range: settings.defaultRange, keyLock: settings.keyLockDefault };
     lastSaved = id + ":" + (mem ? JSON.stringify({ st: params.st, cents: params.cents, tempo: params.tempo, keyLock: params.keyLock, range: params.range }) : "");
     console.debug("[kari] mount", id, "memory:", mem ? JSON.stringify(mem) : "none");
+    audio?.setGrid(null);   // the beat grid belongs to the song: a new video starts without one (and lets any loop go)
   }
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);
+  if (!midi) midi = new Midi(settings.midiMap, loopAction, (m) => { saveSettings({ midiMap: m }).then(s => { settings = s; }); }, (st) => dock?.setMidiState(st));
   if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; } // player was re-created (miniplayer ↔ watch)
   if (!dock) {
     dock = new Dock(host, {
@@ -57,7 +73,16 @@ async function mount() {
       saveSettings: (patch) => { saveSettings(patch).then(s => { settings = s; dock?.applySettings(s); if (patch.engine) audio?.setEnginePreference(s.engine); }); },
       level: () => audio?.level() ?? 0,
       optionsUrl: chrome.runtime.getURL("options.html"),
+      loop: {
+        latch: (beats) => audio ? audio.latchLoop(beats) : Promise.resolve(false),
+        release: () => audio?.releaseLoop(),
+        tap: () => audio?.tap() ?? null,
+        setBpm: (bpm) => audio?.setBpm(bpm),
+        nudge: (d) => audio?.nudgeBpm(d),
+      },
+      midi,
     });
+    dock.setMidiState(midi.state);
     audio.onStatus(s => dock?.setStatus(s));
     onAdState(a => audio?.setAds(a));
     watchPlayerState(host);
@@ -88,8 +113,12 @@ chrome.runtime.onMessage.addListener((m) => {
 });
 
 // Debug surface — lives in the content script's isolated world, invisible to the page. Read by the live probe.
-(globalThis as any).__kari = { get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p) };
+(globalThis as any).__kari = {
+  get params() { return params; }, get audio() { return audio; }, get dock() { return dock; }, get settings() { return settings; }, apply: (p: Params) => applyParams(p),
+  get grid() { return audio?.getGrid() ?? null; }, get midi() { return midi; },
+  tap: () => audio?.tap() ?? null, setBpm: (b: number) => audio?.setBpm(b), latch: (beats: LoopBeats) => audio?.latchLoop(beats), release: () => audio?.releaseLoop(),
+};
 
-onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); });
+onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); });
 onNavigate(() => { mount(); });
 mount();

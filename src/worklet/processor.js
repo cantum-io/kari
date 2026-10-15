@@ -1,9 +1,12 @@
 // Kari audio worklet — hosts Rubber Band R3 (primary) and Signalsmith Stretch (fallback).
 // Runs on the audio thread. No allocations per block after warm-up. Never outputs silence on failure:
 // if an engine is not ready or throws, the input is copied straight to the output.
+// Signal path: input → LoopStage (beat loops, slip) → engine (R3 | SS | bypass+delay) → output. The loop sits in
+// front of the engine so a key change applies to the loop and the engine stays the only lossy stage.
 
 import { RubberBandInterface, RubberBandOption as O } from "rubberband-wasm";
 import SignalsmithFactory from "./generated/signalsmith-core.js";
+import { LoopStage, DelayLine } from "./loop.js";
 
 const QUANTUM = 128;
 const RING = 1 << 15; // 32768 frames per channel, ~680 ms at 48k — plenty for pitch-ratio jitter
@@ -32,7 +35,7 @@ class KariProcessor extends AudioWorkletProcessor {
     this.latency = { r3: 0, ss: 0 };
     this.ring = new Ring(this.channels);
     this.dropRemaining = 0;
-    this.warm = false; this.framesSinceSwitch = 0; // 'warm' = the selected engine is producing real output (main thread crossfades only then)
+    this.warm = true; this.framesSinceSwitch = 0; // 'warm' = the selected engine is producing real output (main thread crossfades only then); the initial bypass wire is warm from frame one
     this.deficit = 0;            // zeros emitted between an engine switch and 'warm' = the real stream latency of the wet path
     this.dropStart = po.dropStart === undefined ? "auto" : po.dropStart; // 'auto' = rubberband_get_start_delay(); a number overrides (probe knob)
     // Rubber Band emits output in bursts. Going live on the first full block starves the ring every few hundred ms:
@@ -40,6 +43,10 @@ class KariProcessor extends AudioWorkletProcessor {
     // in the ring before the first pop instead, so the deficit we report IS the stream delay and steady state never starves.
     this.cushion = po.cushion === undefined ? 512 : +po.cushion;
     this.ringMin = Infinity; this.ringMax = 0;
+    // Beat loops: a capture ring in front of the engine (src/worklet/loop.js). The bypass engine runs through a delay
+    // line so a loop with no key change sits at the matched dry path's latency (the controller sets config.bypassDelay).
+    this.loop = new LoopStage(sampleRate, { seconds: po.loopSeconds, fadeMs: po.loopFadeMs });
+    this.bypassDelay = new DelayLine(16384); this.latency.bypass = 0;
     this.port.onmessage = (e) => this.onMessage(e.data);
     this.initR3(po.rbWasm || po.rbModule).catch(err => this.post({ type: "error", where: "r3-init", message: String(err) }));
     if (po.signalsmith !== false) this.initSS().catch(err => this.post({ type: "error", where: "ss-init", message: String(err) }));
@@ -160,7 +167,7 @@ class KariProcessor extends AudioWorkletProcessor {
       this.engine = next; this.warm = false; this.framesSinceSwitch = 0; this.deficit = 0;
       if (next === "r3") this.primeR3(); if (next === "ss") this.ss._reset();
       this.post({ type: "engine", engine: next, latency: this.latency[next] || 0 });
-      if (next === "bypass") { this.warm = true; this.post({ type: "warm", engine: "bypass", latency: 0 }); }
+      if (next === "bypass") { this.warm = true; this.post({ type: "warm", engine: "bypass", latency: this.latency.bypass }); }
     } else if (this.warm) this.post({ type: "warm", engine: this.engine, latency: this.latency[this.engine] || 0 }); // already there: tell the main thread it can route now
   }
   onMessage(m) {
@@ -172,7 +179,16 @@ class KariProcessor extends AudioWorkletProcessor {
         break;
       }
       case "engine": this.wanted = m.engine; this.pickEngine(); break;
-      case "config": if (m.dropStart !== undefined) this.dropStart = m.dropStart; if (m.cushion !== undefined) this.cushion = +m.cushion; break;
+      case "config":
+        if (m.dropStart !== undefined) this.dropStart = m.dropStart; if (m.cushion !== undefined) this.cushion = +m.cushion;
+        if (m.bypassDelay !== undefined) { this.bypassDelay.setDelay(m.bypassDelay); this.latency.bypass = this.bypassDelay.d; }
+        break;
+      case "loop": {
+        // Applied here, between render quanta, so the next process() already plays it: engage within one quantum.
+        if (m.on) this.loop.engage(m.lenFrames, m.backFrames); else this.loop.release();
+        this.post({ type: "loop", on: this.loop.on, len: this.loop.len, start: this.loop.start, w: this.loop.w });
+        break;
+      }
       case "reset": if (this.engine === "r3") this.primeR3(); if (this.engine === "ss" && this.ss) this.ss._reset(); this.underruns = 0; break;
       case "stats": this.sendStats(true); break;
     }
@@ -182,7 +198,7 @@ class KariProcessor extends AudioWorkletProcessor {
     if (!force && t - this.lastStats < 1) return;
     this.lastStats = t;
     const load = this.blocks ? this.loadMs / this.blocks : 0; // avg ms per block (Date.now resolution)
-    this.post({ type: "stats", engine: this.engine, underruns: this.underruns, avgBlockMs: load, budgetMs: QUANTUM / sampleRate * 1000, ringFrames: this.ring.count, ringMin: this.ringMin === Infinity ? 0 : this.ringMin, ringMax: this.ringMax });
+    this.post({ type: "stats", engine: this.engine, underruns: this.underruns, avgBlockMs: load, budgetMs: QUANTUM / sampleRate * 1000, ringFrames: this.ring.count, ringMin: this.ringMin === Infinity ? 0 : this.ringMin, ringMax: this.ringMax, loopOn: this.loop.on, loopLen: this.loop.on ? this.loop.len : 0, captured: this.loop.w });
     this.blocks = 0; this.loadMs = 0;
   }
 
@@ -192,9 +208,10 @@ class KariProcessor extends AudioWorkletProcessor {
     const n = output[0].length;
     const t0 = Date.now();
     try {
-      if (this.engine === "r3" && this.ready.r3) this.processR3(input, output, n);
-      else if (this.engine === "ss" && this.ready.ss) this.processSS(input, output, n);
-      else for (let c = 0; c < output.length; c++) { const src = input && input[c % input.length]; if (src) output[c].set(src); else output[c].fill(0); }
+      const stage = this.loop.process(input, n);   // beat loop / slip; a straight copy when no loop is latched
+      if (this.engine === "r3" && this.ready.r3) this.processR3(stage, output, n);
+      else if (this.engine === "ss" && this.ready.ss) this.processSS(stage, output, n);
+      else this.bypassDelay.process(stage[0], stage[1], output[0], output[1] || output[0], n);
     } catch (err) {
       // Never go silent: fall back to a straight wire and tell the main thread.
       for (let c = 0; c < output.length; c++) { const src = input && input[c % input.length]; if (src) output[c].set(src); else output[c].fill(0); }

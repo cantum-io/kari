@@ -18,14 +18,14 @@ const root = fileURLToPath(new URL("..", import.meta.url)); // not .pathname: "~
 const src = path.join(root, "extension");
 
 // Per host: the sites, and the scripts the shipped build registers at runtime once the user grants the optional
-// permission. The test build lists the same files statically. A file that does not exist yet is skipped with a
-// warning (the SoundCloud hook is not built yet); keep these names in step with the hook's registration.
+// permission. The test build lists the same files statically. A file that does not exist is skipped with a
+// warning; keep these names in step with src/background/sw.ts.
 const HOSTS = {
   soundcloud: {
     sites: ["https://soundcloud.com/*"],
     scripts: [
-      { id: "kari-sc-main", js: ["soundcloud-main.js"], world: "MAIN", run_at: "document_start" },
-      { id: "kari-sc", js: ["soundcloud.js"], run_at: "document_start" },
+      { id: "kari-sc-hook", js: ["sc-hook.js"], world: "MAIN", run_at: "document_start" },
+      { id: "kari-sc-bridge", js: ["sc-bridge.js"], run_at: "document_start" },
     ],
   },
 };

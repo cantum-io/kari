@@ -193,4 +193,19 @@ button:active{transform:scale(.97)}
 .root[data-small="1"] .void,.root[data-small="1"] .pod,.root[data-small="1"] .cons-ctl,.root[data-small="1"] .plush,.root[data-small="1"] .cons svg{display:none}
 .root[data-small="1"] .void-orb{opacity:1;pointer-events:auto}
 .root[data-small="1"] .cloudlet{transform:translate(0,-120px)}
+
+/* SoundCloud: the dock stands on the fixed bottom bar (.playControls) inside a 320 px panel above it. Panels anchor to
+   the bottom edge, the gear and settings move to the left so nothing overlaps the controls or the bar's own buttons. */
+.root[data-site="sc"] .org{top:auto;bottom:10px;right:16px;width:330px}
+.root[data-site="sc"] .void,.root[data-site="sc"] .pod,.root[data-site="sc"] .cons-ctl{top:auto;bottom:10px;right:16px}
+.root[data-site="sc"] .void-orb{top:auto;bottom:14px;right:16px}
+.root[data-site="sc"] .cons{top:auto;bottom:0;height:100%;width:min(520px,60%)}
+.root[data-site="sc"] .suncap{top:auto;bottom:150px}
+.root[data-site="sc"] .cloudlet{top:auto;bottom:14px;right:16px}
+.root[data-site="sc"][data-collapsed="1"] .cloudlet{transform:none}
+.root[data-site="sc"] .plush{display:none}
+.root[data-site="sc"] .gear{right:auto;left:14px;bottom:12px}
+.root[data-site="sc"] .settings{right:auto;left:14px;bottom:50px;max-height:260px}
+.root[data-site="sc"] .intro{top:auto;bottom:240px;right:16px}
+.root[data-site="sc"] .fault{top:auto;bottom:250px}
 `;

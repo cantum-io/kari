@@ -76,3 +76,66 @@ Use free Creative Commons tracks; the baseline used "Cave" by LOFI LION (CC BY).
 
 `tools/probe/README.md`. Ears: load `extension/` unpacked in Chrome, open a watch page, use Full control's engine and
 a/v readouts. Console lines start with `[kari]`.
+
+---
+
+# SoundCloud — live probe (build 2026-10-15, route 0)
+
+Everything below is **UNVERIFIED** until it runs in Jesse's Chrome. The adapter was built on the static read of
+SoundCloud's bundle (`docs/SOUNDCLOUD-GRAPH-2026-10-14.md`) and passes `npm run build`, `npm test` (11 SoundCloud
+tests under fake Web Audio classes: route 0 wrap and redirect, route 1 fallback, late-install fault, rate guard,
+flush events, track key, world-message guard) and `npm run check:soundcloud` (exit 0, bundle `55-313c5966.js`
+unchanged). None of that is a browser. No store update before every row below has a result.
+
+## Method
+
+1. `npm run build`, then load `extension/` unpacked in Chrome (chrome://extensions → Developer mode → Load unpacked).
+   Already loaded: click Reload on the card. Note the extension id.
+2. Open Kari's settings (click the toolbar icon) → **Sites → SoundCloud** → switch on → accept Chrome's prompt.
+   Expected: the switch stays on. Service-worker console (chrome://extensions → the card → "service worker"):
+   `[kari] soundcloud scripts registered (permission added)`.
+3. Open `https://soundcloud.com/discover` in a **new tab** (a tab opened before step 2 has no scripts: row S2).
+   Open DevTools. Console lines from Kari start with `[kari]`; the bridge's debug surface is `__kari` in the
+   content-script context (DevTools console → context dropdown → "Kari"). `__kari.log` holds the last 60 events,
+   `__kari.status` the hook's last status (`route`, `engine`, `fault`, `ctxState`), `__kari.key` the track key.
+4. Play any free track from the Discover page. The dock should appear above the bottom player bar, right side,
+   Kari's blob at the bottom-right of it.
+5. Numbers marked *probe* can be read by the harness in `tools/probe` once it has a SoundCloud mode (separate
+   session, `sc-probe`); until then rows are *ear* and *DOM* (DevTools).
+
+Read-back for any row: `__kari.status` plus the console, never the dock alone (the dock renders what it is told).
+
+## Rows
+
+| # | Check | Pass | Result |
+|---|---|---|---|
+| S1 | Hook installs at document_start, before SoundCloud's graph | `__kari.hookReady === true` within 1 s of load; `__kari.log` has `hook ready` before any `event {"type":"source"…}` | UNVERIFIED |
+| S2 | Tab opened before the permission → honest notice | on that older tab the dock (if the bar is up) shows "reload this page so Kari can reach the player"; after reload it works | UNVERIFIED |
+| S3 | Route 0 wins | after the first play: `__kari.status.route === 0`; `__kari.log` has exactly one `{"type":"source","route":0}` per element; **no** `route:1` | UNVERIFIED |
+| S4 | Untouched audio before any change | play 20 s with Kari at neutral: sound identical to Kari switched off (the straight wire); `__kari.status.attached === false`, engine "—"/"wire" | UNVERIFIED (ear) |
+| S5 | First pitch change | press Pitch + once: engine R3 within 2 s (`__kari.status.engine === "r3"`, `attached === true`), audible +1 st, no hole longer than the 40 ms crossfade; console has no CSP error on `addModule` of `chrome-extension://<id>/worklet.js`; no "worklet via blob" note in `__kari.log` | UNVERIFIED |
+| S6 | SoundCloud's rate reset is caught | at Speed +4 %, skip to another track from the Discover page: speed stays 1.04 (`__kari.status.baseRate === 1`), no 1.00 blip audible at the track start; DevTools: `document.querySelector` finds no `<audio>` (element is detached), so read the rate from `__kari.log` events instead | UNVERIFIED |
+| S7 | Pause / seek / play fades are SoundCloud's, downstream of Kari | with R3 active, pause, play, scrub: SoundCloud's own short fades are heard, no click, no doubled audio; `__kari.log` shows `media pause` / `seeking` → engine flushes (ring re-primes, one short `warm` per flush) | UNVERIFIED (ear) |
+| S8 | Track change keeps or restores memory | set −3 st on track A, skip to B (neutral), back to A: A reopens at −3 (`[kari] track /user/slug … memory: {…}`), B at 0; keys look like `/user/slug` in `__kari.key` | UNVERIFIED |
+| S9 | Idle suspend | pause for 60 s: `__kari.status.ctxState` turns "suspended" (SoundCloud's own Suspender), then "running" on play; audio resumes at the set pitch with no silence longer than SoundCloud's own fade | UNVERIFIED |
+| S10 | Key lock at ±16 % | Key lock on, slider to +16: pitch unchanged by ear, speed clearly faster; vinyl (default): pitch rides speed | UNVERIFIED (ear) |
+| S11 | Hold to compare | level- and delay-matched by ear, as on YouTube | UNVERIFIED (ear) |
+| S12 | Go+ / protected track (needs a Go+ account) | the dock shows "this track's audio is protected — speed only"; speed still works; `__kari.status.fault === "drm-silent"`; whether the node is audible at all is the open question from the graph doc | UNVERIFIED — no Go+ account on hand |
+| S13 | Dock placement | dock above `.playControls` at the right, not clipped by the bar (if clipped: `.playControls` has overflow hidden → mount at body level, fixed above the bar); gear and settings at the left; SoundCloud's own buttons in the bar still clickable; Kari's blob toggles the panel | UNVERIFIED |
+| S14 | Keyboard | Alt+↑/↓ and Alt+→/← step pitch/speed on a SoundCloud tab; SoundCloud's own shortcuts (Space, Shift+→) untouched when the dock is not focused | UNVERIFIED |
+| S15 | Permission off | settings → SoundCloud off: SW console `unregistered`; a new SoundCloud tab shows no dock; YouTube unaffected | UNVERIFIED |
+| S16 | YouTube still works on this build | one watch page: Pitch +1 → R3, memory, miniplayer — same as rows 1–18 above (controller gained an external-graph mode; the YouTube branch is unchanged by construction) | UNVERIFIED |
+| S17 | Guard before shipping | `npm run check:soundcloud` exit 0 on the day of the store update | PASS 2026-10-15 00:09 PT (bundle unchanged) |
+
+## If a row fails
+
+- S3 shows `route: 1`: SoundCloud's `fadeSupportEnabled` is off for this account/build → Kari's own context carries
+  the audio; everything else should still pass. Note it; route 0 is not required for sound, only preferred.
+- S3 shows `fault: "capture-failed"` with `route: "late"`: the hook ran after SoundCloud claimed the element →
+  check S1 (registration order) before anything else.
+- S5 has a CSP error: SoundCloud started sending a Content-Security-Policy. The hook falls back to a `blob:` URL
+  (`__kari.log`: "worklet via blob"); if that fails too, the engine stays off and the dock says "couldn't reach".
+- S6 blips to 1.00: the prototype setter guard missed — read `__kari.log` for a `media loadstart` without a
+  preceding rate write; the fix is in `src/soundcloud/hook-core.ts` (rate guard).
+- Silence with R3 active on a free track: run `npm run check:soundcloud` first, then read
+  `docs/SOUNDCLOUD-GRAPH-2026-10-14.md` § "What would break route 0".

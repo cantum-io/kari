@@ -14,10 +14,14 @@
     "128": "icons/128.png"
   },
   "permissions": [
-    "storage"
+    "storage",
+    "scripting"
   ],
   "host_permissions": [
     "*://www.youtube.com/*"
+  ],
+  "optional_host_permissions": [
+    "https://soundcloud.com/*"
   ],
   "background": {
     "service_worker": "sw.js",
@@ -41,7 +45,8 @@
         "rubberband.wasm"
       ],
       "matches": [
-        "*://www.youtube.com/*"
+        "*://www.youtube.com/*",
+        "https://soundcloud.com/*"
       ]
     }
   ],

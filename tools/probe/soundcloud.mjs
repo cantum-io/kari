@@ -34,7 +34,10 @@ const flag = (n) => argv.includes(n);
 const opt = (n, d) => { const i = argv.indexOf(n); return i >= 0 && argv[i + 1] ? argv[i + 1] : d; };
 const url = argv.find((a) => /^https:\/\/(www\.|m\.)?soundcloud\.com\//.test(a));
 const LOOP = flag("--loop");
-const KARI = flag("--kari") || LOOP, JSON_OUT = flag("--json"), HEADED = flag("--headed"), VERBOSE = flag("--verbose");
+// --shots <dir>  (implies --loop) store screenshots at --viewport WxH (default 1280x800): 06-soundcloud-dock.png after the
+//                auto tempo verdict, 07-loop-row.png with 1 bar latched on that grid (no taps, so the readout shows the detected bpm).
+const SHOTS = opt("--shots", null); const VP = (opt("--viewport", SHOTS ? "1280x800" : "1440x900").split("x").map(Number));
+const KARI = flag("--kari") || LOOP || !!SHOTS, JSON_OUT = flag("--json"), HEADED = flag("--headed"), VERBOSE = flag("--verbose");
 const EXT = path.resolve(opt("--ext", path.join(here, "../../test-build/soundcloud")));
 const SETTLE = +opt("--settle", 2500); // after play starts: SoundCloud mutes the first 100 ms, Kari crossfades in
 const PLAY_TIMEOUT = 20000, RMS_MS = 2000;
@@ -159,7 +162,7 @@ function observer() {
 // ---------------------------------------------------------------- run
 const udd = fs.mkdtempSync(path.join(os.tmpdir(), "kari-sc-udd-"));
 const context = await chromium.launchPersistentContext(udd, {
-  headless: !HEADED, channel: "chromium", viewport: { width: 1440, height: 900 },
+  headless: !HEADED, channel: "chromium", viewport: { width: VP[0], height: VP[1] },
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--hide-crash-restore-bubble", "--mute-audio"],
 });
 const cleanup = async (code) => { try { await context.close(); } catch (_) {} fs.rmSync(udd, { recursive: true, force: true }); process.exit(code); };
@@ -254,7 +257,7 @@ const until = async (fn, ms, step = 100) => { const end = Date.now() + ms; let v
 const kariStatus = async () => { const r = await evalKari("JSON.stringify(globalThis.__kari && globalThis.__kari.status)"); return r.value ? JSON.parse(r.value) : null; };
 const elClock = () => page.evaluate(() => { const P = window.__scProbe; const r = P && (P.els.find((e) => !e.el.paused) || P.els[0]); return r ? +r.el.currentTime.toFixed(3) : null; });
 let loop = null;
-if (LOOP && played) {
+if ((LOOP || SHOTS) && played) {
   const ORG = '.skin[data-skin="org"] ';
   const L = { auto: null, taps: 0, bpmText: null, latchMs: null, status: null, rms: null, slip: null, released: null, ok: false, fail: null };
   const fail = (why) => { L.fail = L.fail || why; return L; };
@@ -274,9 +277,20 @@ if (LOOP && played) {
     L.auto = { first: await tempoRo(), verdict: null, ms: null, status: null };
     const verdict = await until(async () => { const t = await tempoRo(); return t && /bpm|^tap$/.test(t) ? t : null; }, 14000, 250); // "play to learn" / "learning…" are not verdicts
     L.auto.verdict = verdict; L.auto.ms = verdict ? Date.now() - t0a : null; L.auto.status = await kariStatus();
+    // A store shot shows the product on the page, not SoundCloud's overlays: the cookie dialog and the top announcement
+    // are removed from the DOM for the picture only, and Kari's first-run note is dismissed the way a person would.
+    const shot = async (name) => {
+      if (!SHOTS) return; fs.mkdirSync(SHOTS, { recursive: true });
+      await page.evaluate(() => { for (const el of document.querySelectorAll("#onetrust-consent-sdk, .announcements, .announcement, [class*='announcement']")) el.remove(); for (const el of document.querySelectorAll("div, section")) { if (el.children.length < 6 && /Find your scene/.test(el.textContent || "") && el.getBoundingClientRect().height < 140) { el.remove(); break; } } });
+      await inDock('[data-a="intro-ok"]', "click"); await page.evaluate(() => { const sr = document.querySelector("#kari-dock")?.shadowRoot; const i = sr && sr.querySelector('[data-el="intro"]'); if (i) i.hidden = true; }); await page.waitForTimeout(300);
+      await page.mouse.move(VP[0] - 300, VP[1] - 200); await page.waitForTimeout(600);
+      await page.screenshot({ path: path.join(SHOTS, name) }); L.shots = (L.shots || []).concat(name);
+    };
+    await shot("06-soundcloud-dock.png");
     // 3. Tap tempo: five taps 500 ms apart = 120 bpm in media time at 1×. A tap overrides the detector's grid.
-    for (let i = 0; i < 5; i++) { if (await inDock(ORG + '[data-a="tap"]', "click")) L.taps++; await page.waitForTimeout(500); }
-    L.bpmText = await until(async () => { const t = await tempoRo(); const st = await kariStatus(); return t && /bpm/.test(t) && st && st.gridSource === "tap" ? t : null; }, 3000);
+    const onAuto = !!SHOTS && !!verdict && /bpm/.test(verdict);
+    if (!onAuto) for (let i = 0; i < 5; i++) { if (await inDock(ORG + '[data-a="tap"]', "click")) L.taps++; await page.waitForTimeout(500); }
+    L.bpmText = await until(async () => { const t = await tempoRo(); const st = await kariStatus(); return t && /bpm/.test(t) && st && (onAuto ? st.gridSource === "auto" : st.gridSource === "tap") ? t : null; }, 3000);
     if (!L.bpmText) throw new Error("no tapped bpm after five taps");
     // 4. Latch 1 bar and wait for the dock to say so.
     const t1 = Date.now();
@@ -286,6 +300,7 @@ if (LOOP && played) {
     if (!info) throw new Error("dock never showed a 1-bar loop");
     L.status = await kariStatus();
     L.quarterPressed = (await inDock(ORG + '[data-a="loop"][data-v="4"]', "attr"))?.pressed === "true";
+    await shot("07-loop-row.png");
     // 4. Output while looping, and the element clock across it (slip: nothing is seeked, the track underneath moves on).
     const c0 = await elClock();
     L.rms = await page.evaluate((ms) => window.__scProbe.rms(ms), RMS_MS);
@@ -300,7 +315,7 @@ if (LOOP && played) {
     // 6. The live track again after the slip release: still sound, not silence (a loud loop vs a quiet intro is the song, not a doubled path).
     L.rmsAfter = await page.evaluate((ms) => window.__scProbe.rms(ms), RMS_MS);
     const st = L.status;
-    L.ok = !!st && st.loop === 4 && st.loopMs > 0 && st.bpm !== null && st.gridSource === "tap" && st.attached === true && L.fullOff
+    L.ok = !!st && st.loop === 4 && st.loopMs > 0 && st.bpm !== null && (onAuto ? st.gridSource === "auto" : st.gridSource === "tap") && st.attached === true && L.fullOff
       && !!L.rms && L.rms.mean > 1e-3 && L.rms.silent === 0 && L.slip.advanced && L.released && L.quarterPressed
       && !!L.rmsAfter && L.rmsAfter.mean > 1e-3 && L.rmsAfter.silent === 0;
     if (!L.ok) fail("a loop assertion did not hold (see the loop rows)");

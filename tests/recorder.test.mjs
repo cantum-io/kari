@@ -90,7 +90,7 @@ test("stage: a push that spans a chunk boundary splits it; an empty input keeps 
 
 let Recorder, ctx;
 before(async () => {
-  // The worklet bundle as KARI_RECORD=1 builds it (the committed extension/worklet.js is the public build, recorder out).
+  // The worklet bundle with the take compiled in, built here from source (the committed extension/worklet.js is checked below).
   const out = new URL("../test-build/worklet-rec.test-bundle.js", import.meta.url);
   await build({ entryPoints: [fileURLToPath(new URL("../src/worklet/processor.js", import.meta.url))], bundle: true, format: "iife", outfile: fileURLToPath(out), target: ["chrome120"], logLevel: "silent", define: { __KARI_BUILD__: '"test"', __KARI_RECORD__: "true" } });
   const code = fs.readFileSync(out, "utf8");

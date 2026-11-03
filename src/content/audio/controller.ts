@@ -6,7 +6,7 @@ import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../b
 import { TapTempo } from "../beat/tap";
 import { AutoBeatDetector, tempoPhase, type OnsetBatch, type DetectorState, type TempoEstimate, type TempoPhase } from "../beat/detect";
 import { Recorder, type Take, type TakeMeta } from "./recorder";
-declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: KARI_RECORD=1 compiles the take in; the public build has it out
+declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: the take is in by default; KARI_RECORD=0 compiles it out
 
 export type EngineName = "r3" | "ss" | "bypass";
 export type AudioStatus = {
@@ -317,8 +317,8 @@ export class AudioController {
    * (nothing to hear) or when the chain cannot attach; a running take returns true.
    */
   async startRecording(meta: Omit<TakeMeta, "params"> = {}): Promise<boolean> {
-    // Compiled out of the public build: the block folds away under the define and the Recorder import with it, so the
-    // store package carries no recorder path. KARI_RECORD=1 at build time puts it in (Jesse's local build).
+    // In the default build (the store's since 0.7.0). KARI_RECORD=0 folds the block away under the define and the Recorder
+    // import with it, so that package carries no recorder path.
     if (__KARI_RECORD__) {
       if (this.recorder) return true;
       if (this.parked) return false;   // hidden on this site: nothing to record

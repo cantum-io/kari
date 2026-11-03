@@ -62,7 +62,9 @@ English (United States)
 
 ## Single purpose
 
-Change the pitch and speed of, and loop, the audio of the music playing on a youtube.com watch page or a soundcloud.com page.
+Change the pitch and speed of, and loop, the audio of the music playing on a youtube.com watch page or a soundcloud.com page, and, on YouTube, record a practice take of what Kari plays to the user's own computer.
+
+(0.7.0: the record clause is new; paste the whole line. The take is the transformed audio the user hears, saved locally through the browser; nothing is uploaded and no permission is added.)
 
 ## Permission justifications
 
@@ -115,7 +117,7 @@ Promo tile 440×280: `promo-440x280.png` ("Kari · Key and speed for music. Stud
    (`https://github.com/cantum-io/kari/releases/download/vX.Y.Z/kari-extension.zip`). Check its manifest version.
 2. Developer dashboard (the Cantum publisher account) → Kari → **Package** → Upload new package → that zip.
 3. **Store listing**: paste the description above; add `06-soundcloud-dock.png` and `07-loop-row.png` beside the four
-   existing shots. **Privacy**: the single purpose and the five justifications above; the data answers are unchanged.
+   existing shots. **Privacy**: the single purpose (changed in 0.7.0) and the five justifications above; the data answers are unchanged.
 4. Submit for review. A new upload replaces any item still in review.
 
 The first submission (0.1.1, 2026-09-28) set up the developer account, 2-Step Verification, the verified contact email

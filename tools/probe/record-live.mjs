@@ -82,7 +82,8 @@ try {
   if (moves) {
     const m = JSON.parse(fs.readFileSync(moves, "utf8")), list = Array.isArray(m) ? m : m.moves || [];
     const kinds = list.map((x) => x.kind);
-    row("LR5", kinds[0] === "start" && kinds[kinds.length - 1] === "stop", `moves: ${kinds.join(", ")} · build ${m.kari} · site ${m.site} · ${m.seconds} s, dropped ${m.dropped}`);
+    const ver = JSON.parse(fs.readFileSync(path.join(EXT, "manifest.json"), "utf8")).version;
+    row("LR5", kinds[0] === "start" && kinds[kinds.length - 1] === "stop" && String(m.kari).startsWith(ver + "+"), `moves: ${kinds.join(", ")} · build ${m.kari} · site ${m.site} · ${m.seconds} s, dropped ${m.dropped}`);
   } else row("LR5", false, "no moves file");
 } catch (err) { row("run", false, String(err?.stack || err)); }
 

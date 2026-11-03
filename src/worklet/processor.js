@@ -237,7 +237,7 @@ class KariProcessor extends AudioWorkletProcessor {
  * context renders thousands of frames before the port delivers it). Messages: { type: "rec", on } starts or stops
  * (a stop flushes the partial chunk and answers { type: "flushed" }); { type: "close" } lets the node go.
  */
-// Compiled out of the public build (scripts/build.mjs defines __KARI_RECORD__; KARI_RECORD=1 puts it in).
+// In the default build; KARI_RECORD=0 compiles it out (scripts/build.mjs defines __KARI_RECORD__).
 if (__KARI_RECORD__) {
   class KariRecorder extends AudioWorkletProcessor {
     constructor(options) {

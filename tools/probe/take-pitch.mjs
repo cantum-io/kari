@@ -27,7 +27,7 @@ const EXT = path.join(root, "extension");
 const rows = []; let failed = 0;
 const row = (id, ok, detail) => { rows.push([id, ok, detail]); if (!ok) failed++; console.log(`${ok ? "PASS" : "FAIL"} ${id}  ${detail}`); };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-async function until(fn, ms = 6000) { const t0 = Date.now(); let v; while (Date.now() - t0 < ms) { v = await fn().catch(() => null); if (v) return v; await sleep(150); } return v; }
+async function until(fn, ms = 6000) { const t0 = Date.now(); let v; while (Date.now() - t0 < ms) { v = await Promise.resolve().then(fn).catch(() => null); if (v) return v; await sleep(150); } return v; }
 
 /** Frequency of a pure tone in a 24-bit LE WAV's left channel between two seconds: positive-going zero crossings over the window. */
 function toneHz(file, from, to) {

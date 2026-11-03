@@ -5,6 +5,7 @@
 
 import type { LoopBeats, GridSource } from "../content/beat/grid"; // types only: Node runs the tests straight from this file
 import type { TempoPhase } from "../content/beat/detect";
+import type { TakeLog, TakeMove, MoveKind } from "../content/audio/recorder";
 
 export const NS = "kari-sc";
 export type Dir = "b2h" | "h2b"; // bridge → hook, hook → bridge
@@ -97,6 +98,96 @@ export function parseLoopAck(x: unknown): { seq: number; ok: boolean } | null {
   if (!x || typeof x !== "object") return null;
   const d = x as Record<string, unknown>;
   return typeof d.seq === "number" && Number.isInteger(d.seq) ? { seq: d.seq, ok: d.ok === true } : null;
+}
+
+/**
+ * The take on SoundCloud. The recorder hangs off the controller in the MAIN-world hook (the chain's meeting point is
+ * there); the pill and the download are the bridge's. Bridge → hook as `{ type: "record", ...command }`: `start` carries
+ * the badge's track key and title for the take's name and a `seq` the hook answers with `{ type: "record-ack", seq, ok }`;
+ * `stop` carries a `seq` the hook answers with `{ type: "take", seq, ok, wav, log }` (wav a Blob, structured-cloned by
+ * reference, so a long take never crosses as a copy); `hide` holds a running take while Kari is hidden on SoundCloud.
+ */
+export type RecordCommand =
+  | { action: "start"; seq: number; track: string; title: string }
+  | { action: "stop"; seq: number }
+  | { action: "hide"; on: boolean };
+
+const isSeq = (x: unknown): x is number => typeof x === "number" && Number.isInteger(x) && x >= 0;
+const str = (x: unknown, max: number) => (typeof x === "string" ? x.slice(0, max) : "");
+
+/** Rebuild a RecordCommand from an inbound message, or null when any field is off. */
+export function parseRecordCommand(x: unknown): RecordCommand | null {
+  if (!x || typeof x !== "object") return null;
+  const d = x as Record<string, unknown>;
+  switch (d.action) {
+    case "start": return isSeq(d.seq) ? { action: "start", seq: d.seq, track: str(d.track, 200), title: str(d.title, 200) } : null;
+    case "stop": return isSeq(d.seq) ? { action: "stop", seq: d.seq } : null;
+    case "hide": return typeof d.on === "boolean" ? { action: "hide", on: d.on } : null;
+    default: return null;
+  }
+}
+
+export const MAX_TAKE_BYTES = 0xffffffff;   // the RIFF size field's limit; the writer refuses before it, the recorder caps a take at an hour
+const MOVE_KINDS = new Set(["start", "params", "loop", "seek", "hold", "resume", "volume", "stop"]);
+const MAX_MOVES = 100000;
+
+/** A move's data: flat, primitives only, short keys. */
+function moveData(x: unknown): Record<string, unknown> | undefined {
+  if (!x || typeof x !== "object" || Array.isArray(x)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(x as Record<string, unknown>).slice(0, 16)) {
+    if (k.length > 32) continue;
+    if (typeof v === "number") { if (Number.isFinite(v)) out[k] = v; }
+    else if (typeof v === "boolean") out[k] = v;
+    else if (typeof v === "string") out[k] = v.slice(0, 64);
+  }
+  return out;
+}
+
+/**
+ * Rebuild a take's moves log (TakeLog, src/content/audio/recorder.ts) from untrusted input, or null when its frame is
+ * off. It goes into a file on the user's disk, so every field is typed and bounded here, never passed through.
+ */
+export function sanitizeTakeLog(x: unknown): TakeLog | null {
+  if (!x || typeof x !== "object") return null;
+  const s = x as Record<string, unknown>;
+  const p = (s.params && typeof s.params === "object" ? s.params : {}) as Record<string, unknown>;
+  if (!Array.isArray(s.moves) || typeof s.sampleRate !== "number" || !Number.isFinite(s.sampleRate)) return null;
+  const startedAt = typeof s.startedAt === "string" && Number.isFinite(Date.parse(s.startedAt)) ? new Date(Date.parse(s.startedAt)).toISOString() : new Date().toISOString();
+  const opt = (v: unknown) => (typeof v === "string" && v ? v.slice(0, 200) : undefined);
+  const moves: TakeMove[] = [];
+  for (const m of s.moves.slice(0, MAX_MOVES)) {
+    if (!m || typeof m !== "object") continue;
+    const r = m as Record<string, unknown>;
+    if (!MOVE_KINDS.has(r.kind as string)) continue;
+    const data = moveData(r.data);
+    moves.push({ frame: num(r.frame, 0, 1e12), t: num(r.t, 0, 1e7), kind: r.kind as MoveKind, ...(data ? { data } : {}) });
+  }
+  const range = p.range === 8 || p.range === 16 || p.range === 50 ? p.range : 50;
+  return {
+    version: 1, kari: str(s.kari, 64), startedAt, site: opt(s.site), track: opt(s.track), title: opt(s.title),
+    sampleRate: num(s.sampleRate, 3000, 768000, 48000), channels: Math.round(num(s.channels, 1, 32, 2)), bits: s.bits === 16 ? 16 : 24,
+    frames: num(s.frames, 0, 1e12), seconds: num(s.seconds, 0, 1e7), dropped: num(s.dropped, 0, 1e12), peak: num(s.peak, 0, 1e3),
+    ...(typeof s.volume === "number" ? { volume: num(s.volume, 0, 1), muted: s.muted === true } : {}),
+    params: { st: num(p.st, -48, 48), cents: num(p.cents, -100, 100), tempo: num(p.tempo, -100, 100), keyLock: p.keyLock === true, range },
+    moves,
+  };
+}
+
+/** The hook's answer to a stop: `{ seq, take }`, take null when nothing was kept (or the payload is not a take). */
+export function parseTakeMessage(x: unknown, BlobCtor: { new (...a: any[]): Blob } = Blob): { seq: number; take: { wav: Blob; log: TakeLog } | null } | null {
+  if (!x || typeof x !== "object") return null;
+  const d = x as Record<string, unknown>;
+  if (!isSeq(d.seq)) return null;
+  if (d.ok !== true || !(d.wav instanceof BlobCtor) || d.wav.size < 44 || d.wav.size > MAX_TAKE_BYTES) return { seq: d.seq, take: null };
+  const log = sanitizeTakeLog(d.log);
+  return { seq: d.seq, take: log ? { wav: d.wav as Blob, log } : null };
+}
+
+/** The first 12 bytes of a RIFF/WAVE file: "RIFF", a size, "WAVE". The bridge reads them before it saves anything. */
+export function isWavHead(b: Uint8Array): boolean {
+  const at = (i: number, s: string) => [...s].every((c, k) => b[i + k] === c.charCodeAt(0));
+  return b.length >= 12 && at(0, "RIFF") && at(8, "WAVE");
 }
 
 /** Rebuild a HookStatus from untrusted input: every field typed, every number clamped, every enum checked. */

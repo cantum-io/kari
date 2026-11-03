@@ -4,9 +4,12 @@
 // namespace- and nonce-checked (protocol.ts). The worklet and WASM bytes come from the bridge on first use only.
 import { installSoundCloudHook, type Chain, type ChainSpec } from "./hook-core";
 import { AudioController, type AudioStatus } from "../content/audio/controller";
-import { NS, accept, parseLoopCommand, type HookStatus } from "./protocol";
+import { NS, accept, parseLoopCommand, parseRecordCommand, type HookStatus } from "./protocol";
 import { runLoopCommand } from "./loops";
+import { runRecordCommand, type RecordTarget } from "./takes";
 import type { Params } from "../shared/math";
+declare const __KARI_BUILD__: string;   // scripts/build.mjs: the take names the build that made it
+declare const __KARI_RECORD__: boolean; // scripts/build.mjs: the take is in by default; KARI_RECORD=0 compiles it out
 
 (() => {
   const mark = Symbol.for("kari.sc.hook");
@@ -61,6 +64,7 @@ import type { Params } from "../shared/math";
 
   /* ---- chain factory: the YouTube controller, pointed at the page's graph ---- */
   let enginePref: "auto" | "r3" | "signalsmith" | null = null;
+  let takeHidden = false;   // Kari hidden on SoundCloud (the bridge's "record hide"): every controller, and any made later, holds its take
   // The controller behind each chain: loop commands from the bridge are routed to the active unit's controller. It
   // listens to the real element (pause, seeking, ended, emptied), so a loop lets go on SoundCloud's own seek and on a
   // track change exactly as on YouTube; the bridge adds a grid clear when the track key changes.
@@ -71,11 +75,17 @@ import type { Params } from "../shared/math";
       writeRate: spec.writeRate, onWired: spec.onWired, ownsContext: spec.ownsContext, silenceMs: 1000, speedOnlyOnDrm: true,
     });
     if (enginePref) c.setEnginePreference(enginePref);
+    if (takeHidden) c.holdTake(true);
     c.onStatus((s: AudioStatus) => { const st: HookStatus = { ...s, route: spec.route, ctxState: String(spec.ctx.state) }; post({ type: "status", status: st }); });
     controllers.set(c, c);
     return c;
   };
   const activeController = (): AudioController | null => { const u = hook.active(); return u ? controllers.get(u.chain) ?? null : null; };
+  // The take: the recorder taps the chain's meeting point in this world (src/content/audio/recorder.ts); the bridge owns
+  // the pill and the download. `takeHolder` is the controller that started the take: its stop goes there even if another
+  // element became the active one. Commands run one after another, so a quick stop never overtakes its start.
+  let takeHolder: RecordTarget | null = null;
+  let takeQueue: Promise<unknown> = Promise.resolve();
 
   const hook = installSoundCloudHook(
     { AudioContext, AudioNode, HTMLMediaElement, Document, setTimeout: (f, ms) => window.setTimeout(f, ms), clearTimeout: (t) => window.clearTimeout(t) },
@@ -96,6 +106,17 @@ import type { Params } from "../shared/math";
   window.addEventListener("message", (e) => {
     const d = accept(e, window, origin, "b2h", nonce);
     if (!d) return;
+    // the take (KARI_RECORD=0 folds the block away under the define, and the command routing with it)
+    if (__KARI_RECORD__ && d.type === "record") {
+      const cmd = parseRecordCommand(d); if (!cmd) return;
+      if (cmd.action === "hide") takeHidden = cmd.on;
+      const targets = hook.units().map(u => controllers.get(u.chain)).filter((c): c is AudioController => !!c);
+      takeQueue = takeQueue.then(() => runRecordCommand(cmd, activeController(), takeHolder, targets, __KARI_BUILD__)).then(({ answer, holder }) => {
+        takeHolder = holder;
+        if (answer) post(answer);   // the take's wav is a Blob: structured-cloned by reference, never copied across
+      }).catch(() => { /* the bridge's timeout answers for a lost one */ });
+      return;
+    }
     switch (d.type) {
       case "init": if (!nonce && typeof d.nonce === "string" && d.nonce.length >= 16) { nonce = d.nonce; post({ type: "ready", units: hook.units().length, late }); } return;
       case "engine": {

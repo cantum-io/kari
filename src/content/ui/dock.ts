@@ -29,7 +29,8 @@ export type DockDeps = {
   midi?: Midi;
   // the take (KARI_RECORD=1 builds): one pill, click to start, click again to stop and save. start() false = nothing to
   // record (protected track, Kari hidden, no audio); stop() resolves to the seconds saved, null when nothing was kept.
-  // Absent = no record path on this host (a KARI_RECORD=0 build, SoundCloud for now): the dock hides the row.
+  // Absent = no record path (a KARI_RECORD=0 build): the dock hides the row. On SoundCloud these calls cross
+  // src/soundcloud/takes.ts to the recorder in the MAIN-world hook.
   record?: { start(): Promise<boolean>; stop(): Promise<number | null> };
 };
 

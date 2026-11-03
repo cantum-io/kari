@@ -137,7 +137,7 @@ export class AudioController {
    * attach still waits for the page's first click (a context made without a gesture would mute the video).
    */
   private onPlaying = () => {
-    if (this.recorder && !this.adActive && !this.parked) this.recorder.resume();
+    if (this.recorder && !this.adActive && !this.parked && !this.takeHidden) this.recorder.resume();
     if (this.parked || this.src || this.adActive || (this.video as any).mediaKeys) { this.emitTempo(); return; }
     // attach, then the normal apply: it sets the engine (bypass on a neutral video) and the routing, exactly as the first change would
     this.attach().then(() => this.apply(this.params, true)).catch(() => { /* reported through status */ });
@@ -187,7 +187,7 @@ export class AudioController {
   setAds(active: boolean) {
     if (active === this.adActive) return;
     this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.detector.reset();
-    if (this.recorder) { if (active) this.recorder.hold(); else if (AudioController.isPlaying(this.video)) this.recorder.resume(); }
+    if (this.recorder) { if (active) this.recorder.hold(); else if (AudioController.isPlaying(this.video) && !this.parked && !this.takeHidden) this.recorder.resume(); }
     this.apply(this.params, true);
   }
 
@@ -204,7 +204,7 @@ export class AudioController {
     if (on === this.parked) return;
     this.parked = on;
     // Hidden is not recording: a running take keeps nothing while Kari is hidden and picks up again when shown and playing.
-    if (this.recorder) { if (on) this.recorder.hold(); else if (AudioController.isPlaying(this.video) && !this.adActive) this.recorder.resume(); }
+    if (this.recorder) { if (on) this.recorder.hold(); else if (AudioController.isPlaying(this.video) && !this.adActive && !this.takeHidden) this.recorder.resume(); }
     if (!on) return;
     if (this.loopBeats) this.releaseLoop();
     this.apply({ ...this.params, st: 0, cents: 0, tempo: 0, keyLock: false }, true);
@@ -314,7 +314,18 @@ export class AudioController {
   private recorder: Recorder | null = null;
   private recEmit = 0;
   private recTap: { comp: GainNode; off: () => void } | null = null;   // analyser → comp (1/slider) → the recorder
+  private takeHidden = false;   // SoundCloud's hide: the bridge goes neutral there and never parks this controller, so the take is held here
   get take() { return this.recorder; }
+  /**
+   * Kari hidden on SoundCloud (true) or shown again (false). Hidden is not recording, as on YouTube (park): a running take
+   * keeps nothing while she is hidden and picks up again once shown and playing. The audio itself is the bridge's to
+   * neutralise (it posts a neutral apply); this only holds the take.
+   */
+  holdTake(on: boolean) {
+    this.takeHidden = on;
+    if (!this.recorder) return;
+    if (on) this.recorder.hold(); else if (AudioController.isPlaying(this.video) && !this.adActive && !this.parked) this.recorder.resume();
+  }
   /**
    * Start a take at the chain's meeting point: what reaches the output, at the pitch and speed in force, every move
    * logged. Attaches the chain first if nothing has (a straight wire until a key change). False on a protected track
@@ -343,7 +354,7 @@ export class AudioController {
       video.addEventListener("volumechange", onVolume);
       this.recTap = { comp, off: () => { video.removeEventListener("volumechange", onVolume); try { this.analyser?.disconnect(comp); } catch (_) { /* graph rebuilt */ } } };
       r.start();
-      if (!AudioController.isPlaying(this.video) || this.adActive) r.hold();   // nothing to keep until it plays
+      if (!AudioController.isPlaying(this.video) || this.adActive || this.takeHidden) r.hold();   // nothing to keep until it plays
       this.emit({ recording: true, recSeconds: 0, recHeld: r.holding });
       return true;
     }

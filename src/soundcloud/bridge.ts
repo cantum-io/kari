@@ -4,12 +4,15 @@
 import { Dock } from "../content/ui/dock";
 import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, type Settings } from "../shared/storage";
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
-import { NS, accept, makeNonce, sanitizeStatus, parseLoopAck, EMPTY_STATUS, type HookStatus } from "./protocol";
+import { NS, accept, makeNonce, sanitizeStatus, parseLoopAck, parseTakeMessage, isWavHead, EMPTY_STATUS, type HookStatus } from "./protocol";
 import { LoopRequests } from "./loops";
+import { TakeRequests, asTake } from "./takes";
+import { downloadTake } from "../content/audio/recorder";
 import { Midi, type MidiAction } from "../content/midi";
 import type { LoopBeats } from "../content/beat/grid";
-import { bar, barPlaying, barShown, waitForBar, onBarChange, currentTrackKey } from "./sc";
+import { bar, barPlaying, barShown, waitForBar, onBarChange, currentTrackKey, currentTrackTitle } from "./sc";
 import { memoryId } from "./track-key";
+declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: the take is in by default; KARI_RECORD=0 compiles it out
 
 (() => {
   // Once per page: the service worker injects this file into an open tab on a grant or an icon click (background/
@@ -42,6 +45,19 @@ import { memoryId } from "./track-key";
   // Beat loops: the grid and the latch live in the hook's controller (it reads the clock from the real element); the
   // dock's buttons and the MIDI pads post commands, state comes back in status. A latch resolves on the hook's ack.
   const loops = new LoopRequests(cmd => post({ type: "loop", ...cmd }));
+  // The take: the recorder runs in the hook's world, at the chain's meeting point; the pill and the download are here. A
+  // start resolves on the hook's ack, a stop on the take it sends back (src/soundcloud/takes.ts). The file is saved from
+  // this world, never the page's, and only once its first bytes read as a WAV.
+  // KARI_RECORD=0 folds all of it away under the define (and the imports with it), so that package has no take path here.
+  const takes = __KARI_RECORD__ ? new TakeRequests(cmd => post({ type: "record", ...cmd })) : null;
+  const saveTake = __KARI_RECORD__ ? async (): Promise<number | null> => {
+    const t = await takes!.stop();
+    if (!t || !t.log.frames) { note("take: nothing kept"); return null; }
+    if (!isWavHead(new Uint8Array(await t.wav.slice(0, 12).arrayBuffer()))) { note("take refused: not a wav"); return null; }
+    downloadTake(asTake(t));
+    note(`take saved ${t.log.seconds} s`);
+    return t.log.seconds;
+  } : null;
   const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
   function loopAction(a: MidiAction) { // from a MIDI pad; the dock's own buttons call loops directly. Click + MIDI only.
     if (hidden) return;
@@ -126,6 +142,7 @@ import { memoryId } from "./track-key";
     if (!hidden) {
       hidden = true;
       loops.release(); // always: status.loop is one round trip behind the hook (release on no loop is a no-op there)
+      if (__KARI_RECORD__) takes!.hide(true); // hidden is not recording, as on YouTube: a running take keeps nothing until she is back
       post({ type: "apply", params: { ...DEFAULT_PARAMS, range: params.range } }); // key lock off: neutral means the track's own sound
       note("hidden on soundcloud");
     }
@@ -160,6 +177,11 @@ import { memoryId } from "./track-key";
         mountStyle: "position:absolute;left:0;right:0;top:auto;bottom:100%;height:320px;visibility:visible;pointer-events:none;z-index:60",
         loop: { latch: (beats) => loops.latch(beats), release: () => loops.release(), tap: () => loops.tap(), setBpm: (bpm) => loops.setBpm(bpm), nudge: (d) => loops.nudge(d) },
         midi,
+        // the take (in the default build; KARI_RECORD=0 folds this away and the dock hides the row): the record pill
+        record: __KARI_RECORD__ ? {
+          start: () => (hidden ? Promise.resolve(false) : takes!.start(currentKey, currentTrackTitle() || "")),
+          stop: () => saveTake!(),
+        } : undefined,
       });
       dock.setMidiState(midi.state);
       setStatus(status);
@@ -176,11 +198,20 @@ import { memoryId } from "./track-key";
     }
     await syncTrack("mount");
     if (wasHidden) await applyParams(params); // same track as when she was hidden: syncTrack pushed nothing, the hook is still neutral
+    // Shown: a held take picks up again once the track plays, after the song's key and speed are back (posted in order,
+    // so the take never keeps the neutral stretch in between).
+    if (wasHidden && __KARI_RECORD__) takes!.hide(false);
   }
 
   window.addEventListener("message", (e) => {
     const d = accept(e, window, origin, "h2b", nonce);
     if (!d) return;
+    // the take's answers: a start ack and the take itself (a Blob and the moves log, both checked before anything is saved)
+    if (__KARI_RECORD__ && (d.type === "record-ack" || d.type === "take")) {
+      if (d.type === "record-ack") { const a = parseLoopAck(d); if (a) takes!.ack(a.seq, a.ok); }
+      else { const t = parseTakeMessage(d); if (t) takes!.take(t.seq, t.take); }
+      return;
+    }
     switch (d.type) {
       case "hello": { const now = Date.now(); if (now - helloAt > 500) { helloAt = now; post({ type: "init" }); } return; }
       case "ready": hookReady = true; late = d.late === true; note(late ? "hook ready (late)" : "hook ready"); if (status.fault === "hook-missing") setStatus({ ...status, fault: null }); if (late) watchLate(); return;

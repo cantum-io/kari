@@ -36,6 +36,17 @@ export function currentTrackKey(): string | null {
   return page && page.endsWith("/" + slug.toLowerCase()) ? page : null;
 }
 
+/**
+ * The playing track's title from the sound badge, for a take's file name: the link's title attribute, else its visible
+ * text (SoundCloud pairs a visually hidden "Current track: …" with an aria-hidden copy). Null when no badge is up.
+ */
+export function currentTrackTitle(): string | null {
+  const a = document.querySelector(BADGE_LINK) as HTMLAnchorElement | null;
+  if (!a) return null;
+  const t = (a.getAttribute("title") || a.querySelector('[aria-hidden="true"]')?.textContent || a.textContent || "").replace(/^\s*Current track:\s*/i, "").trim();
+  return t ? t.slice(0, 200) : null;
+}
+
 /** Resolve when the bottom bar exists (it is rendered once per page and persists across SoundCloud's SPA routes). */
 export function waitForBar(timeoutMs = 20000): Promise<HTMLElement | null> {
   return new Promise(resolve => {

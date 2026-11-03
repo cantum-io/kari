@@ -84,7 +84,7 @@ const FIXTURE = `<!doctype html><html><head><title>probe tone by probe-user</tit
 const udd = fs.mkdtempSync(path.join(os.tmpdir(), "kari-sc-rec-"));
 const ctx = await chromium.launchPersistentContext(udd, {
   headless: !argv.includes("--headed"), channel: "chromium", viewport: { width: 1280, height: 800 }, acceptDownloads: true,
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--mute-audio", "--autoplay-policy=no-user-gesture-required"],
+  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--mute-audio", ...(LIVE ? [] : ["--autoplay-policy=no-user-gesture-required"])],   // live: the bar's own click starts it, as in soundcloud.mjs
 });
 if (!LIVE) await ctx.route("https://soundcloud.com/**", (r) => (r.request().resourceType() === "document" ? r.fulfill({ contentType: "text/html", body: FIXTURE }) : r.abort()));
 

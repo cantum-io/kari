@@ -153,6 +153,15 @@ try {
     throw new Error(`the track never started playing (clicked ${JSON.stringify(clicks)}; bar ${await barState()}; ${JSON.stringify(why)})`);
   }
 
+  // Live: the cookie banner often lands after the first 5 s and sits over the bar (and the dock). Take its opt-out
+  // ("maintain my preferences", never "Continue") once it shows, so RS1 reads Kari's own hint, not SoundCloud's banner.
+  if (LIVE) {
+    const banner = page.locator("#onetrust-banner-sdk").first();
+    await until(() => banner.isVisible(), 4000, 250);
+    const clear = await until(async () => { if (!(await banner.isVisible().catch(() => false))) return true; await page.locator("#onetrust-close-btn-handler").first().click({ timeout: 2000 }).catch(() => {}); return false; }, 10000, 500);
+    if (!clear) throw new Error("the cookie banner would not close");
+  }
+
   // RS1: the pill on the dock, and the first-run hint over no control.
   const rec = ctl('[data-a="rec"]');
   const shown = await until(() => rec.isVisible(), 10000);

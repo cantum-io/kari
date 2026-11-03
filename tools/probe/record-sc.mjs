@@ -17,7 +17,8 @@
 //        hits that control, Full control off and on (0.7.0's lesson: a new dock row is checked against every overlay).
 //   RS2  Pitch + ×st through the dock, Rec, play with a pause and a hide inside, Rec: the browser receives one .wav and
 //        one .moves.json named kari-…-<badge title>-+<st>st-1.00x, within 10 s.
-//   RS3  ffprobe: wav, pcm_s24le, 2 channels; the duration within 1 s of the time kept (held, minus paused, minus hidden).
+//   RS3  ffprobe: wav, pcm_s24le, 2 channels; the duration within 1 s of the time kept (held, minus paused, minus hidden;
+//        1.5 s live, where the stream buffers after the bar's play).
 //   RS4  ffmpeg volumedetect: the take is not silence (max above -60 dB).
 //   RS5  the moves file: start first, stop last, site "sc", the badge's track key, the build stamp, st as set, a hold and
 //        a resume for the pause and again for the hide.
@@ -117,8 +118,20 @@ try {
   const pause = () => (LIVE ? page.locator(".playControls__play").first().click() : page.evaluate(() => window.__fx.pause()));
   const resume = () => (LIVE ? page.locator(".playControls__play").first().click() : page.evaluate(() => window.__fx.play()));
   if (LIVE) { await page.locator("#onetrust-close-btn-handler").first().click({ timeout: 5000 }).catch(() => {}); await page.locator(".modal__closeButton").first().click({ timeout: 3000 }).catch(() => {}); }
-  const started = await until(async () => { if (await barPlaying()) return true; await play(); await sleep(1500); return barPlaying(); }, 30000, 500);
-  if (!started) throw new Error("the track never started playing");
+  // Started = the bar's button says playing and its clock moved. A click before the player hydrates is dropped, and a
+  // click while the stream loads would pause it: click again only after 4 s with neither (as soundcloud.mjs does).
+  const barClock = () => page.evaluate(() => { const t = document.querySelector(".playbackTimeline__timePassed span[aria-hidden]"); return t ? t.textContent.trim() : null; });
+  let lastClick = 0, clicks = [], t0clock = null;
+  const started = await until(async () => {
+    if (!LIVE) { if (await page.evaluate(() => window.__fx.playing)) return true; if (Date.now() - lastClick > 4000) { clicks.push(await play()); lastClick = Date.now(); } return false; }
+    const on = await barPlaying(), clock = await barClock();
+    if (on && clock && t0clock !== null && clock !== t0clock) return true;
+    if (on) { if (t0clock === null) t0clock = clock; return false; }
+    t0clock = null;
+    if (Date.now() - lastClick > 4000) { clicks.push(await play()); lastClick = Date.now(); }
+    return false;
+  }, 40000, 400);
+  if (!started) throw new Error(`the track never started playing (clicked ${JSON.stringify(clicks)}; bar ${await page.evaluate(() => document.querySelector(".playControls__play")?.className || "none")}, clock ${await barClock()})`);
 
   // RS1: the pill on the dock, and the first-run hint over no control.
   const rec = ctl('[data-a="rec"]');
@@ -173,7 +186,7 @@ try {
   if (wav) {
     const pr = JSON.parse(execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=format_name,duration:stream=codec_name,channels,sample_rate", "-of", "json", wav]).toString());
     const st = pr.streams?.[0] || {}, dur = Number(pr.format?.duration);
-    row("RS3", pr.format?.format_name === "wav" && st.codec_name === "pcm_s24le" && st.channels === 2 && Math.abs(dur - kept) < 1, `ffprobe: ${pr.format?.format_name} ${st.codec_name} ${st.channels} ch ${st.sample_rate} Hz, ${dur.toFixed(2)} s against ${kept.toFixed(2)} s kept · ${fs.statSync(wav).size} B`);
+    row("RS3", pr.format?.format_name === "wav" && st.codec_name === "pcm_s24le" && st.channels === 2 && Math.abs(dur - kept) < (LIVE ? 1.5 : 1), `ffprobe: ${pr.format?.format_name} ${st.codec_name} ${st.channels} ch ${st.sample_rate} Hz, ${dur.toFixed(2)} s against ${kept.toFixed(2)} s kept · ${fs.statSync(wav).size} B`);
     const maxOf = (args) => Number((sh(`ffmpeg -hide_banner ${args} -i "${wav}" -af volumedetect -f null -`).match(/max_volume:\s*(-?[\d.]+|-inf)/) || [])[1]);
     const max = maxOf("");
     row("RS4", Number.isFinite(max) && max > -60, `volumedetect max ${Number.isFinite(max) ? max + " dB" : "-inf (silence)"}`);

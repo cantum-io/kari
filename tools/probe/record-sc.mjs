@@ -83,8 +83,19 @@ const FIXTURE = `<!doctype html><html><head><title>probe tone by probe-user</tit
 
 const udd = fs.mkdtempSync(path.join(os.tmpdir(), "kari-sc-rec-"));
 const ctx = await chromium.launchPersistentContext(udd, {
-  headless: !argv.includes("--headed"), channel: "chromium", viewport: { width: 1280, height: 800 }, acceptDownloads: true,
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--mute-audio", ...(LIVE ? [] : ["--autoplay-policy=no-user-gesture-required"])],   // live: the bar's own click starts it, as in soundcloud.mjs
+  headless: !argv.includes("--headed"), channel: "chromium", viewport: LIVE ? { width: 1440, height: 900 } : { width: 1280, height: 800 }, acceptDownloads: true,
+  // Live: the launch soundcloud.mjs passes with (its viewport and flags, no autoplay switch: the bar's own click starts it).
+  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--hide-crash-restore-bubble", "--mute-audio", ...(LIVE ? [] : ["--autoplay-policy=no-user-gesture-required"])],
+});
+// Live: SoundCloud's audio elements never enter the DOM, so note each one as it is made (soundcloud.mjs's observer, the
+// element half only). "Playing" is read from the element, not the bar's class.
+if (LIVE) await ctx.addInitScript(() => {
+  const els = (window.__kariRecEls = []);
+  const note = (e) => { if (e && !els.includes(e)) els.push(e); };
+  const oCE = Document.prototype.createElement;
+  Document.prototype.createElement = function (tag) { const e = oCE.apply(this, arguments); try { if (typeof tag === "string" && /^(audio|video)$/i.test(tag)) note(e); } catch (_) {} return e; };
+  const A = window.Audio;
+  window.Audio = new Proxy(A, { construct(t, a, nt) { const e = Reflect.construct(t, a, nt); note(e); return e; } });
 });
 if (!LIVE) await ctx.route("https://soundcloud.com/**", (r) => (r.request().resourceType() === "document" ? r.fulfill({ contentType: "text/html", body: FIXTURE }) : r.abort()));
 
@@ -109,30 +120,38 @@ try {
   const barPlaying = () => page.evaluate(() => { const b = document.querySelector(".playControls__play"); return !!b && [...b.classList].some((c) => /playing/.test(c)); });
   const play = async () => {
     if (!LIVE) return page.evaluate(() => window.__fx.play());
-    for (const sel of [".playControls .playControls__play:not(.disabled)", ".fullHero__playButton .sc-button-play", ".sc-button-play.playButton", ".sc-button-play:not(.disabled)"]) {
+    for (const sel of [".playControls .playControls__play:not(.disabled)", ".sc-button-play.playButton", ".fullHero__playButton .sc-button-play", ".sc-button-play:not(.disabled)"]) {
       const l = page.locator(sel).first();
-      if (await l.isVisible().catch(() => false)) { await l.click({ timeout: 3000 }).catch(() => {}); return sel; }
+      if (!(await l.isVisible().catch(() => false))) continue;
+      if (await l.click({ timeout: 3000 }).then(() => true, () => false)) return sel;
     }
     return null;
   };
   const pause = () => (LIVE ? page.locator(".playControls__play").first().click() : page.evaluate(() => window.__fx.pause()));
   const resume = () => (LIVE ? page.locator(".playControls__play").first().click() : page.evaluate(() => window.__fx.play()));
   if (LIVE) { await page.locator("#onetrust-close-btn-handler").first().click({ timeout: 5000 }).catch(() => {}); await page.locator(".modal__closeButton").first().click({ timeout: 3000 }).catch(() => {}); }
-  // Started = the bar's button says playing and its clock moved. A click before the player hydrates is dropped, and a
-  // click while the stream loads would pause it: click again only after 4 s with neither (as soundcloud.mjs does).
-  const barClock = () => page.evaluate(() => { const t = document.querySelector(".playbackTimeline__timePassed span[aria-hidden]"); return t ? t.textContent.trim() : null; });
-  let lastClick = 0, clicks = [], t0clock = null;
+  // Started = an audio element is playing past 0.25 s. As soundcloud.mjs: a click before the player hydrates is dropped,
+  // so retry every 2 s, never while the bar already says playing (the stream is loading; a click would pause it).
+  const barState = () => page.evaluate(() => { const b = document.querySelector(".playControls__play"); const tp = document.querySelector(".playbackTimeline__timePassed span[aria-hidden]"); return (b ? b.className.split(" ").filter((c) => /playing|disabled/.test(c)).join(" ") || "idle" : "no bar") + (tp ? " " + tp.textContent.trim() : ""); }).catch(() => "?");
+  const elPlaying = () => page.evaluate(() => (window.__kariRecEls || []).some((e) => !e.paused && e.currentTime > 0.25)).catch(() => false);
+  let lastClick = 0; const clicks = [];
   const started = await until(async () => {
     if (!LIVE) { if (await page.evaluate(() => window.__fx.playing)) return true; if (Date.now() - lastClick > 4000) { clicks.push(await play()); lastClick = Date.now(); } return false; }
-    const on = await barPlaying(), clock = await barClock();
-    if (on && clock && t0clock !== null && clock !== t0clock) return true;
-    if (on) { if (t0clock === null) t0clock = clock; return false; }
-    t0clock = null;
-    if (Date.now() - lastClick > 4000) { clicks.push(await play()); lastClick = Date.now(); }
+    if (await elPlaying()) return true;
+    if (Date.now() - lastClick > 2000) { const b = await barState(); if (!b.startsWith("playing")) { clicks.push(await play()); lastClick = Date.now(); } }
     return false;
-  }, 40000, 400);
-  if (!started) await page.screenshot({ path: path.join(OUT, "no-play.png") }).catch(() => {});
-  if (!started) throw new Error(`the track never started playing (clicked ${JSON.stringify(clicks)}; bar ${await page.evaluate(() => document.querySelector(".playControls__play")?.className || "none")}, clock ${await barClock()})`);
+  }, 40000, 250);
+  if (!started) {
+    await page.screenshot({ path: path.join(OUT, "no-play.png") }).catch(() => {});
+    const why = await page.evaluate(() => {
+      const b = document.querySelector(".playControls__play"), r = b && b.getBoundingClientRect();
+      const at = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
+      const els = (window.__kariRecEls || []).map((e) => ({ paused: e.paused, t: +e.currentTime.toFixed(2), rs: e.readyState, err: e.error && e.error.code, src: (e.currentSrc || e.src || "").split(":")[0] }));
+      const dlg = [...document.querySelectorAll('[role="dialog"], .modal, #onetrust-banner-sdk')].filter((d) => d.offsetParent).map((d) => d.textContent.replace(/\s+/g, " ").trim().slice(0, 120));
+      return { title: document.title, url: location.href, underBar: at ? `${at.tagName.toLowerCase()}#${at.id}.${String(at.className).split(" ").slice(0, 3).join(".")}` : null, els, dlg };
+    }).catch((e) => ({ error: String(e) }));
+    throw new Error(`the track never started playing (clicked ${JSON.stringify(clicks)}; bar ${await barState()}; ${JSON.stringify(why)})`);
+  }
 
   // RS1: the pill on the dock, and the first-run hint over no control.
   const rec = ctl('[data-a="rec"]');
@@ -167,7 +186,7 @@ try {
   await sleep(seg * 1000);
   if (SHOTS) await page.screenshot({ path: path.join(SHOTS, "sc-recording.png") });
   const tp0 = Date.now(); await pause(); await sleep(1500); await resume(); const pausedMs = Date.now() - tp0;
-  await until(barPlaying, 5000);
+  await until(LIVE ? elPlaying : barPlaying, 5000);
   await sleep(seg * 1000);
   const th0 = Date.now(); await setSettings({ hideOnSoundCloud: true });
   const gone = await until(async () => ((await page.$("#kari-dock")) ? null : true), 4000);

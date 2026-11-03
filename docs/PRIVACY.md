@@ -1,6 +1,6 @@
 # Kari — privacy policy
 
-**Last updated: 2026-10-15**
+**Last updated: 2026-11-03**
 
 Kari collects no data.
 
@@ -8,7 +8,7 @@ Kari collects no data.
 - **No data leaves your browser.** Kari makes no network requests of its own. It never contacts Cantum, YGG HOMME, or any third party. There is no analytics, telemetry, crash reporting, or advertising.
 - **Audio stays on your machine.** Pitch, speed, loops and the tempo reading are processed inside the browser tab in real time. Nothing is recorded, uploaded, or stored.
 - **What is stored, and where.** Kari stores two things, both with Chrome's extension storage and nowhere else:
-  - **Preferences** (interface, Kari's look, default range, engine choice, MIDI pads) are saved in `chrome.storage.sync`. If you are signed into Chrome with sync turned on, Chrome may sync them across your own devices through your Google account — that is Chrome's sync, governed by Google's privacy policy, not a Kari server.
+  - **Preferences** (interface, Kari's look, default range, engine choice, MIDI pads, the sites where you hid her) are saved in `chrome.storage.sync`. If you are signed into Chrome with sync turned on, Chrome may sync them across your own devices through your Google account — that is Chrome's sync, governed by Google's privacy policy, not a Kari server.
   - **Per-video and per-track pitch and speed**, if you leave "Remember settings per video" on, are saved keyed by the YouTube video id or the SoundCloud track address in `chrome.storage.local`. That stays on this device: it is never synced and never sent anywhere.
   Turn "Remember settings per video" off in Kari's options to stop it; uninstalling the extension removes all of it.
 - **Permissions.** `storage` (the preferences above). Access to `www.youtube.com` pages (to find the video element and draw the controls on the player). Access to `soundcloud.com` only if you allow it: Chrome asks once, when you click Kari's icon on a SoundCloud tab, and the switch in Kari's options turns it off again. For that one click, `activeTab` (the tab you clicked on) and `scripting`, so Kari can start on the page you allowed her on without a reload. Every script is in the package; nothing is loaded from the network. Nothing else.

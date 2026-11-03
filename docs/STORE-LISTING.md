@@ -1,22 +1,23 @@
-# Chrome Web Store listing — Kari 0.4.0
+# Chrome Web Store listing — Kari 0.6.0
 
 Publisher: the Cantum Google account, display name **YGG HOMME**. Jesse pastes and clicks submit. The product name never
-contains the word YouTube. Drafted 2026-10-15 for the next store edit; 0.4.0 is in review with the 0.1.x text, and this
-file replaces that text field by field.
+contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.6.0 upload. The live listing (read
+2026-11-03) is 0.4.0 with the 0.1.x text (youtube.com only); this file replaces that text field by field.
 
 ## Title (≤45)
 
 Kari — pitch & speed for music
 
 The store shows the manifest's `name`; a new name ("Kari — pitch, speed & loops for music", 37 characters) needs a
-manifest change and ships with 0.5.
+manifest change; proposed 2026-10-15, not taken (the name stays).
 
 ## Summary (≤132)
 
 Key, speed and beat loops for music on YouTube and SoundCloud, live in the player. By YGG HOMME, powered by Cantum.
 
-(115 characters. The manifest description, 0.4.0: "Key and speed of music on youtube.com and soundcloud.com. Slide for
-speed, tap for pitch. By YGG HOMME, powered by Cantum." The manifest catches up at 0.5.)
+(115 characters, proposed 2026-10-15. The dashboard reads the summary from the package, so until the manifest changes the
+store shows the manifest description, unchanged since 0.3.0: "Key and speed of music on youtube.com and soundcloud.com.
+Slide for speed, tap for pitch. By YGG HOMME, powered by Cantum.")
 
 ## Detailed description (plain text)
 
@@ -28,6 +29,7 @@ How it works
 • Tap ½, 1, 1 bar or 2 bars to loop that much of the song. Tap it again and the song carries on where it would have been.
 • Kari reads the tempo herself after about six seconds. Tap tempo, or type a bpm, to override her.
 • Everything starts at zero, and one tap resets it.
+• Hide Kari on YouTube or on SoundCloud from her settings or the gear on her panel. Her toolbar icon brings her back.
 
 Measured, not promised
 The pitch engine is Rubber Band Library R3 in an audio worklet. On the audio that reaches your speakers, every step from −12 to +12 semitones lands within 0.02 cents, and key lock holds 440.00 Hz at ±16 % speed. The engine runs only when the key changes and never stacks a second pass. If it ever stalls, you hear the original sound, never silence.
@@ -106,10 +108,14 @@ on a Creative Commons performance (Illinois Brass Band, "Ritual Fire Dance", vid
 
 Promo tile 440×280: `promo-440x280.png` ("Kari · Key and speed for music. Studio-accurate. Free.").
 
-## Before the next store edit (Jesse)
+## Updating to a new release
 
-1. Developer dashboard → Kari → Store listing: paste the summary and the description above. Privacy tab: single purpose
-   and the five justifications above; the data answers are unchanged.
-2. Upload `06-soundcloud-dock.png` and `07-loop-row.png` beside the four existing shots.
-3. The 0.4.0 package in review already carries this manifest; no new zip for a listing edit.
-4. GitHub: cut release v0.4.0 with `kari-extension.zip` (`npm run zip`), so the "latest" link on cantum.io/kari serves 0.4.0 (today it serves 0.1.1).
+1. Publish the GitHub release; CI attaches `kari-extension.zip` built from the tag
+   (`https://github.com/cantum-io/kari/releases/download/vX.Y.Z/kari-extension.zip`). Check its manifest version.
+2. Developer dashboard (the Cantum publisher account) → Kari → **Package** → Upload new package → that zip.
+3. **Store listing**: paste the description above; add `06-soundcloud-dock.png` and `07-loop-row.png` beside the four
+   existing shots. **Privacy**: the single purpose and the five justifications above; the data answers are unchanged.
+4. Submit for review. A new upload replaces any item still in review.
+
+The first submission (0.1.1, 2026-09-28) set up the developer account, 2-Step Verification, the verified contact email
+and the trader declaration (Cantum LLC); those are done once.

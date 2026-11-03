@@ -158,8 +158,13 @@ try {
   if (LIVE) {
     const banner = page.locator("#onetrust-banner-sdk").first();
     await until(() => banner.isVisible(), 4000, 250);
-    const clear = await until(async () => { if (!(await banner.isVisible().catch(() => false))) return true; await page.locator("#onetrust-close-btn-handler").first().click({ timeout: 2000 }).catch(() => {}); return false; }, 10000, 500);
-    if (!clear) throw new Error("the cookie banner would not close");
+    const optOut = ["#onetrust-close-btn-handler", ".onetrust-close-btn-handler", "#onetrust-reject-all-handler", ".ot-close-btn-link"];   // never #onetrust-accept-btn-handler
+    const clear = await until(async () => {
+      if (!(await banner.isVisible().catch(() => false))) return true;
+      for (const sel of optOut) { const b = page.locator(`#onetrust-consent-sdk ${sel}`).filter({ visible: true }).first(); if (await b.count()) { await b.click({ timeout: 2000 }).catch(() => {}); break; } }
+      return false;
+    }, 10000, 500);
+    if (!clear) throw new Error(`the cookie banner would not close (its buttons: ${JSON.stringify(await page.evaluate(() => [...document.querySelectorAll("#onetrust-banner-sdk button, #onetrust-banner-sdk a")].map((b) => `${b.tagName.toLowerCase()}#${b.id}.${String(b.className).split(" ").join(".")} "${b.textContent.trim().slice(0, 40)}"`)).catch(() => []))})`);
   }
 
   // RS1: the pill on the dock, and the first-run hint over no control.

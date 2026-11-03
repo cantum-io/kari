@@ -32,6 +32,8 @@ import { memoryId } from "./track-key";
   let level = 0;
   let saveTimer = 0; let lastSaved = "";
   let helloAt = 0;
+  let hidden = false;      // Settings.hideOnSoundCloud in force (src/shared/sites.ts): no dock, nothing posted to the hook
+  let barWatched: HTMLElement | null = null; // the bar the change observer is on (once per bar element, not once per dock)
   const log: string[] = []; // last events, for the live probe (never leaves the page)
   const note = (s: string) => { log.push(`${new Date().toISOString().slice(11, 23)} ${s}`); if (log.length > 60) log.shift(); };
 
@@ -42,6 +44,7 @@ import { memoryId } from "./track-key";
   const loops = new LoopRequests(cmd => post({ type: "loop", ...cmd }));
   const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
   function loopAction(a: MidiAction) { // from a MIDI pad; the dock's own buttons call loops directly. Click + MIDI only.
+    if (hidden) return;
     const beats = LOOP_BEATS[a];
     if (beats) { if (status.loop === beats) loops.release(); else loops.latch(beats).then(ok => { if (ok) dock?.react(); dock?.render(); }); } // a pad toggles, like the button
     else if (a === "tap") { loops.tap(); dock?.react(); }
@@ -50,6 +53,7 @@ import { memoryId } from "./track-key";
 
   async function applyParams(p: Params) {
     params = p;
+    if (hidden) return; // the hook stays neutral while Kari is hidden; showing her again pushes these (mount)
     post({ type: "apply", params: { st: p.st, cents: p.cents, tempo: p.tempo, keyLock: p.keyLock, range: p.range } });
     if (settings?.rememberPerVideo && currentKey) {
       clearTimeout(saveTimer);
@@ -110,9 +114,27 @@ import { memoryId } from "./track-key";
     await applyParams(params);
   }
 
+  /**
+   * Hidden on SoundCloud: the dock leaves the bar and the hook goes neutral (a running loop lets go, key and speed
+   * back to the track's own). `params` and the per-track memory stay, so showing Kari again restores the song.
+   */
+  function park() {
+    if (!hidden) {
+      hidden = true;
+      if (status.loop) loops.release();
+      post({ type: "apply", params: { ...DEFAULT_PARAMS, keyLock: params.keyLock, range: params.range } });
+      note("hidden on soundcloud");
+    }
+    dock?.destroy(); dock = null;
+  }
+  /** The hide switch moved (options page, the dock's button, the toolbar icon): mount() hides or shows. */
+  function syncHide() { if (!!settings?.hideOnSoundCloud !== hidden) mount(); }
+
   async function mount() {
     const host = await waitForBar(); if (!host) return;
     settings = settings || await loadSettings();
+    if (settings.hideOnSoundCloud) { park(); return; }
+    const wasHidden = hidden; hidden = false;
     if (getComputedStyle(host).position === "static") host.style.position = "relative";
     if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; }
     if (!midi) midi = new Midi(settings.midiMap, loopAction, (m) => { saveSettings({ midiMap: m }).then(s => { settings = s; }); }, (st) => dock?.setMidiState(st));
@@ -122,7 +144,7 @@ import { memoryId } from "./track-key";
         apply: (p) => { applyParams(p); },
         setCompare: (on) => post({ type: "compare", on }),
         settings,
-        saveSettings: (patch) => { saveSettings(patch).then(s => { settings = s; dock?.applySettings(s); if (patch.engine) post({ type: "engine-pref", pref: s.engine }); }); },
+        saveSettings: (patch) => { saveSettings(patch).then(s => { settings = s; dock?.applySettings(s); if (patch.engine) post({ type: "engine-pref", pref: s.engine }); syncHide(); }); },
         level: () => level,
         optionsUrl: chrome.runtime.getURL("options.html"),
         site: "sc",
@@ -141,13 +163,15 @@ import { memoryId } from "./track-key";
       // goes with it (not the YouTube autohide switch, which keeps Kari on screen by Jesse's ruling).
       const followBar = () => dock?.setBarHidden(!barShown(host));
       followBar();
-      onBarChange(host, () => { syncTrack("bar"); followBar(); if (!host.contains(dock!.hostEl)) mount(); });
+      // Once per bar element: a dock made again (SoundCloud re-rendered the bar, or Kari shown after a hide) must not stack observers.
+      if (barWatched !== host) { barWatched = host; onBarChange(host, () => { syncTrack("bar"); followBar(); if (dock && !host.contains(dock.hostEl)) mount(); }); }
       post({ type: "engine-pref", pref: settings.engine });
       // No hook within 3 s of the dock = the MAIN-world script never ran on this page (opened before the permission
       // was granted). Only a reload fixes that; say so, nothing else works without the element.
       setTimeout(() => { if (!hookReady) setStatus({ ...status, fault: "hook-missing" }); }, 3000);
     }
     await syncTrack("mount");
+    if (wasHidden) await applyParams(params); // same track as when she was hidden: syncTrack pushed nothing, the hook is still neutral
   }
 
   window.addEventListener("message", (e) => {
@@ -192,7 +216,7 @@ import { memoryId } from "./track-key";
     get midi() { return midi; }, tap: () => loops.tap(), setBpm: (b: number) => loops.setBpm(b), latch: (beats: LoopBeats) => loops.latch(beats), release: () => loops.release(),
   };
 
-  onSettingsChange(s => { settings = s; dock?.applySettings(s); post({ type: "engine-pref", pref: s.engine }); midi?.setMap(s.midiMap || {}); });
+  onSettingsChange(s => { settings = s; dock?.applySettings(s); post({ type: "engine-pref", pref: s.engine }); midi?.setMap(s.midiMap || {}); syncHide(); });
   post({ type: "init" }); // in case the hook loaded first; it answers hello → init again otherwise
   if (bar()) mount(); else waitForBar().then(b => { if (b) mount(); });
 })();

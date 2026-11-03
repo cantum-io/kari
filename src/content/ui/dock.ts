@@ -7,6 +7,7 @@ import type { AudioStatus } from "../audio/controller";
 import { type LoopBeats, LOOP_BEATS, fmtBpm, loopLabel, loopAria, BPM_MIN, BPM_MAX } from "../beat/grid";
 import type { Midi, MidiAction, MidiState } from "../midi";
 import { tempoReadout } from "./tempo-readout";
+import { HIDE_KEY, SITE_NAME } from "../../shared/sites";
 
 export type DockDeps = {
   getParams(): Params;
@@ -159,6 +160,7 @@ const TEMPLATE = `
       <span class="mst">learn: switch it on, click a loop length or Tap, then hit the pad · a pad on the lit length releases</span></div>
     <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
     <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
+    <div class="row col"><button class="big" data-a="hide-site" data-el="hidesite">Hide Kari on YouTube</button><span class="mst">back from Kari's toolbar icon or More settings</span></div>
     <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
   </aside>
 </div>`;
@@ -197,6 +199,7 @@ export class Dock {
     host.appendChild(wrap);
     this.root = this.shadow.querySelector(".root") as HTMLElement;
     this.root.dataset.site = deps.site || "yt";
+    this.el("hidesite").textContent = `Hide Kari on ${SITE_NAME[deps.site || "yt"]}`;
     this.seedStars();
     this.wire();
     this.applySettings(deps.settings);
@@ -316,6 +319,7 @@ export class Dock {
         case "hide": this.deps.saveSettings({ collapsed: true }); this.react(); break;
         case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Kari is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
+        case "hide-site": this.deps.saveSettings({ [HIDE_KEY[this.deps.site || "yt"]]: true }); break; // the page script parks Kari (src/shared/sites.ts)
         // beat loops (click + MIDI only). A length toggles: lit releases, unlit latches, another length switches.
         // In learn mode a click arms the button for the next MIDI note instead.
         case "loop": case "tap": {

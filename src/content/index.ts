@@ -15,6 +15,8 @@ let settings: Settings;
 let currentId = "";
 let saveTimer = 0;
 let lastSaved = "";   // what memory holds for currentId, to skip no-op writes (chrome.storage.sync has write quotas)
+let hidden = false;   // Settings.hideOnYouTube in force (src/shared/sites.ts): no dock, audio as YouTube sends it
+let statusWired = false; let wiredHost: HTMLElement | null = null;   // listeners go on once (per player element), not once per dock
 
 const urls = { worklet: chrome.runtime.getURL("worklet.js"), wasm: chrome.runtime.getURL("rubberband.wasm") };
 
@@ -38,7 +40,7 @@ async function applyParams(p: Params) {
 // keyboard is never taken.
 const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
 function loopAction(a: MidiAction) {
-  if (!audio) return;
+  if (!audio || hidden) return;
   const beats = LOOP_BEATS[a];
   if (beats) audio.toggleLoop(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
   else if (a === "tap") { audio.tap(); dock?.react(); }
@@ -48,10 +50,12 @@ function loopAction(a: MidiAction) {
 async function mount() {
   // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Kari alone) and keep the video id.
   if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
+  settings = settings || await loadSettings();
+  if (settings.hideOnYouTube) { park(); return; }
+  hidden = false;
   const video = await waitForVideo(); const host = player();
   if (!video || !host) return;
   if (getComputedStyle(host).position === "static") host.style.position = "relative";
-  settings = settings || await loadSettings();
   const id = videoId() || (isMiniplayer() ? currentId : "");
   if (id !== currentId) {
     currentId = id;
@@ -71,7 +75,7 @@ async function mount() {
       apply: (p) => { applyParams(p); },
       setCompare: (on) => audio?.setCompare(on),
       settings,
-      saveSettings: (patch) => { saveSettings(patch).then(s => { settings = s; dock?.applySettings(s); if (patch.engine) audio?.setEnginePreference(s.engine); }); },
+      saveSettings: (patch) => { saveSettings(patch).then(s => { settings = s; dock?.applySettings(s); if (patch.engine) audio?.setEnginePreference(s.engine); syncHide(); }); },
       level: () => audio?.level() ?? 0,
       optionsUrl: chrome.runtime.getURL("options.html"),
       loop: {
@@ -84,9 +88,11 @@ async function mount() {
       midi,
     });
     dock.setMidiState(midi.state);
-    audio.onStatus(s => dock?.setStatus(s));
-    onAdState(a => audio?.setAds(a));
-    watchPlayerState(host);
+    dock.setStatus(audio.status);
+    dock.setControlsHidden(controlsHidden()); dock.setSmall(isMiniplayer() || host.clientWidth < 520);
+    // Once each: a dock made again (miniplayer ↔ watch, or Kari shown after a hide) must not stack another listener.
+    if (!statusWired) { statusWired = true; audio.onStatus(s => dock?.setStatus(s)); }
+    if (wiredHost !== host) { wiredHost = host; onAdState(a => audio?.setAds(a)); watchPlayerState(host); }
   } else { dock.render(); }
   // Always push the (possibly neutral) params for this video: on navigation the controller still holds the previous
   // video's ratio, and a neutral video must reset it to a straight wire (live probe 2026-09-26).
@@ -94,6 +100,19 @@ async function mount() {
 }
 
 function unmount() { dock?.destroy(); dock = null; }
+
+/**
+ * Hidden on YouTube: Kari leaves the player and the sound goes back to the page's own (a running loop lets go, the
+ * key and speed return to neutral). `params` and the per-video memory stay as they were, so showing her again puts
+ * the song back where it was. A page loaded hidden never builds the audio controller at all.
+ */
+function park() {
+  hidden = true;
+  unmount();
+  if (audio) { audio.releaseLoop(); audio.apply({ ...DEFAULT_PARAMS, range: params.range, keyLock: params.keyLock }, true); }
+}
+/** The hide switch moved (options page, the dock's button, the toolbar icon): mount() hides or shows. */
+function syncHide() { if (!!settings?.hideOnYouTube !== hidden) mount(); }
 
 function watchPlayerState(host: HTMLElement) {
   let wasMini = isMiniplayer();
@@ -121,6 +140,6 @@ chrome.runtime.onMessage.addListener((m) => {
   toggle: (beats: LoopBeats) => audio?.toggleLoop(beats), get tempo() { return audio?.detectorState ?? null; }, get estimate() { return audio?.lastEstimate ?? null; }, get tempoDebug() { return audio?.detectorDebug ?? null; },
 };
 
-onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); });
+onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); syncHide(); });
 onNavigate(() => { mount(); });
 mount();

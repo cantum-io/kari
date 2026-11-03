@@ -15,6 +15,8 @@ export type Settings = {
   keyLockDefault: boolean;
   rememberPerVideo: boolean;
   seenIntro: boolean;
+  hideOnYouTube: boolean;     // Kari off the page on that site: no dock, the audio left as the site sends it (src/shared/sites.ts)
+  hideOnSoundCloud: boolean;
   midiMap?: Record<string, number>;   // loop/tap actions → note numbers (src/content/midi.ts); absent = the default pads
 };
 
@@ -22,6 +24,7 @@ export const DEFAULT_SETTINGS: Settings = {
   skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false,
   collapsed: false, fullControl: false, engine: "auto",
   defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: false,
+  hideOnYouTube: false, hideOnSoundCloud: false,
 };
 
 const KEY = "kari.settings";

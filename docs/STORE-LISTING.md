@@ -1,7 +1,7 @@
-# Chrome Web Store listing — Kari 0.7.0
+# Chrome Web Store listing — Kari 0.8.0
 
 Publisher: the Cantum Google account, display name **YGG HOMME**. Jesse pastes and clicks submit. The product name never
-contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.7.0 upload. The live listing (read
+contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.8.0 upload. The live listing (read
 2026-11-03) is 0.4.0 with the 0.1.x text (youtube.com only); this file replaces that text field by field.
 
 ## Title (≤45)
@@ -27,7 +27,6 @@ How it works
 • Slide left to slow the song down, right to speed it up. The pitch rides the speed, like a record, until you turn on key lock.
 • Tap Pitch − or + to change the key a semitone at a time, from −12 to +12.
 • Tap ½, 1, 1 bar or 2 bars to loop that much of the song. Tap it again and the song carries on where it would have been.
-• Tap Rec for a practice take: what Kari plays, at your key and speed, saved to your computer as a WAV file with every move you made as a marker. Tap it again to stop.
 • Kari reads the tempo herself after about six seconds. Tap tempo, or type a bpm, to override her.
 • Everything starts at zero, and one tap resets it.
 • Hide Kari on YouTube or on SoundCloud from her settings or the gear on her panel. Her toolbar icon brings her back.
@@ -62,9 +61,7 @@ English (United States)
 
 ## Single purpose
 
-Change the pitch and speed of, and loop, the audio of the music playing on a youtube.com watch page or a soundcloud.com page, and, on YouTube, record a practice take of what Kari plays to the user's own computer.
-
-(0.7.0: the record clause is new; paste the whole line. The take is the transformed audio the user hears, saved locally through the browser; nothing is uploaded and no permission is added.)
+Change the pitch and speed of, and loop, the audio of the music playing on a youtube.com watch page or a soundcloud.com page.
 
 ## Permission justifications
 

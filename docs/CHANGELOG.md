@@ -2,13 +2,11 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
-## Unreleased
-A take is at the engine's level whatever YouTube's volume slider sits at: Chrome scales the captured audio by the slider before Kari hears it, so the recorder now undoes the slider (floored at a 26 dB lift) and logs every slider move in the moves file. The first real take came out at -22.5 dBFS because of this.
-
+## 0.8.0 · 2026-11-03
 Two Karis on one page (a store copy beside an unpacked build) no longer fight for the audio in silence: the first to arrive owns the page, a later one stands down, and the panel says "two Karis are on this page — switch the other one off at chrome://extensions, then reload". An older copy that grabs the video first gets the same line instead of "couldn't reach the audio".
 
 ## 0.7.0 · 2026-11-03
-Rec: one press under the loop row starts a practice take of what Kari plays, key, speed and loops included; a second press stops it and Chrome saves a 24-bit WAV plus a small JSON of your moves to your computer, every move a cue marker in the file. Pauses, ads, seeks and a hidden Kari are cut out of the take, never recorded as silence. YouTube only for now. Nothing is uploaded; the privacy policy and store listing say so. `KARI_RECORD=0 npm run build` is the build without it.
+The first-run hint no longer covers Hide and Full control on a taller panel.
 
 ## 0.6.0 · 2026-11-03
 Hide Kari per site: a switch for YouTube and one for SoundCloud in her settings, and a "Hide Kari on …" button in her panel's gear. Hidden, she leaves the page and the audio plays as the site sends it; the key and speed she remembers for a song wait for her return, and her toolbar icon on that site's tab brings her back. The store listing and privacy policy now name SoundCloud and her current permissions.

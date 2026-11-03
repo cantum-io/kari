@@ -5,6 +5,8 @@ import { plan, type Params, DEFAULT_PARAMS } from "../../shared/math";
 import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../beat/grid";
 import { TapTempo } from "../beat/tap";
 import { AutoBeatDetector, tempoPhase, type OnsetBatch, type DetectorState, type TempoEstimate, type TempoPhase } from "../beat/detect";
+import { Recorder, type Take, type TakeMeta } from "./recorder";
+declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: KARI_RECORD=1 compiles the take in; the public build has it out
 
 export type EngineName = "r3" | "ss" | "bypass";
 export type AudioStatus = {
@@ -23,6 +25,8 @@ export type AudioStatus = {
   bpm: number | null;        // the beat grid's bpm, null until detected, tapped or typed
   gridSource: BeatGrid["source"] | null;
   tempo: TempoPhase;         // what the tempo readout should say: idle (play to learn) · gesture (click to learn) · learning · found · none (tap) · off
+  recording: boolean;        // a take is running (src/content/audio/recorder.ts)
+  recFrames: number;         // frames in the take so far (held stretches excluded)
 };
 
 /** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
@@ -70,7 +74,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle" };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recFrames: 0 };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -118,13 +122,20 @@ export class AudioController {
     v.removeEventListener("playing", this.onPlaying);
   }
   /** A loop has no track underneath to slip back into once the element stops or jumps: let go. A seek also empties the detector's window. */
-  private onInterrupt = (e: Event) => { if (this.loopBeats) this.releaseLoop(); if (e.type === "seeking" || e.type === "emptied") this.detector.reset(); this.emitTempo(); };
+  private onInterrupt = (e: Event) => {
+    if (this.loopBeats) this.releaseLoop();
+    if (e.type === "seeking" || e.type === "emptied") this.detector.reset();
+    // A take keeps only what played: a pause, a seek in flight or the end is cut out, not recorded as silence.
+    if (this.recorder) { if (e.type === "seeking") this.recorder.mark("seek", { to: this.video.currentTime }); this.recorder.hold(); }
+    this.emitTempo();
+  };
   /**
    * Playback started: attach now (a straight, delay-free wire) so the tempo detector hears the track from its first
    * beat. Not on a protected element (mediaKeys: the source would go silent) and not under an ad. On YouTube the
    * attach still waits for the page's first click (a context made without a gesture would mute the video).
    */
   private onPlaying = () => {
+    if (this.recorder && !this.adActive && !this.parked) this.recorder.resume();
     if (this.parked || this.src || this.adActive || (this.video as any).mediaKeys) { this.emitTempo(); return; }
     // attach, then the normal apply: it sets the engine (bypass on a neutral video) and the routing, exactly as the first change would
     this.attach().then(() => this.apply(this.params, true)).catch(() => { /* reported through status */ });
@@ -169,7 +180,12 @@ export class AudioController {
     this.apply(this.params, true);
   }
 
-  setAds(active: boolean) { if (active === this.adActive) return; this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.detector.reset(); this.apply(this.params, true); }
+  setAds(active: boolean) {
+    if (active === this.adActive) return;
+    this.adActive = active; if (active && this.loopBeats) this.releaseLoop(); this.detector.reset();
+    if (this.recorder) { if (active) this.recorder.hold(); else if (AudioController.isPlaying(this.video)) this.recorder.resume(); }
+    this.apply(this.params, true);
+  }
 
   getParams() { return this.params; }
   get status() { return this._status; }
@@ -183,6 +199,8 @@ export class AudioController {
   park(on: boolean) {
     if (on === this.parked) return;
     this.parked = on;
+    // Hidden is not recording: a running take keeps nothing while Kari is hidden and picks up again when shown and playing.
+    if (this.recorder) { if (on) this.recorder.hold(); else if (AudioController.isPlaying(this.video) && !this.adActive) this.recorder.resume(); }
     if (!on) return;
     if (this.loopBeats) this.releaseLoop();
     this.apply({ ...this.params, st: 0, cents: 0, tempo: 0, keyLock: false }, true);
@@ -194,6 +212,7 @@ export class AudioController {
   /** The one entry point for parameter changes. */
   async apply(p: Params, force = false) {
     this.params = p;
+    this.recorder?.mark("params", { st: p.st, cents: p.cents, tempo: p.tempo, keyLock: p.keyLock, range: p.range });
     const pl = plan(p);
     const rate = this.adActive ? this.baseRate : this.baseRate * pl.rate;
     this.setVideoRate(rate);
@@ -270,6 +289,7 @@ export class AudioController {
     const clamped = p.lenFrames > this.loopMax, len = clamped ? this.loopMax : p.lenFrames;
     this.node.port.postMessage({ type: "loop", on: true, lenFrames: len, backFrames: Math.min(len, p.backFrames) });
     this.loopBeats = beats;
+    this.recorder?.mark("loop", { beats, lenMs: Math.round(len / this.ctx.sampleRate * 1000) });
     this.detector.freeze(true);   // the grid never moves under a loop
     this.emit({ loop: beats, loopMs: Math.round(len / this.ctx.sampleRate * 1000), loopClamped: clamped });
     await this.apply(this.params, true);
@@ -280,9 +300,45 @@ export class AudioController {
     if (!this.loopBeats) return;
     this.node?.port.postMessage({ type: "loop", on: false });
     this.loopBeats = 0;
+    this.recorder?.mark("loop", { beats: 0 });
     this.emit({ loop: 0, loopMs: 0, loopClamped: false });
     this.apply(this.params, true);
     this.detector.freeze(false);  // a grid refined meanwhile lands now
+  }
+
+  /* ---------------- the take ---------------- */
+  private recorder: Recorder | null = null;
+  private recEmit = 0;
+  get take() { return this.recorder; }
+  /**
+   * Start a take at the chain's meeting point: what reaches the output, at the pitch and speed in force, every move
+   * logged. Attaches the chain first if nothing has (a straight wire until a key change). False on a protected track
+   * (nothing to hear) or when the chain cannot attach; a running take returns true.
+   */
+  async startRecording(meta: Omit<TakeMeta, "params"> = {}): Promise<boolean> {
+    // Compiled out of the public build: the block folds away under the define and the Recorder import with it, so the
+    // store package carries no recorder path. KARI_RECORD=1 at build time puts it in (Jesse's local build).
+    if (__KARI_RECORD__) {
+      if (this.recorder) return true;
+      if (this.parked) return false;   // hidden on this site: nothing to record
+      if (!this.src) await this.attach();
+      if (!this.src || !this.ctx || !this.analyser || this._status.fault === "drm-silent") return false;
+      const r = new Recorder(this.ctx, this.analyser, { ...meta, params: this.params }, {
+        onProgress: (frames) => { const now = performance.now(); if (now - this.recEmit > 250) { this.recEmit = now; this.emit({ recFrames: frames }); } },
+      });
+      this.recorder = r;
+      r.start();
+      if (!AudioController.isPlaying(this.video) || this.adActive) r.hold();   // nothing to keep until it plays
+      this.emit({ recording: true, recFrames: 0 });
+      return true;
+    }
+    return false;
+  }
+  /** Stop the take and close the file. Null when nothing was recording. */
+  async stopRecording(): Promise<Take | null> {
+    const r = this.recorder; if (!r) return null;
+    this.recorder = null;
+    try { return await r.stop(); } finally { this.emit({ recording: false, recFrames: 0 }); }
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */

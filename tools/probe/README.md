@@ -337,3 +337,17 @@ holds a beat hit that repeats every 126 ms: the peaks match (0.31 vs 0.32), whic
 Two identical runs (00:4x and 00:5x PT), both exit 0. Nothing here was heard; the seam and the grid alignment on
 SoundCloud are UNVERIFIED by ear (docs/BEAT-LOOPS-2026-10-15.md).
 
+
+## The take (`record.mjs`)
+
+The recorder in real audio contexts, judged by Chrome's own WAV decoder and the files that land in the browser's
+downloads, never by the writer. Bundles `src/content/audio/recorder.ts` + `src/shared/wav.ts` and the worklet with
+`__KARI_RECORD__` on into `test-build/`, serves them from 127.0.0.1 (AudioWorklet needs a secure context). Rows:
+offline 48 kHz stereo with a hold, a resume and a stop at suspend points (frame count exact, `decodeAudioData` matches
+the rendered buffer with the hold cut, left channel exact, right ≤ 2⁻²⁴, moves and cues on the cut); realtime one
+second through an outputs:0 node (length against the clock, 0 dropped, peak, stop answered by the worklet);
+`downloadTake` lands the .wav and .moves.json, read back by ffprobe and Python's `wave`. See docs/RECORD-2026-11-03.md.
+
+```
+node tools/probe/record.mjs --keep        # 19/19 rows hold, 2026-11-03; --keep leaves the downloads in test-build/
+```

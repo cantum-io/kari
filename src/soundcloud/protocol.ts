@@ -22,10 +22,11 @@ export type HookStatus = {
   attached: boolean; engine: EngineName; engineLatencyMs: number; outputLatencyMs: number; avOffsetMs: number;
   underruns: number; load: number; fault: Fault; baseRate: number;
   loop: LoopBeats | 0; loopMs: number; loopClamped: boolean; bpm: number | null; gridSource: GridSource | null; tempo: TempoPhase;
+  recording: boolean; recFrames: number;
   route: Route; ctxState: string;
 };
 
-export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", route: null, ctxState: "" };
+export const EMPTY_STATUS: HookStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recFrames: 0, route: null, ctxState: "" };
 const TEMPO_PHASES = new Set<TempoPhase>(["off", "idle", "gesture", "learning", "found", "none"]);
 
 /**
@@ -115,6 +116,8 @@ export function sanitizeStatus(x: unknown): HookStatus {
     bpm: isBpm(s.bpm) ? s.bpm : null,
     gridSource: GRID_SOURCES.has(s.gridSource as GridSource) ? (s.gridSource as GridSource) : null,
     tempo: TEMPO_PHASES.has(s.tempo as TempoPhase) ? (s.tempo as TempoPhase) : "idle",
+    recording: s.recording === true,
+    recFrames: num(s.recFrames, 0, 1e10),
     route,
     ctxState: typeof s.ctxState === "string" ? s.ctxState.slice(0, 16) : "",
   };

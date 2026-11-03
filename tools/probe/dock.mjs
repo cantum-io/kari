@@ -38,7 +38,7 @@ await page.evaluate(() => {
     midi: { state: { supported: false, connected: false, inputs: 0, learning: null, lastNote: null, error: null }, learn() {}, connect() { return Promise.resolve(false); } },
   };
   const dock = (window.__dock = new KariDock.Dock(document.getElementById("player"), deps));
-  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", ...patch });
+  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recFrames: 0, ...patch });
   window.__status({});
 });
 const q = (sel, what) => page.evaluate(([sel, what]) => {

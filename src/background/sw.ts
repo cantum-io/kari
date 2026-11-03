@@ -4,6 +4,7 @@
 // ./soundcloud.ts so tests can run it with fakes.
 import { loadSettings, saveSettings } from "../shared/storage";
 import { makeSoundCloud, SC_MATCH } from "./soundcloud";
+import { iconPlan, HIDE_KEY } from "../shared/sites";
 
 const sc = makeSoundCloud(chrome);
 
@@ -18,12 +19,16 @@ chrome.permissions.onAdded.addListener((p) => { if (p.origins?.includes(SC_MATCH
 chrome.permissions.onRemoved.addListener((p) => { if (p.origins?.includes(SC_MATCH)) sc.sync("permission removed"); });
 
 // The toolbar icon. On a SoundCloud tab it is the grant path that needs no options page: ask inside this click's
-// gesture, register, inject into this tab. Everywhere else (YouTube, anything), and on a SoundCloud tab where Kari is
-// already running or the prompt was refused, it opens the settings as before (the switch is there, with its copy).
+// gesture, register, inject into this tab. On a tab of a site where Kari is hidden (src/shared/sites.ts) it brings her
+// back there. Everywhere else (YouTube, anything), and on a SoundCloud tab where Kari is already running or the prompt
+// was refused, it opens the settings as before (the switch is there, with its copy). The grant step goes first: the
+// permission prompt needs this click's gesture, and the settings read must not spend it.
 chrome.action.onClicked.addListener(async (tab) => {
   const r = await sc.activate(tab);
-  console.debug("[kari] action", r, tab.url || "(no url)");
-  if (r !== "injected") chrome.runtime.openOptionsPage();
+  const plan = iconPlan(r, tab.url, await loadSettings());
+  console.debug("[kari] action", r, plan.show ? `show on ${plan.show}` : "", tab.url || "(no url)");
+  if (plan.show) await saveSettings({ [HIDE_KEY[plan.show]]: false });
+  if (plan.options) chrome.runtime.openOptionsPage();
 });
 
 chrome.commands.onCommand.addListener(async (command) => {

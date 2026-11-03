@@ -76,6 +76,7 @@ export class AudioController {
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
   private listeners = new Set<(s: AudioStatus) => void>();
   private adActive = false;
+  private parked = false;       // Kari hidden on this site (src/shared/sites.ts): neutral, no loop, the element's own pitch handling, no attach
   private wetWanted = false;    // the routing we asked for (never read a mid-ramp gain value back)
   private engineWarm = false;   // worklet reported real output from the selected engine (else the wet path is still silent)
   private lastWantedEngine: EngineName | null = null;
@@ -124,7 +125,7 @@ export class AudioController {
    * attach still waits for the page's first click (a context made without a gesture would mute the video).
    */
   private onPlaying = () => {
-    if (this.src || this.adActive || (this.video as any).mediaKeys) { this.emitTempo(); return; }
+    if (this.parked || this.src || this.adActive || (this.video as any).mediaKeys) { this.emitTempo(); return; }
     // attach, then the normal apply: it sets the engine (bypass on a neutral video) and the routing, exactly as the first change would
     this.attach().then(() => this.apply(this.params, true)).catch(() => { /* reported through status */ });
   };
@@ -173,6 +174,23 @@ export class AudioController {
   getParams() { return this.params; }
   get status() { return this._status; }
 
+  /**
+   * Kari hidden on this site (true) or shown again (false). Parked: any loop lets go, key and speed go neutral with key
+   * lock off (key lock would keep the engine on against the site's own speed menu), the element gets its own pitch
+   * handling back (preservesPitch, which Kari otherwise holds off), nothing attaches on play, and no loop can latch.
+   * The caller keeps its own params and applies them again after unparking.
+   */
+  park(on: boolean) {
+    if (on === this.parked) return;
+    this.parked = on;
+    if (!on) return;
+    if (this.loopBeats) this.releaseLoop();
+    this.apply({ ...this.params, st: 0, cents: 0, tempo: 0, keyLock: false }, true);
+    const v = this.video as any;
+    try { v.preservesPitch = true; v.mozPreservesPitch = true; v.webkitPreservesPitch = true; } catch (_) { /* ignore */ }
+  }
+  get isParked() { return this.parked; }
+
   /** The one entry point for parameter changes. */
   async apply(p: Params, force = false) {
     this.params = p;
@@ -185,6 +203,7 @@ export class AudioController {
     const loopOn = this.loopBeats > 0 && !this.adActive && !this.speedOnly;   // a protected track is speed-only: no engine, no loop
     const wantAttach = (engineActive && !this.adActive) || (this.compare && !this.speedOnly) || loopOn;
     if (wantAttach && !this.src) await this.attach();
+    if (p !== this.params) return; // a newer apply (or a park) arrived while the graph was being built: the newer one owns the routing
     if (!this.src) return;
     const ratio = this.adActive ? 1 : engineRatio;
     this.node?.port.postMessage({ type: "ratio", ratio });
@@ -242,9 +261,9 @@ export class AudioController {
    * A length past the ring's ceiling is clamped to it and flagged on the status.
    */
   async latchLoop(beats: LoopBeats): Promise<boolean> {
-    if (!this.grid || this.video.paused || this.video.ended) return false;
+    if (this.parked || !this.grid || this.video.paused || this.video.ended) return false;
     if (!this.src) await this.attach();
-    if (!this.src || !this.node || !this.ctx) return false;
+    if (this.parked || !this.src || !this.node || !this.ctx) return false;   // parked while the graph was being built
     const v = this.video, rate = v.playbackRate || 1;
     // Read the clock as late as possible: the attach above can take 30-40 ms cold.
     const p = loopPlan(this.grid, v.currentTime, rate, this.ctx.sampleRate, beats);
@@ -281,14 +300,14 @@ export class AudioController {
   private setVideoRate(rate: number) {
     const v = this.video;
     try {
-      (v as any).preservesPitch = false; (v as any).mozPreservesPitch = false; (v as any).webkitPreservesPitch = false;
+      if (!this.parked) { (v as any).preservesPitch = false; (v as any).mozPreservesPitch = false; (v as any).webkitPreservesPitch = false; }
       if (Math.abs(v.playbackRate - rate) > 1e-4) { this.lastSetRate = rate; if (this.ext) this.ext.writeRate(rate); else v.playbackRate = rate; }
       else { this.lastSetRate = rate; if (this.ext) this.ext.writeRate(rate); }
     } catch (_) { /* rate out of range on some videos */ }
   }
   private onRateChange = () => {
     const v = this.video;
-    (v as any).preservesPitch = false; // YouTube may re-assert its own; ours wins
+    if (!this.parked) (v as any).preservesPitch = false; // YouTube may re-assert its own; ours wins (parked: the site's own)
     if (Math.abs(v.playbackRate - this.lastSetRate) > 1e-3) {
       // Someone else (YouTube's speed menu, or a new video loading) set an ABSOLUTE rate. Adopt it as the new base
       // and re-apply our multiplier on top. (Live probe 2026-09-26: dividing by our multiplier read 1.5× as "yt 1.44×"

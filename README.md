@@ -8,6 +8,7 @@ Source: https://github.com/cantum-io/kari · Privacy: [docs/PRIVACY.md](docs/PRI
 - Nothing touches the audio until you change the key. Speed alone is Chrome's own resampler, artifact-free; the engine only runs when the key changes.
 - Accuracy: within 0.02 cents at every step from −12 to +12 semitones, measured on the audio that reaches the speakers on youtube.com; key lock holds 440.00 Hz at ±16 % speed. Engine delay 61 ms at 44.1 kHz (56 ms at 48 kHz) plus 6 ms of limiter look-ahead; total sound-behind-picture 97 ms on a MacBook Air's built-in output. See `docs/SPRINT-0-BENCH.md` and `docs/LIVE-PROBE.md`.
 - YouTube `/watch` pages, and soundcloud.com once you switch it on in settings (an optional permission Chrome asks for once; Kari sits on the player bar and rides SoundCloud's own audio graph). No data leaves your browser. No accounts.
+- Hide Kari on YouTube or on SoundCloud, each on its own switch in settings (or the button in the dock's gear panel). Hidden, she leaves the page and the audio plays as the site sends it; the key and speed she remembers for a song wait for her return. Kari's toolbar icon on that site's tab brings her back.
 
 ## Install (no building needed)
 1. Download **[kari-extension.zip](https://github.com/cantum-io/kari/releases/latest/download/kari-extension.zip)** and unzip it.

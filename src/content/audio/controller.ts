@@ -17,7 +17,7 @@ export type AudioStatus = {
   avOffsetMs: number;        // sound behind picture, total
   underruns: number;
   load: number;              // 0..1 of the audio budget
-  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late";
+  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late" | "duplicate";   // duplicate: another Kari holds this page (src/content/duplicate.ts)
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
   loop: LoopBeats | 0;       // latched loop length in beats, 0 = none
   loopMs: number;            // its length in real-time ms
@@ -163,6 +163,8 @@ export class AudioController {
   }
   private get speedOnly() { return !!this.ext?.speedOnlyOnDrm && this._status.fault === "drm-silent"; }
 
+  /** Another Kari is on this page (the entry saw her claim, or the element was already hers): say so until a reload. */
+  flagDuplicate() { if (this._status.fault !== "duplicate") this.emit({ fault: "duplicate" }); }
   onStatus(cb: (s: AudioStatus) => void) { this.listeners.add(cb); cb(this._status); return () => this.listeners.delete(cb); }
   private emit(patch: Partial<AudioStatus>) { this._status = { ...this._status, ...patch }; for (const l of this.listeners) l(this._status); }
 
@@ -457,7 +459,11 @@ export class AudioController {
       this.watchSilence();
     } catch (err) {
       this.waitingGesture = false;
-      this.emit({ fault: "capture-failed", attached: false });
+      // InvalidStateError from createMediaElementSource = the element already belongs to another context: another Kari
+      // (an older copy without the page claim) got there first. Anything else is the page itself.
+      const dup = !ext && (err as { name?: string } | null)?.name === "InvalidStateError";
+      console.warn("[kari] attach failed:", err);
+      this.emit({ fault: dup ? "duplicate" : "capture-failed", attached: false });
       this.src = null;
       this.emitTempo();
     }

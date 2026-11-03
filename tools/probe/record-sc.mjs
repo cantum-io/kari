@@ -131,6 +131,7 @@ try {
     if (Date.now() - lastClick > 4000) { clicks.push(await play()); lastClick = Date.now(); }
     return false;
   }, 40000, 400);
+  if (!started) await page.screenshot({ path: path.join(OUT, "no-play.png") }).catch(() => {});
   if (!started) throw new Error(`the track never started playing (clicked ${JSON.stringify(clicks)}; bar ${await page.evaluate(() => document.querySelector(".playControls__play")?.className || "none")}, clock ${await barClock()})`);
 
   // RS1: the pill on the dock, and the first-run hint over no control.

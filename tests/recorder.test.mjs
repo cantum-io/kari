@@ -108,13 +108,13 @@ before(async () => {
   assert.ok(registered.get("kari-processor"), "and still registers kari-processor");
 });
 
-test("the committed public build carries no recorder path (compiled out, not hidden)", () => {
+test("the committed build carries the take (Jesse, 2026-11-03: it ships in the store build; KARI_RECORD=0 compiles it out)", () => {
   const worklet = fs.readFileSync(new URL("../extension/worklet.js", import.meta.url), "utf8");
   const content = fs.readFileSync(new URL("../extension/content.js", import.meta.url), "utf8");
-  assert.ok(!worklet.includes("kari-recorder"), "worklet.js registers no kari-recorder");
+  assert.ok(worklet.includes("kari-recorder"), "worklet.js registers kari-recorder");
   assert.ok(worklet.includes("kari-processor"), "worklet.js still registers kari-processor");
-  for (const s of ["kari-recorder", "moves.json", "audio/wav", "not recording", "Record a take", "nothing to record"]) assert.ok(!content.includes(s), `content.js has no "${s}"`);
-  assert.ok(!/\+rec"/.test(content), "the public stamp carries no +rec");
+  for (const s of ["kari-recorder", "moves.json", "audio/wav", "Record a take", "nothing to record"]) assert.ok(content.includes(s), `content.js has "${s}"`);
+  assert.ok(!/\+norec"/.test(content), "the committed stamp is the default build, not +norec");
 });
 
 test("shipped worklet: kari-recorder posts transferable chunks, reassembled bit for bit, answers stop with flushed", () => {

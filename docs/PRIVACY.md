@@ -6,7 +6,7 @@ Kari collects no data.
 
 - **No accounts.** There is nothing to sign up for or sign in to.
 - **No data leaves your browser.** Kari makes no network requests of its own. It never contacts Cantum, YGG HOMME, or any third party. There is no analytics, telemetry, crash reporting, or advertising.
-- **Audio stays on your machine.** Pitch, speed, loops and the tempo reading are processed inside the browser tab in real time. Nothing is recorded, uploaded, or stored.
+- **Audio stays on your machine.** Pitch, speed, loops and the tempo reading are processed inside the browser tab in real time. Nothing is uploaded. Kari records nothing on her own: a practice take exists only between your first press of Rec and your second, and it is handed to Chrome as a WAV file plus a small JSON of your moves, saved to your computer like any file you save. Kari keeps no copy and never sends it anywhere.
 - **What is stored, and where.** Kari stores two things, both with Chrome's extension storage and nowhere else:
   - **Preferences** (interface, Kari's look, default range, engine choice, MIDI pads, the sites where you hid her) are saved in `chrome.storage.sync`. If you are signed into Chrome with sync turned on, Chrome may sync them across your own devices through your Google account — that is Chrome's sync, governed by Google's privacy policy, not a Kari server.
   - **Per-video and per-track pitch and speed**, if you leave "Remember settings per video" on, are saved keyed by the YouTube video id or the SoundCloud track address in `chrome.storage.local`. That stays on this device: it is never synced and never sent anywhere.

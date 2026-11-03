@@ -9,6 +9,9 @@
 //   LR3  ffprobe: RIFF WAVE, pcm_s24le, 2 channels, the duration within 1.5 s of the time between the two presses.
 //   LR4  ffmpeg volumedetect: the take is not silence (max volume above -60 dB).
 //   LR5  the moves file parses, starts with "start" and ends with "stop", and names the build that made it.
+//   LR6  the page's slider at 1.0 for the first half of the take and 0.25 for the second: the two halves peak within
+//        2 dB of each other (the tap undoes the slider; without it the second half sits 12 dB down).
+//   LR7  the moves file logs that slider move with gain 4 and names the slider at the start.
 import { chromium } from "playwright";
 import { execFileSync } from "node:child_process";
 import fs from "node:fs";
@@ -58,9 +61,13 @@ try {
     await yt.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await sleep(300);
     return rec.getAttribute("aria-pressed");
   };
+  const setVol = (v) => yt.evaluate((v) => { const e = document.querySelector("#movie_player video"); e.volume = v; return e.volume; }, v);
+  const v1 = await setVol(1);
   const p1 = await press();
   const t0 = Date.now();
-  for (let i = 0; i < SECS * 2; i++) { await yt.mouse.move(400 + (i % 2) * 20, 300); await sleep(500); }
+  let v2 = null;
+  for (let i = 0; i < SECS * 2; i++) { if (i === SECS) v2 = await setVol(0.25); await yt.mouse.move(400 + (i % 2) * 20, 300); await sleep(500); }
+  const vEnd = await yt.evaluate(() => document.querySelector("#movie_player video").volume);
   const p2 = await press();
   const held = (Date.now() - t0) / 1000;
   if (p1 !== "true" || p2 !== "false") console.log(`note: pill pressed after the first click ${p1}, after the second ${p2}`);
@@ -77,6 +84,10 @@ try {
     if (!vd) vd = execFileSync("sh", ["-c", `ffmpeg -hide_banner -i "${wav}" -af volumedetect -f null - 2>&1`]).toString();
     const max = Number((vd.match(/max_volume:\s*(-?[\d.]+|-inf)/) || [])[1]);
     row("LR4", Number.isFinite(max) && max > -60, `volumedetect max ${Number.isFinite(max) ? max + " dB" : "-inf (silence)"}`);
+    // LR6: each half through volumedetect; the slider moved at the midpoint of the held time.
+    const half = held / 2, peakOf = (args) => { const out = execFileSync("sh", ["-c", `ffmpeg -hide_banner ${args} -i "${wav}" -af volumedetect -f null - 2>&1`]).toString(); return Number((out.match(/max_volume:\s*(-?[\d.]+|-inf)/) || [])[1]); };
+    const a = peakOf(`-t ${(half - 0.3).toFixed(2)}`), b = peakOf(`-ss ${(half + 0.3).toFixed(2)}`);
+    row("LR6", v1 === 1 && v2 === 0.25 && vEnd === 0.25 && Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 2, `slider 1 → ${v2} (ended ${vEnd}); first half peaks ${a} dB, second half ${b} dB (Δ ${Number.isFinite(a) && Number.isFinite(b) ? Math.abs(a - b).toFixed(1) : "?"} dB)`);
   } else { row("LR3", false, "no wav"); row("LR4", false, "no wav"); }
 
   if (moves) {
@@ -84,7 +95,9 @@ try {
     const kinds = list.map((x) => x.kind);
     const ver = JSON.parse(fs.readFileSync(path.join(EXT, "manifest.json"), "utf8")).version;
     row("LR5", kinds[0] === "start" && kinds[kinds.length - 1] === "stop" && String(m.kari).startsWith(ver + "+"), `moves: ${kinds.join(", ")} · build ${m.kari} · site ${m.site} · ${m.seconds} s, dropped ${m.dropped}`);
-  } else row("LR5", false, "no moves file");
+    const vol = list.filter((x) => x.kind === "volume");
+    row("LR7", m.volume === 1 && m.muted === false && vol.length >= 1 && vol.some((x) => x.data && x.data.volume === 0.25 && x.data.gain === 4), `start slider ${m.volume} muted ${m.muted}; volume moves ${JSON.stringify(vol.map((x) => x.data))}`);
+  } else { row("LR5", false, "no moves file"); row("LR7", false, "no moves file"); }
 } catch (err) { row("run", false, String(err?.stack || err)); }
 
 await ctx.close();

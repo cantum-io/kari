@@ -291,7 +291,6 @@ export class Dock {
     const map: Record<string, string> = {
       speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), yt, bpm: bpm ? `${fmtBpm(bpm)} bpm` : "",
       tempo: tempoText,
-      take: takeReadout(s, this.takeNote),
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",
@@ -301,13 +300,18 @@ export class Dock {
     // loops: four length toggles and the tempo readout under the steppers (Full control on or off), the bpm field in the full panel (left alone while being typed in)
     const loopsRow = this.shadow.querySelector(".loops") as HTMLElement | null; if (loopsRow) loopsRow.hidden = !this.deps.loop;
     this.$$('[data-b="tempo"]').forEach(el => { if (el.dataset.state !== tempoState) el.dataset.state = tempoState; });
-    // the take: one pill under the loop row where a record path exists; pressed (rose) while a take runs, its dot still while held
-    const takeRow = this.shadow.querySelector(".take") as HTMLElement | null; if (takeRow) takeRow.hidden = !this.deps.record;
-    (this.$$('[data-a="rec"]') as HTMLButtonElement[]).forEach(b => {
-      const on = !!s?.recording, held = on && !!s!.recHeld;
-      b.setAttribute("aria-pressed", String(on)); if (b.dataset.held !== (held ? "1" : "0")) b.dataset.held = held ? "1" : "0";
-      const label = on ? "Stop and save the take" : "Record a take"; if (b.getAttribute("aria-label") !== label) b.setAttribute("aria-label", label);
-    });
+    // the take: one pill under the loop row where a record path exists; pressed (rose) while a take runs, its dot still while
+    // held. Compiled out of the public build with the recorder (the block folds away under the define).
+    if (__KARI_RECORD__) {
+      const takeRow = this.shadow.querySelector(".take") as HTMLElement | null; if (takeRow) takeRow.hidden = !this.deps.record;
+      const take = takeReadout(s, this.takeNote);
+      this.$$('[data-b="take"]').forEach(el => { if (el.textContent !== take) el.textContent = take; });
+      (this.$$('[data-a="rec"]') as HTMLButtonElement[]).forEach(b => {
+        const on = !!s?.recording, held = on && !!s!.recHeld;
+        b.setAttribute("aria-pressed", String(on)); if (b.dataset.held !== (held ? "1" : "0")) b.dataset.held = held ? "1" : "0";
+        const label = on ? "Stop and save the take" : "Record a take"; if (b.getAttribute("aria-label") !== label) b.setAttribute("aria-label", label);
+      });
+    }
     const midiGroup = this.shadow.querySelector('[data-el="midisg"]') as HTMLElement | null; if (midiGroup) midiGroup.hidden = !this.deps.midi;
     (this.$$('[data-a="loop"]') as HTMLButtonElement[]).forEach(b => { const on = loop > 0 && +b.dataset.v! === loop; b.setAttribute("aria-pressed", String(on)); b.disabled = !bpm; if (on) b.style.setProperty("--loop-ms", `${s!.loopMs}ms`); });
     (this.$$('[data-a="bpm-"],[data-a="bpm+"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !bpm; });
@@ -347,12 +351,12 @@ export class Dock {
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
         case "hide-site": this.deps.saveSettings({ [HIDE_KEY[this.deps.site || "yt"]]: true }); break; // the page script parks Kari (src/shared/sites.ts)
         // the take: one pill, click to start, click again to stop and save (Jesse, 2026-11-03). The state comes back through setStatus.
-        case "rec": {
+        case "rec": if (__KARI_RECORD__) {   // compiled out of the public build with the recorder
           const r = this.deps.record; if (!r) break;
           if (this.status?.recording) r.stop().then(sec => this.note(sec === null ? "nothing recorded" : `saved ${fmtTake(sec)}`));
           else r.start().then(ok => { if (!ok) this.note("nothing to record"); else this.render(); });
-          this.react(); this.render(); break;
-        }
+          this.react(); this.render();
+        } break;
         // beat loops (click + MIDI only). A length toggles: lit releases, unlit latches, another length switches.
         // In learn mode a click arms the button for the next MIDI note instead.
         case "loop": case "tap": {

@@ -7,6 +7,7 @@ import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../sh
 import { Midi, type MidiAction } from "./midi";
 import type { LoopBeats } from "./beat/grid";
 import { downloadTake, type Take } from "./audio/recorder";
+import { claimPage } from "./duplicate";
 declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs (the take names the build that made it)
 declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: the take is in by default; KARI_RECORD=0 compiles it out
 
@@ -23,6 +24,9 @@ const hiddenNow = () => !!settings?.hideOnYouTube;   // Settings.hideOnYouTube (
 let statusWired = false; let wiredHost: HTMLElement | null = null;   // listeners go on once (per player element), not once per dock
 
 const urls = { worklet: chrome.runtime.getURL("worklet.js"), wasm: chrome.runtime.getURL("rubberband.wasm") };
+// Another Kari on this page (src/content/duplicate.ts): the first script here owns it, a later one stands down.
+let duplicate: string | null = null;
+const owner = claimPage(document.documentElement, document, __KARI_BUILD__, (other) => { duplicate = other; console.warn("[kari] another Kari is on this page:", other); audio?.flagDuplicate(); });
 
 async function applyParams(p: Params) {
   params = p;
@@ -74,6 +78,7 @@ async function mount() {
   if (hiddenNow()) { park(); return; }   // switched while the memory was read
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);
+  if (duplicate) audio.flagDuplicate();
   audio.park(false);   // shown: Kari holds the element's pitch handling again; the applyParams below puts the song back
   if (!midi) midi = new Midi(settings.midiMap, loopAction, (m) => { saveSettings({ midiMap: m }).then(s => { settings = s; }); }, (st) => dock?.setMidiState(st));
   if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; } // player was re-created (miniplayer ↔ watch)
@@ -161,6 +166,8 @@ chrome.runtime.onMessage.addListener((m) => {
   } : null,
 };
 
-onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); syncHide(); });
-onNavigate(() => { mount(); });
-mount();
+if (owner) {
+  onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); syncHide(); });
+  onNavigate(() => { mount(); });
+  mount();
+} else console.warn("[kari] another Kari owns this page; build", __KARI_BUILD__, "stands down (switch one copy off at chrome://extensions)");

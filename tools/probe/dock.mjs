@@ -13,6 +13,7 @@
 //      a synthetic click is not use.
 //   5. prefers-reduced-motion: no animation on the pills, the readout or the body.
 //   6. The take row (record pill) and, on a first run, the intro hint covering none of the panel's controls.
+//   7. Two Karis on one page: the fault line names the fix.
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -244,6 +245,15 @@ const ORG = '.skin[data-skin="org"] ';
   await shot("08-intro-take");
   await page.evaluate(() => window.__dock.deps.saveSettings({ fullControl: false, seenIntro: true }));
   await page.evaluate(() => { window.__status({}); delete window.__dock.deps.record; window.__dock.render(); });
+}
+// 7. Two Karis on the page: the fault line says so and names the fix (the status comes from the controller).
+{
+  await page.evaluate(() => window.__status({ fault: "duplicate" }));
+  const f = await q('[data-el="fault"]'), t = await q('[data-el="fault"]', "text");
+  row("two Karis on the page: the fault line is shown and names the fix", !!f && !f.hidden && f.display !== "none" && /two Karis/.test(t) && /chrome:\/\/extensions/.test(t), `"${t}"`);
+  await page.evaluate(() => window.__status({}));
+  const cleared = await q('[data-el="fault"]');
+  row("fault cleared: the line hides again", !!cleared && cleared.hidden, `hidden ${cleared?.hidden}`);
 }
 const w = Math.max(...rows.map(r => r[1].length));
 console.log(rows.map(([s, n, d]) => `${s}  ${n.padEnd(w)}  ${d}`).join("\n"));

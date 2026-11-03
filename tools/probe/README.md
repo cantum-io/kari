@@ -32,10 +32,13 @@ The real `Dock` class on a blank page, headless, no YouTube: bundles `src/conten
 it with fake deps and reads computed styles, never the extension's readouts. Rows (loops v2): the loop row under the
 steppers with Full control off and on, the four pills, disabled until a tempo, the tempo readout's three states, latch /
 lit-release / switch calls, the clamp text, controls hidden on every skin (Kari's anchor stays visible and clickable,
-panel and gear go), miniplayer, collapsed, reduced motion. `--shots dir` saves screenshots.
+panel and gear go), miniplayer, collapsed, reduced motion. The take (2026-11-03, bundled with `__KARI_RECORD__` on):
+the row hidden with no record path, the record pill under the loop row, click → start, pressed in rose with the dot
+breathing and the readout counting, held = paused with the dot still, click → stop → "saved 0:12", a refused start,
+reduced motion. `--shots dir` saves screenshots.
 
 ```
-node tools/probe/dock.mjs --shots test-build/dock-shots      # 19/19 rows hold, 2026-10-15
+node tools/probe/dock.mjs --shots test-build/dock-shots      # 31/31 rows hold, 2026-11-03 (19 loops rows 2026-10-15, hide rows, 7 take rows)
 ```
 
 ## Tempo readout, YouTube (`tempo.mjs`)

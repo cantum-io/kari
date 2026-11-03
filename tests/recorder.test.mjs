@@ -113,7 +113,7 @@ test("the committed public build carries no recorder path (compiled out, not hid
   const content = fs.readFileSync(new URL("../extension/content.js", import.meta.url), "utf8");
   assert.ok(!worklet.includes("kari-recorder"), "worklet.js registers no kari-recorder");
   assert.ok(worklet.includes("kari-processor"), "worklet.js still registers kari-processor");
-  for (const s of ["kari-recorder", "moves.json", "audio/wav", "not recording"]) assert.ok(!content.includes(s), `content.js has no "${s}"`);
+  for (const s of ["kari-recorder", "moves.json", "audio/wav", "not recording", "Record a take", "nothing to record"]) assert.ok(!content.includes(s), `content.js has no "${s}"`);
   assert.ok(!/\+rec"/.test(content), "the public stamp carries no +rec");
 });
 

@@ -93,6 +93,11 @@ async function mount() {
         nudge: (d) => audio?.nudgeBpm(d),
       },
       midi,
+      // the take (KARI_RECORD=1 builds only; the public build folds this away and the dock hides the row): the record pill
+      record: __KARI_RECORD__ ? {
+        start: () => audio ? audio.startRecording({ site: "yt", track: currentId, title: document.title.replace(/ - YouTube$/, "") }) : Promise.resolve(false),
+        stop: async () => { const t = audio ? await audio.stopRecording() : null; if (!t || !t.frames) return null; downloadTake(t); return t.seconds; },
+      } : undefined,
     });
     dock.setMidiState(midi.state);
     dock.setStatus(audio.status);

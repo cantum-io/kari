@@ -50,7 +50,7 @@ export class Recorder {
   private lastParams = "";
   private closed = false;
 
-  constructor(private ctx: AudioContext, private tap: AudioNode, private meta: TakeMeta, private opts: { chunkFrames?: number; onProgress?: (frames: number, peak: number) => void } = {}) {}
+  constructor(private ctx: AudioContext, private tap: AudioNode, private meta: TakeMeta, private opts: { chunkFrames?: number; onProgress?: (frames: number, peak: number) => void; onHold?: (held: boolean) => void } = {}) {}
 
   get on() { return !!this.node && !this.closed; }
   get holding() { const h = this.holds[this.holds.length - 1]; return !!h && h.to === Infinity; }
@@ -86,8 +86,8 @@ export class Recorder {
     this.marks.push({ ctx: this.now(), kind, data });
   }
   /** Stop keeping frames (paused, an ad, a seek in flight). Frame-accurate from the clock read here. */
-  hold() { if (!this.node || this.closed || this.holding) return; this.holds.push({ from: this.now(), to: Infinity }); this.mark("hold"); }
-  resume() { if (!this.node || this.closed || !this.holding) return; this.holds[this.holds.length - 1].to = this.now(); this.mark("resume"); }
+  hold() { if (!this.node || this.closed || this.holding) return; this.holds.push({ from: this.now(), to: Infinity }); this.mark("hold"); this.opts.onHold?.(true); }
+  resume() { if (!this.node || this.closed || !this.holding) return; this.holds[this.holds.length - 1].to = this.now(); this.mark("resume"); this.opts.onHold?.(false); }
 
   private onMessage(m: any) {
     if (!m || typeof m !== "object") return;

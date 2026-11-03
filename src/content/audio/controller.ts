@@ -26,7 +26,8 @@ export type AudioStatus = {
   gridSource: BeatGrid["source"] | null;
   tempo: TempoPhase;         // what the tempo readout should say: idle (play to learn) · gesture (click to learn) · learning · found · none (tap) · off
   recording: boolean;        // a take is running (src/content/audio/recorder.ts)
-  recFrames: number;         // frames in the take so far (held stretches excluded)
+  recSeconds: number;        // seconds in the take so far (held stretches excluded), 0.1 s steps
+  recHeld: boolean;          // the take is holding (paused, an ad, a seek, Kari hidden): nothing is being kept right now
 };
 
 /** A source node Kari does not own: wired through the saved native connect, so the MAIN-world patches never redirect it. */
@@ -74,7 +75,7 @@ export class AudioController {
   private params: Params = { ...DEFAULT_PARAMS };
   private compare = false;
   private baseRate = 1; private lastSetRate = 1;
-  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recFrames: 0 };
+  private _status: AudioStatus = { attached: false, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recSeconds: 0, recHeld: false };
   private latencyFrames = { r3: 0, ss: 0 };
   private hotBlocks = 0; private tier: Stepdown = "r3"; private pinned: "auto" | "r3" | "signalsmith" = "auto";
   private silentSince = 0; private rmsBuf = new Uint8Array(512);
@@ -323,13 +324,15 @@ export class AudioController {
       if (this.parked) return false;   // hidden on this site: nothing to record
       if (!this.src) await this.attach();
       if (!this.src || !this.ctx || !this.analyser || this._status.fault === "drm-silent") return false;
+      const sr = this.ctx.sampleRate;
       const r = new Recorder(this.ctx, this.analyser, { ...meta, params: this.params }, {
-        onProgress: (frames) => { const now = performance.now(); if (now - this.recEmit > 250) { this.recEmit = now; this.emit({ recFrames: frames }); } },
+        onProgress: (frames) => { const now = performance.now(); if (now - this.recEmit > 250) { this.recEmit = now; this.emit({ recSeconds: Math.floor(frames / sr * 10) / 10 }); } },
+        onHold: (held) => this.emit({ recHeld: held }),
       });
       this.recorder = r;
       r.start();
       if (!AudioController.isPlaying(this.video) || this.adActive) r.hold();   // nothing to keep until it plays
-      this.emit({ recording: true, recFrames: 0 });
+      this.emit({ recording: true, recSeconds: 0, recHeld: r.holding });
       return true;
     }
     return false;
@@ -338,7 +341,7 @@ export class AudioController {
   async stopRecording(): Promise<Take | null> {
     const r = this.recorder; if (!r) return null;
     this.recorder = null;
-    try { return await r.stop(); } finally { this.emit({ recording: false, recFrames: 0 }); }
+    try { return await r.stop(); } finally { this.emit({ recording: false, recSeconds: 0, recHeld: false }); }
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */

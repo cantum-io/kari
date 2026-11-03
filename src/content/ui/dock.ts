@@ -1,6 +1,8 @@
 // Kari — in-player dock (Shadow DOM). Ported from docs/playground.html.
 import { DOCK_CSS } from "./dock.css";
+import { takeReadout, fmtTake, NOTE_MS, type TakeNote } from "./take-readout";
 declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
+declare const __KARI_RECORD__: boolean; // scripts/build.mjs: the take's row is compiled out of the public build with the recorder
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
 import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
@@ -25,6 +27,10 @@ export type DockDeps = {
   // Absent = no loop path on this host: the dock hides the loop row and the MIDI group.
   loop?: { latch(beats: LoopBeats): Promise<boolean>; release(): void; tap(): number | null; setBpm(bpm: number): void; nudge(delta: number): void };
   midi?: Midi;
+  // the take (KARI_RECORD=1 builds): one pill, click to start, click again to stop and save. start() false = nothing to
+  // record (protected track, Kari hidden, no audio); stop() resolves to the seconds saved, null when nothing was kept.
+  // Absent = no record path on this host (the public build, SoundCloud for now): the dock hides the row.
+  record?: { start(): Promise<boolean>; stop(): Promise<number | null> };
 };
 
 const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
@@ -45,6 +51,7 @@ const CTL = `
     <div class="step"><button data-a="tempo-" aria-label="Slow down">−</button><span>Speed</span><button data-a="tempo+" aria-label="Speed up">+</button></div>
   </div>
   <div class="loops">${LOOP_PILLS}<span class="tro ro" data-b="tempo" data-state="idle" aria-live="polite"></span></div>
+  ${__KARI_RECORD__ ? `<div class="take"><button class="pill rec" data-a="rec" aria-pressed="false" aria-label="Record a take"><span class="dot"></span>Rec</button><span class="tro ro" data-b="take" aria-live="polite"></span></div>` : ""}
   <div class="full">
     <div class="pills">
       <button class="pill" data-a="vinyl" aria-pressed="true">Vinyl</button>
@@ -207,7 +214,18 @@ export class Dock {
     this.startPulse();
   }
 
-  destroy() { cancelAnimationFrame(this.raf); clearTimeout(this.keptTimer); this.host.querySelector("#kari-dock")?.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); clearTimeout(this.keptTimer); clearTimeout(this.noteTimer); this.host.querySelector("#kari-dock")?.remove(); }
+
+  /* ---------- the take ---------- */
+  private takeNote: TakeNote | null = null;
+  private noteTimer = 0;
+  /** A short line on the take readout ("saved 0:12", "nothing to record"), gone after NOTE_MS; empty clears it. */
+  private note(text: string) {
+    clearTimeout(this.noteTimer);
+    this.takeNote = text ? { text, until: performance.now() + NOTE_MS } : null;
+    this.render();
+    if (text) this.noteTimer = window.setTimeout(() => { this.takeNote = null; this.render(); }, NOTE_MS);
+  }
 
   /* ---------- public updates ---------- */
   setStatus(s: AudioStatus) {
@@ -273,6 +291,7 @@ export class Dock {
     const map: Record<string, string> = {
       speed: fmtSpeed(p.tempo), st: fmtSigned(p.st), yt, bpm: bpm ? `${fmtBpm(bpm)} bpm` : "",
       tempo: tempoText,
+      take: takeReadout(s, this.takeNote),
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
       av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",
@@ -282,6 +301,13 @@ export class Dock {
     // loops: four length toggles and the tempo readout under the steppers (Full control on or off), the bpm field in the full panel (left alone while being typed in)
     const loopsRow = this.shadow.querySelector(".loops") as HTMLElement | null; if (loopsRow) loopsRow.hidden = !this.deps.loop;
     this.$$('[data-b="tempo"]').forEach(el => { if (el.dataset.state !== tempoState) el.dataset.state = tempoState; });
+    // the take: one pill under the loop row where a record path exists; pressed (rose) while a take runs, its dot still while held
+    const takeRow = this.shadow.querySelector(".take") as HTMLElement | null; if (takeRow) takeRow.hidden = !this.deps.record;
+    (this.$$('[data-a="rec"]') as HTMLButtonElement[]).forEach(b => {
+      const on = !!s?.recording, held = on && !!s!.recHeld;
+      b.setAttribute("aria-pressed", String(on)); if (b.dataset.held !== (held ? "1" : "0")) b.dataset.held = held ? "1" : "0";
+      const label = on ? "Stop and save the take" : "Record a take"; if (b.getAttribute("aria-label") !== label) b.setAttribute("aria-label", label);
+    });
     const midiGroup = this.shadow.querySelector('[data-el="midisg"]') as HTMLElement | null; if (midiGroup) midiGroup.hidden = !this.deps.midi;
     (this.$$('[data-a="loop"]') as HTMLButtonElement[]).forEach(b => { const on = loop > 0 && +b.dataset.v! === loop; b.setAttribute("aria-pressed", String(on)); b.disabled = !bpm; if (on) b.style.setProperty("--loop-ms", `${s!.loopMs}ms`); });
     (this.$$('[data-a="bpm-"],[data-a="bpm+"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !bpm; });
@@ -320,6 +346,13 @@ export class Dock {
         case "show": this.deps.saveSettings({ collapsed: !this.deps.settings.collapsed }); this.react(); break; // Kari is a toggle: click to fold, click to unfold (Jesse, 2026-09-26)
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
         case "hide-site": this.deps.saveSettings({ [HIDE_KEY[this.deps.site || "yt"]]: true }); break; // the page script parks Kari (src/shared/sites.ts)
+        // the take: one pill, click to start, click again to stop and save (Jesse, 2026-11-03). The state comes back through setStatus.
+        case "rec": {
+          const r = this.deps.record; if (!r) break;
+          if (this.status?.recording) r.stop().then(sec => this.note(sec === null ? "nothing recorded" : `saved ${fmtTake(sec)}`));
+          else r.start().then(ok => { if (!ok) this.note("nothing to record"); else this.render(); });
+          this.react(); this.render(); break;
+        }
         // beat loops (click + MIDI only). A length toggles: lit releases, unlit latches, another length switches.
         // In learn mode a click arms the button for the next MIDI note instead.
         case "loop": case "tap": {

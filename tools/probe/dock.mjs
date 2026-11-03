@@ -22,7 +22,7 @@ const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(h
 const argv = process.argv.slice(2), shots = argv.includes("--shots") ? path.resolve(argv[argv.indexOf("--shots") + 1] || "shots") : null;
 const outDir = path.join(root, "test-build"); fs.mkdirSync(outDir, { recursive: true });
 const bundle = path.join(outDir, "dock-probe.js");
-await build({ entryPoints: [path.join(root, "src/content/ui/dock.ts")], bundle: true, format: "iife", globalName: "KariDock", outfile: bundle, target: ["chrome120"], define: { __KARI_BUILD__: '"probe"' }, logLevel: "silent" });
+await build({ entryPoints: [path.join(root, "src/content/ui/dock.ts")], bundle: true, format: "iife", globalName: "KariDock", outfile: bundle, target: ["chrome120"], define: { __KARI_BUILD__: '"probe"', __KARI_RECORD__: "true" }, logLevel: "silent" });
 
 const browser = await chromium.launch({ headless: true, channel: "chromium" });
 const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
@@ -38,7 +38,7 @@ await page.evaluate(() => {
     midi: { state: { supported: false, connected: false, inputs: 0, learning: null, lastNote: null, error: null }, learn() {}, connect() { return Promise.resolve(false); } },
   };
   const dock = (window.__dock = new KariDock.Dock(document.getElementById("player"), deps));
-  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recFrames: 0, ...patch });
+  window.__status = (patch) => dock.setStatus({ attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recSeconds: 0, recHeld: false, ...patch });
   window.__status({});
 });
 const q = (sel, what) => page.evaluate(([sel, what]) => {
@@ -184,6 +184,47 @@ const ORG = '.skin[data-skin="org"] ';
   await page.evaluate(() => window.__status({ bpm: 128, gridSource: "auto", loop: 4, loopMs: 1875 }));
   const after2 = await page.evaluate(() => { const sr = document.querySelector("#kari-dock").shadowRoot; return getComputedStyle(sr.querySelector('.skin[data-skin="org"] [data-a="loop"][data-v="4"]'), "::after").animationName; });
   row("motion allowed: the lit pill sweeps once per pass", after2 === "kari-loopsweep", `pill::after ${after2}`);
+}
+// 6. the take (record pill, 2026-11-03): hidden where there is no record path; with one, a pill under the loop row with
+//    Full control off; click → start(); recording → the pill pressed in rose, its dot breathing, the readout counting;
+//    held → "· paused", dot still; click → stop() → "saved 0:12"; a refused start says so; reduced motion stills the dot.
+{
+  const none = await q(ORG + ".take");
+  row("no record path: the take row is hidden", !!none && none.hidden && none.display === "none", `hidden ${none?.hidden}, display ${none?.display}`);
+  await page.evaluate(() => {
+    window.__rec = []; let ok = true;
+    window.__dock.deps.record = { start: () => { window.__rec.push("start"); return Promise.resolve(ok); }, stop: () => { window.__rec.push("stop"); return Promise.resolve(12.4); } };
+    window.__recRefuse = () => { ok = false; };
+    window.__dock.render();
+  });
+  const dotOf = () => page.evaluate(() => { const sr = document.querySelector("#kari-dock").shadowRoot; const d = sr.querySelector('.skin[data-skin="org"] [data-a="rec"] .dot'); const cs = getComputedStyle(d); return { anim: cs.animationName, w: d.getBoundingClientRect().width, color: cs.backgroundColor }; });
+  const bgOf = () => page.evaluate(() => { const sr = document.querySelector("#kari-dock").shadowRoot; return getComputedStyle(sr.querySelector('.skin[data-skin="org"] [data-a="rec"]')).backgroundColor; });
+  const loops = await q(ORG + ".loops"), take = await q(ORG + ".take"), pill = await q(ORG + '[data-a="rec"]'), idle = await q(ORG + '[data-b="take"]', "text"), full = await q(ORG + ".full");
+  row("record pill under the loop row, Full control off, readout empty", !take.hidden && take.display === "flex" && take.top >= loops.bottom && take.top - loops.bottom <= 12 && !!pill && pill.pressed === "false" && idle === "" && full.display === "none" && pill.right <= (await q(ORG + ".ctl")).right,
+    `loops bottom ${loops.bottom.toFixed(0)}, take top ${take.top.toFixed(0)}, pill ${pill.w.toFixed(0)}×${pill.h.toFixed(0)}, readout "${idle}"`);
+  await q(ORG + '[data-a="rec"]', "click"); await page.waitForTimeout(50);
+  await page.evaluate(() => window.__status({ recording: true, recSeconds: 12.4, recHeld: false })); await page.waitForTimeout(250);   // past the pill's 150 ms color transition
+  const on = await q(ORG + '[data-a="rec"]'), onText = await q(ORG + '[data-b="take"]', "text"), dot = await dotOf(), bg = await bgOf(), calls1 = JSON.stringify(await page.evaluate(() => window.__rec));
+  row("click → start(); recording: pill pressed in rose, ink dot breathing, readout 0:12", calls1 === '["start"]' && on.pressed === "true" && onText === "0:12" && dot.anim === "kari-rec" && Math.round(dot.w) === 6 && bg === "rgb(255, 122, 217)" && dot.color === "rgb(7, 7, 11)",
+    `calls ${calls1}, pressed ${on.pressed}, readout "${onText}", dot ${dot.anim} ${dot.w}px ${dot.color}, bg ${bg}`);
+  await shot("06-recording");
+  await page.evaluate(() => window.__status({ recording: true, recSeconds: 12.4, recHeld: true })); await page.waitForTimeout(50);
+  const heldText = await q(ORG + '[data-b="take"]', "text"), heldDot = await dotOf(), heldPill = await q(ORG + '[data-a="rec"]');
+  row("held (paused, ad, seek, hidden): readout says paused, dot still, pill stays pressed", heldText === "0:12 · paused" && heldDot.anim === "none" && heldPill.pressed === "true", `readout "${heldText}", dot anim ${heldDot.anim}, pressed ${heldPill.pressed}`);
+  await q(ORG + '[data-a="rec"]', "click"); await page.waitForTimeout(50);
+  await page.evaluate(() => window.__status({})); await page.waitForTimeout(250);
+  const saved = await q(ORG + '[data-b="take"]', "text"), off = await q(ORG + '[data-a="rec"]'), calls2 = JSON.stringify(await page.evaluate(() => window.__rec));
+  row("click → stop(); the note says saved with the length, pill released", calls2 === '["start","stop"]' && saved === "saved 0:12" && off.pressed === "false", `calls ${calls2}, readout "${saved}", pressed ${off.pressed}`);
+  await shot("07-saved");
+  await page.evaluate(() => window.__recRefuse()); await q(ORG + '[data-a="rec"]', "click"); await page.waitForTimeout(50);
+  const refused = await q(ORG + '[data-b="take"]', "text");
+  row("a refused start (protected track, Kari hidden, no audio) says so", refused === "nothing to record", `readout "${refused}"`);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.evaluate(() => window.__status({ recording: true, recSeconds: 3, recHeld: false })); await page.waitForTimeout(50);
+  const rmDot = await dotOf();
+  row("reduced motion: the dot holds still while recording", rmDot.anim === "none", `dot anim ${rmDot.anim}`);
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.evaluate(() => { window.__status({}); delete window.__dock.deps.record; window.__dock.render(); });
 }
 const w = Math.max(...rows.map(r => r[1].length));
 console.log(rows.map(([s, n, d]) => `${s}  ${n.padEnd(w)}  ${d}`).join("\n"));

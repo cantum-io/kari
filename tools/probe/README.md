@@ -231,6 +231,18 @@ dropping the YouTube neutral apply fails Y2/Y3/Y5; dropping the SoundCloud apply
 feature (193f506) fails Y2 (`preservesPitch` stayed off) and Y6 (the late mount built a dock while hidden). The
 toolbar icon's click cannot be driven headless: its decision is `iconPlan` in `tests/sites.test.mjs`.
 
+### On the real sites (`hide-live.mjs`)
+
+The same switches on live youtube.com (default: the 60 bpm metronome) and a live soundcloud.com track (default: Jesse's
+own "sittin gin my room"), so it needs a desktop machine with the network to both. Rows LY1–LY3 and LS1–LS3: the dock
+mounts on the real player or bar, Speed + takes, hiding leaves the audio neutral, showing brings the dock and the
+remembered speed back. Waits out a YouTube pre-roll first. Exit `0` every row held · `1` a row failed · `2` no test build.
+
+```
+KARI_TEST_HOSTS=soundcloud npm run build
+node tools/probe/hide-live.mjs [youtube-url] [soundcloud-url] [--shots dir]
+```
+
 ## SoundCloud grant (`sc-grant.mjs`)
 
 How Kari gets onto soundcloud.com, on the **production** build, and the two orders that used to leave a blank page:

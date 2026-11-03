@@ -2,7 +2,7 @@
 import { DOCK_CSS } from "./dock.css";
 import { takeReadout, fmtTake, NOTE_MS, type TakeNote } from "./take-readout";
 declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
-declare const __KARI_RECORD__: boolean; // scripts/build.mjs: the take's row is compiled out of the public build with the recorder
+declare const __KARI_RECORD__: boolean; // scripts/build.mjs: the take's row is in by default; KARI_RECORD=0 compiles it out with the recorder
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
 import type { Settings, Skin, KariColor } from "../../shared/storage";
 import type { AudioStatus } from "../audio/controller";
@@ -29,7 +29,7 @@ export type DockDeps = {
   midi?: Midi;
   // the take (KARI_RECORD=1 builds): one pill, click to start, click again to stop and save. start() false = nothing to
   // record (protected track, Kari hidden, no audio); stop() resolves to the seconds saved, null when nothing was kept.
-  // Absent = no record path on this host (the public build, SoundCloud for now): the dock hides the row.
+  // Absent = no record path on this host (a KARI_RECORD=0 build, SoundCloud for now): the dock hides the row.
   record?: { start(): Promise<boolean>; stop(): Promise<number | null> };
 };
 
@@ -301,7 +301,7 @@ export class Dock {
     const loopsRow = this.shadow.querySelector(".loops") as HTMLElement | null; if (loopsRow) loopsRow.hidden = !this.deps.loop;
     this.$$('[data-b="tempo"]').forEach(el => { if (el.dataset.state !== tempoState) el.dataset.state = tempoState; });
     // the take: one pill under the loop row where a record path exists; pressed (rose) while a take runs, its dot still while
-    // held. Compiled out of the public build with the recorder (the block folds away under the define).
+    // held. Compiled out of a KARI_RECORD=0 build with the recorder (the block folds away under the define).
     if (__KARI_RECORD__) {
       const takeRow = this.shadow.querySelector(".take") as HTMLElement | null; if (takeRow) takeRow.hidden = !this.deps.record;
       const take = takeReadout(s, this.takeNote);
@@ -351,7 +351,7 @@ export class Dock {
         case "intro-ok": this.deps.saveSettings({ seenIntro: true }); break;
         case "hide-site": this.deps.saveSettings({ [HIDE_KEY[this.deps.site || "yt"]]: true }); break; // the page script parks Kari (src/shared/sites.ts)
         // the take: one pill, click to start, click again to stop and save (Jesse, 2026-11-03). The state comes back through setStatus.
-        case "rec": if (__KARI_RECORD__) {   // compiled out of the public build with the recorder
+        case "rec": if (__KARI_RECORD__) {   // compiled out of a KARI_RECORD=0 build with the recorder
           const r = this.deps.record; if (!r) break;
           if (this.status?.recording) r.stop().then(sec => this.note(sec === null ? "nothing recorded" : `saved ${fmtTake(sec)}`));
           else r.start().then(ok => { if (!ok) this.note("nothing to record"); else this.render(); });

@@ -2,6 +2,9 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
+## 0.7.0 · 2026-11-03
+Rec: one press under the loop row starts a practice take of what Kari plays, key, speed and loops included; a second press stops it and Chrome saves a 24-bit WAV plus a small JSON of your moves to your computer, every move a cue marker in the file. Pauses, ads, seeks and a hidden Kari are cut out of the take, never recorded as silence. YouTube only for now. Nothing is uploaded; the privacy policy and store listing say so. `KARI_RECORD=0 npm run build` is the build without it.
+
 ## 0.6.0 · 2026-11-03
 Hide Kari per site: a switch for YouTube and one for SoundCloud in her settings, and a "Hide Kari on …" button in her panel's gear. Hidden, she leaves the page and the audio plays as the site sends it; the key and speed she remembers for a song wait for her return, and her toolbar icon on that site's tab brings her back. The store listing and privacy policy now name SoundCloud and her current permissions.
 

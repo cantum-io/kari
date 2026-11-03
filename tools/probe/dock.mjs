@@ -12,6 +12,7 @@
 //   4b. In use (pointer on the panel, focus inside, a real click within 3 s) the panel is kept through the autohide;
 //      a synthetic click is not use.
 //   5. prefers-reduced-motion: no animation on the pills, the readout or the body.
+//   6. The take row (record pill) and, on a first run, the intro hint covering none of the panel's controls.
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -224,6 +225,24 @@ const ORG = '.skin[data-skin="org"] ';
   const rmDot = await dotOf();
   row("reduced motion: the dot holds still while recording", rmDot.anim === "none", `dot anim ${rmDot.anim}`);
   await page.emulateMedia({ reducedMotion: "no-preference" });
+  // First run with the take row: the intro hint may not land on a control (0.7.0's gate caught it over Hide and Full
+  // control on a real YouTube player). Every visible control's centre must hit that control, in Full control off and on.
+  await page.evaluate(() => { window.__status({}); window.__dock.deps.saveSettings({ seenIntro: false }); });
+  const covered = async () => page.evaluate(() => {
+    const sr = document.querySelector("#kari-dock").shadowRoot, ctl = sr.querySelector('.skin[data-skin="org"] .ctl'), out = [];
+    for (const el of ctl.querySelectorAll("button, input")) {
+      const r = el.getBoundingClientRect(); if (!r.width || !r.height || getComputedStyle(el).visibility !== "visible") continue;
+      const hit = sr.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      if (!hit || !(hit === el || el.contains(hit))) out.push(`${el.dataset.a || el.className}→${hit ? hit.dataset.el || hit.dataset.a || hit.className : "none"}`);
+    }
+    const it = sr.querySelector(".intro"); return { intro: !it.hidden, shown: getComputedStyle(it).display !== "none", out };
+  });
+  const c0 = await covered();
+  await page.evaluate(() => window.__dock.deps.saveSettings({ fullControl: true })); await page.waitForTimeout(50);
+  const c1 = await covered();
+  row("first run, take row shown: the intro covers no control (Full control off and on)", c0.intro && c1.intro && c0.shown && !c0.out.length && !c1.out.length, `intro unseen ${c0.intro}, drawn with Full control off ${c0.shown} / on ${c1.shown}; covered off [${c0.out.join(", ")}] on [${c1.out.join(", ")}]`);
+  await shot("08-intro-take");
+  await page.evaluate(() => window.__dock.deps.saveSettings({ fullControl: false, seenIntro: true }));
   await page.evaluate(() => { window.__status({}); delete window.__dock.deps.record; window.__dock.render(); });
 }
 const w = Math.max(...rows.map(r => r[1].length));

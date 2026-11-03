@@ -50,11 +50,20 @@ try {
   row("LR1", !!shown, `Rec pill on the dock: ${!!shown}`);
   if (!shown) throw new Error("no Rec pill");
 
-  await rec.click({ timeout: 5000 });
+  // A real click on the pill, YouTube's controls woken first (the panel fades with them and a faded panel takes no
+  // clicks), as tapfade.mjs does; the pill's aria-pressed says whether it took.
+  const press = async () => {
+    const b = await rec.boundingBox(); if (!b) throw new Error("no Rec pill box");
+    await yt.mouse.move(b.x - 40, b.y + 30); await sleep(150); await yt.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 4 }); await sleep(300);
+    await yt.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await sleep(300);
+    return rec.getAttribute("aria-pressed");
+  };
+  const p1 = await press();
   const t0 = Date.now();
-  for (let i = 0; i < SECS * 2; i++) { await yt.hover("#movie_player").catch(() => {}); await sleep(500); }
-  await rec.click({ timeout: 5000 });
+  for (let i = 0; i < SECS * 2; i++) { await yt.mouse.move(400 + (i % 2) * 20, 300); await sleep(500); }
+  const p2 = await press();
   const held = (Date.now() - t0) / 1000;
+  if (p1 !== "true" || p2 !== "false") console.log(`note: pill pressed after the first click ${p1}, after the second ${p2}`);
   const both = await until(async () => (got.some((f) => f.endsWith(".wav")) && got.some((f) => f.endsWith(".moves.json")) ? got : null), 10000);
   const wav = got.find((f) => f.endsWith(".wav")), moves = got.find((f) => f.endsWith(".moves.json"));
   row("LR2", !!both && /^kari-/.test(path.basename(wav || "")), `files: ${got.map((f) => path.basename(f)).join(" · ") || "none"} (pressed ${held.toFixed(1)} s apart)`);

@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const here = path.dirname(fileURLToPath(import.meta.url)), root = path.resolve(here, "../..");
 const argv = process.argv.slice(2);
 const opt = (k, d) => (argv.includes(k) ? argv[argv.indexOf(k) + 1] : d);
-const YT = argv.find((a) => /^https:\/\/www\.youtube\.com\/watch/.test(a)) || "https://www.youtube.com/watch?v=GGuqqK4-y20"; // 440 Hz sine, 10 min
+const YT = argv.find((a) => /^https:\/\/www\.youtube\.com\/watch/.test(a)) || "https://www.youtube.com/watch?v=_kEH-UyCMkQ"; // 440 Hz sine, one minute (no mid-roll ad can land in it)
 const SECS = Number(opt("--secs", "4"));
 const OUT = path.resolve(opt("--out", fs.mkdtempSync(path.join(os.tmpdir(), "kari-pitch-"))));
 fs.mkdirSync(OUT, { recursive: true });
@@ -71,15 +71,21 @@ try {
       await yt.mouse.click(b.x + b.width / 2, b.y + b.height / 2); await sleep(250);
     }
   };
-  const readout = () => yt.evaluate(() => { const sr = document.querySelector("#kari-dock")?.shadowRoot; return sr ? (sr.querySelector('[data-el="key"]')?.textContent || "") + " | " + (sr.querySelector('[data-el="speed"]')?.textContent || "") : ""; }).catch(() => "");
+  // The Rec pill, pressed until its aria-pressed says the take is where we want it (a click on a fading panel is lost).
+  const rec = async (want) => {
+    for (let i = 0; i < 3; i++) { await press("rec"); const p = await btn("rec").getAttribute("aria-pressed").catch(() => null); if (p === String(want)) return i + 1; await sleep(400); }
+    throw new Error(`Rec pill never read aria-pressed=${want}`);
+  };
+  const state = () => yt.evaluate(() => { const e = document.querySelector("#movie_player video"); return e ? `t ${e.currentTime.toFixed(1)} paused ${e.paused} rate ${e.playbackRate}` : "no video"; }).catch(() => "?");
   // One take: Rec, `secs` seconds (an action at the midpoint), Rec; the pair of files that lands.
   const take = async (secs, mid) => {
     const n0 = got.length;
-    await press("rec"); const t0 = Date.now(); let tMid = null;
+    const presses = [await rec(true)]; const t0 = Date.now(); let tMid = null;
     for (let i = 0; i < secs * 2; i++) { if (mid && i === secs) { await mid(); tMid = (Date.now() - t0) / 1000; } await yt.mouse.move(400 + (i % 2) * 20, 300); await sleep(500); }
-    await press("rec"); const held = (Date.now() - t0) / 1000;
+    presses.push(await rec(false)); const held = (Date.now() - t0) / 1000;
     await until(() => (got.length >= n0 + 2 ? got : null), 10000);
     const mine = got.slice(n0);
+    console.log(`take: ${held.toFixed(1)} s, Rec presses ${presses.join("+")}, video ${await state()}, files ${mine.map((f) => path.basename(f)).join(" · ") || "none"}`);
     return { wav: mine.find((f) => f.endsWith(".wav")), moves: mine.find((f) => f.endsWith(".moves.json")), held, tMid };
   };
   await sleep(1500);   // past the tone's own fade-in, if any, before the first take
@@ -97,11 +103,11 @@ try {
   row("TP3", Math.abs(b.hz - e6) / e6 < 0.015, `after Pitch + at ${t1.tMid?.toFixed(1)} s: ${b.hz.toFixed(2)} Hz, expected ${e6.toFixed(2)} (${((b.hz / e6 - 1) * 100).toFixed(2)} %)`);
 
   await press("st-", 6); await press("tempo-", 6); await sleep(800);
-  const ro = await readout();
+  const ro = await state();
   const t2 = await take(SECS);
   const c = t2.wav ? toneHz(t2.wav, 0.3, t2.held - 0.3) : { hz: 0 };
   const e94 = f0 * 0.94;
-  row("TP4", Math.abs(c.hz - e94) / e94 < 0.015, `0.94× take ${path.basename(t2.wav || "none")}: ${c.hz.toFixed(2)} Hz, expected ${e94.toFixed(2)} (${((c.hz / e94 - 1) * 100).toFixed(2)} %); dock read "${ro}"`);
+  row("TP4", Math.abs(c.hz - e94) / e94 < 0.015, `0.94× take ${path.basename(t2.wav || "none")}: ${c.hz.toFixed(2)} Hz, expected ${e94.toFixed(2)} (${((c.hz / e94 - 1) * 100).toFixed(2)} %); video ${ro}`);
 
   let m1 = null; try { m1 = JSON.parse(fs.readFileSync(t1.moves, "utf8")); } catch (_) { /* none */ }
   const pm = (m1?.moves || []).filter((x) => x.kind === "params");

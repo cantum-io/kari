@@ -82,7 +82,11 @@ import { memoryId } from "./track-key";
   }
 
   // HookStatus is AudioStatus plus route and ctxState. The "late" overlay (below) rides on top of what the hook says.
-  function setStatus(s: HookStatus) { status = s; dock?.setStatus(lateFault && !s.fault ? { ...s, fault: "late" } : s); }
+  function setStatus(s: HookStatus) {
+    status = s;
+    if (hidden && s.loop) loops.release(); // a latch that was in flight when Kari was hidden landed after the release: let it go too
+    dock?.setStatus(lateFault && !s.fault ? { ...s, fault: "late" } : s);
+  }
 
   // Injected after SoundCloud built its graph (it does so at hydration, ~6.5 s after load, before any click — measured
   // 2026-10-15): the hook cannot wrap a source node that already exists, and the page plays on without Kari. Say so on
@@ -121,8 +125,8 @@ import { memoryId } from "./track-key";
   function park() {
     if (!hidden) {
       hidden = true;
-      if (status.loop) loops.release();
-      post({ type: "apply", params: { ...DEFAULT_PARAMS, keyLock: params.keyLock, range: params.range } });
+      loops.release(); // always: status.loop is one round trip behind the hook (release on no loop is a no-op there)
+      post({ type: "apply", params: { ...DEFAULT_PARAMS, range: params.range } }); // key lock off: neutral means the track's own sound
       note("hidden on soundcloud");
     }
     dock?.destroy(); dock = null;

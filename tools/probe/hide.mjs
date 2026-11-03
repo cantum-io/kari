@@ -4,11 +4,14 @@
 // bridge's window messages) and chrome.storage from the service worker, never Kari's own readouts.
 // `KARI_TEST_HOSTS=soundcloud npm run build && node tools/probe/hide.mjs [--shots dir]`. Exit 0 = every row holds.
 //
-//   Y1  YouTube: the dock mounts; Speed + sets playbackRate 1.01 (and the memory for the video).
-//   Y2  Options switch "Hide on YouTube" → the dock leaves the player, playbackRate back to 1, storage says hidden.
+//   Y1  YouTube: the dock mounts; Speed + sets playbackRate 1.01 (and the memory for the video), preservesPitch off (vinyl).
+//   Y2  Options switch "Hide on YouTube" → the dock leaves the player, playbackRate back to 1, preservesPitch back on
+//       (the element's own pitch handling: YouTube's speed menu sounds as it does without Kari), storage says hidden.
 //   Y3  Hidden: the Alt+→ command does nothing; a reload stays hidden and the remembered 1.01 is not applied.
 //   Y4  Switch off → the dock is back and the song is where it was (1.01, from memory); Alt+→ now steps to 1.02.
 //   Y5  The dock's own settings button "Hide Kari on YouTube" hides her; the options switch reads on.
+//   Y6  The race: a watch page whose <video> arrives late (Kari's mount waiting for it), hidden meanwhile, then the
+//       video lands → no dock, playbackRate 1. Shown again → the dock comes up on that page.
 //   S1  SoundCloud (test build): the dock mounts on the bar; Speed + posts apply tempo 1 to the hook.
 //   S2  The dock's button "Hide Kari on SoundCloud" → dock gone, a neutral apply posted; YouTube unaffected.
 //   S3  Hidden: the command and a track change (back to the remembered one) post nothing; switch off → dock back, apply tempo 1 again; the command posts now.
@@ -24,6 +27,8 @@ if (shots) fs.mkdirSync(shots, { recursive: true });
 const EXT = path.join(root, "test-build", "soundcloud");
 if (!fs.existsSync(path.join(EXT, "manifest.json"))) { console.error("no test build: run KARI_TEST_HOSTS=soundcloud npm run build first"); process.exit(2); }
 
+const YT_LATE = `<!doctype html><html><head><title>fixture watch, video later</title></head><body style="margin:0;background:#0f0f0f">
+<div id="movie_player" class="html5-video-player" style="position:relative;width:960px;height:540px;background:#222"></div></body></html>`;
 const YT_PAGE = `<!doctype html><html><head><title>fixture watch</title></head><body style="margin:0;background:#0f0f0f">
 <div id="movie_player" class="html5-video-player" style="position:relative;width:960px;height:540px;background:#222">
 <video class="html5-main-video" muted playsinline style="width:100%;height:100%"></video></div></body></html>`;
@@ -37,7 +42,7 @@ const ctx = await chromium.launchPersistentContext(udd, {
   headless: true, channel: "chromium", viewport: { width: 1280, height: 800 },
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--no-first-run", "--mute-audio"],
 });
-await ctx.route("https://www.youtube.com/**", (r) => r.request().resourceType() === "document" ? r.fulfill({ contentType: "text/html", body: YT_PAGE }) : r.abort());
+await ctx.route("https://www.youtube.com/**", (r) => r.request().resourceType() === "document" ? r.fulfill({ contentType: "text/html", body: r.request().url().includes("probeLate") ? YT_LATE : YT_PAGE }) : r.abort());
 await ctx.route("https://soundcloud.com/**", (r) => r.request().resourceType() === "document" ? r.fulfill({ contentType: "text/html", body: SC_PAGE }) : r.abort());
 // The bridge's messages to the hook, as the page sees them (MAIN world, before any script).
 await ctx.addInitScript(() => { window.__b2h = []; window.addEventListener("message", (e) => { const d = e.data; if (d && d.dir === "b2h" && d.type === "apply") window.__b2h.push(d.params); }); });
@@ -54,6 +59,8 @@ async function until(fn, ms = 4000) { const t0 = Date.now(); let v; while (Date.
 
 const dockOn = (p, sel) => p.evaluate((s) => { const d = document.querySelector(s + " #kari-dock"); if (!d) return null; const r = d.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height) }; }, sel);
 const rate = (p) => p.evaluate(() => document.querySelector("video").playbackRate);
+const keepsPitch = (p) => p.evaluate(() => document.querySelector("video").preservesPitch);
+const setHide = (key, v) => sw.evaluate(async ([k, val]) => { const o = (await chrome.storage.sync.get("kari.settings"))["kari.settings"] || {}; await chrome.storage.sync.set({ "kari.settings": { ...o, [k]: val } }); }, [key, v]);
 const visible = (p, sel) => p.locator(`#kari-dock ${sel}`).filter({ visible: true }).first();
 
 async function openOptions() { const o = await ctx.newPage(); await o.goto(`chrome-extension://${extId}/options.html`); await o.waitForSelector('[data-bool="hideOnYouTube"]'); return o; }
@@ -68,7 +75,8 @@ try {
   await visible(yt, '[data-a="intro-ok"]').click().catch(() => {});
   await visible(yt, '[data-a="tempo+"]').click();
   const r1 = await until(async () => { const r = await rate(yt); return Math.abs(r - 1.01) < 1e-6 ? r : 0; });
-  row("Y1", !!d1 && Math.abs(r1 - 1.01) < 1e-6, `dock ${JSON.stringify(d1)} · playbackRate after Speed + = ${r1}`);
+  const pp1 = await keepsPitch(yt);
+  row("Y1", !!d1 && Math.abs(r1 - 1.01) < 1e-6 && pp1 === false, `dock ${JSON.stringify(d1)} · playbackRate after Speed + = ${r1} · preservesPitch ${pp1}`);
   if (shots) await yt.screenshot({ path: path.join(shots, "yt-shown.png") });
 
   const opt = await openOptions();
@@ -77,8 +85,8 @@ try {
   await yt.bringToFront();
   const gone = await until(async () => (await dockOn(yt, "#movie_player")) === null);
   const r2 = await until(async () => { const r = await rate(yt); return r === 1 ? 1 : 0; });
-  const s2 = await store();
-  row("Y2", gone && r2 === 1 && s2.hideOnYouTube === true && (await pressed(opt, "hideOnYouTube")) === "true", `dock gone=${gone} · playbackRate=${await rate(yt)} · storage hideOnYouTube=${s2.hideOnYouTube}`);
+  const s2 = await store(), pp2 = await keepsPitch(yt);
+  row("Y2", gone && r2 === 1 && pp2 === true && s2.hideOnYouTube === true && (await pressed(opt, "hideOnYouTube")) === "true", `dock gone=${gone} · playbackRate=${await rate(yt)} · preservesPitch ${pp2} · storage hideOnYouTube=${s2.hideOnYouTube}`);
   if (shots) await yt.screenshot({ path: path.join(shots, "yt-hidden.png") });
 
   const sent = await command(YT, "tempo-up"); await sleep(400);
@@ -102,6 +110,19 @@ try {
   const gone5 = await until(async () => (await dockOn(yt, "#movie_player")) === null);
   await opt.bringToFront(); const p5 = await until(async () => (await pressed(opt, "hideOnYouTube")) === "true" ? "true" : "", 2000);
   row("Y5", label === "Hide Kari on YouTube" && gone5 && p5 === "true" && (await rate(yt)) === 1, `button "${label}" → dock gone=${gone5} · options switch aria-pressed=${p5} · playbackRate=${await rate(yt)}`);
+
+  // Y6: shown, open a page whose video is late; hide while Kari's mount waits for it; then the video lands.
+  await setHide("hideOnYouTube", false); await sleep(300);
+  const late = await ctx.newPage();
+  await late.goto("https://www.youtube.com/watch?v=probeLate1"); await sleep(1200);
+  await setHide("hideOnYouTube", true); await sleep(500);
+  await late.evaluate(() => { const v = document.createElement("video"); v.className = "html5-main-video"; v.muted = true; document.getElementById("movie_player").appendChild(v); });
+  await sleep(1500);
+  const d6 = await dockOn(late, "#movie_player"), r6 = await late.evaluate(() => document.querySelector("video").playbackRate);
+  await setHide("hideOnYouTube", false);
+  const d6b = await until(() => dockOn(late, "#movie_player"));
+  row("Y6", d6 === null && r6 === 1 && !!d6b, `video arrived after the hide: dock=${JSON.stringify(d6)} playbackRate=${r6} · shown again: dock ${JSON.stringify(d6b)}`);
+  await setHide("hideOnYouTube", true); await late.close();
 
   // ---------- SoundCloud (test build: SoundCloud is a static host there) ----------
   const SC = "https://soundcloud.com/probe-user/probe-track";

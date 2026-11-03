@@ -220,10 +220,12 @@ KARI_TEST_HOSTS=soundcloud npm run build
 node tools/probe/hide.mjs [--shots dir]
 ```
 
-Rows Y1–Y5 (YouTube) and S1–S3 (SoundCloud): hide from the options switch and from the dock's own button, the audio
-back to neutral, the keyboard command and a track change inert while hidden, hidden across a reload, and the
-remembered speed back on show. Exit `0` every row held · `1` a row failed · `2` no test build. Mutation-checked
-2026-11-03: dropping the YouTube neutral apply fails Y2/Y3/Y5; dropping the SoundCloud apply gate fails S3. The
+Rows Y1–Y6 (YouTube) and S1–S3 (SoundCloud): hide from the options switch and from the dock's own button, the audio
+back to neutral with `preservesPitch` handed back to the element, the keyboard command and a track change inert while
+hidden, hidden across a reload, a hide that lands while the mount still waits for a late `<video>`, and the remembered
+speed back on show. Exit `0` every row held · `1` a row failed · `2` no test build. Mutation-checked 2026-11-03:
+dropping the YouTube neutral apply fails Y2/Y3/Y5; dropping the SoundCloud apply gate fails S3; the first cut of this
+feature (193f506) fails Y2 (`preservesPitch` stayed off) and Y6 (the late mount built a dock while hidden). The
 toolbar icon's click cannot be driven headless: its decision is `iconPlan` in `tests/sites.test.mjs`.
 
 ## SoundCloud grant (`sc-grant.mjs`)

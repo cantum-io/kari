@@ -15,7 +15,8 @@ let settings: Settings;
 let currentId = "";
 let saveTimer = 0;
 let lastSaved = "";   // what memory holds for currentId, to skip no-op writes (chrome.storage.sync has write quotas)
-let hidden = false;   // Settings.hideOnYouTube in force (src/shared/sites.ts): no dock, audio as YouTube sends it
+let hidden = false;   // the hide last acted on (park ran, not yet shown again); the setting itself is hiddenNow()
+const hiddenNow = () => !!settings?.hideOnYouTube;   // Settings.hideOnYouTube (src/shared/sites.ts): no dock, audio as YouTube sends it
 let statusWired = false; let wiredHost: HTMLElement | null = null;   // listeners go on once (per player element), not once per dock
 
 const urls = { worklet: chrome.runtime.getURL("worklet.js"), wasm: chrome.runtime.getURL("rubberband.wasm") };
@@ -40,7 +41,7 @@ async function applyParams(p: Params) {
 // keyboard is never taken.
 const LOOP_BEATS: Partial<Record<MidiAction, LoopBeats>> = { "loop-h": 0.5, "loop-1": 1, "loop-bar": 4, "loop-2bar": 8 };
 function loopAction(a: MidiAction) {
-  if (!audio || hidden) return;
+  if (!audio || hiddenNow()) return;
   const beats = LOOP_BEATS[a];
   if (beats) audio.toggleLoop(beats).then(ok => { if (ok) dock?.react(); dock?.render(); });
   else if (a === "tap") { audio.tap(); dock?.react(); }
@@ -49,12 +50,14 @@ function loopAction(a: MidiAction) {
 
 async function mount() {
   // The miniplayer keeps #movie_player alive on non-/watch URLs: stay mounted (Kari alone) and keep the video id.
-  if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
   settings = settings || await loadSettings();
-  if (settings.hideOnYouTube) { park(); return; }
+  if (hiddenNow()) { park(); return; }
   hidden = false;
+  if (!isWatchPage() && !isMiniplayer()) { unmount(); return; }
   const video = await waitForVideo(); const host = player();
   if (!video || !host) return;
+  // Every await is a window for the switch to move (options page, another tab): read it again after each one.
+  if (hiddenNow()) { park(); return; }
   if (getComputedStyle(host).position === "static") host.style.position = "relative";
   const id = videoId() || (isMiniplayer() ? currentId : "");
   if (id !== currentId) {
@@ -65,8 +68,10 @@ async function mount() {
     console.debug("[kari] mount", id, "memory:", mem ? JSON.stringify(mem) : "none");
     audio?.setGrid(null);   // the beat grid belongs to the song: a new video starts without one (and lets any loop go)
   }
+  if (hiddenNow()) { park(); return; }   // switched while the memory was read
   if (!audio) { audio = new AudioController(video, urls); audio.setEnginePreference(settings.engine); }
   else audio.rebind(video);
+  audio.park(false);   // shown: Kari holds the element's pitch handling again; the applyParams below puts the song back
   if (!midi) midi = new Midi(settings.midiMap, loopAction, (m) => { saveSettings({ midiMap: m }).then(s => { settings = s; }); }, (st) => dock?.setMidiState(st));
   if (dock && !host.contains(dock.hostEl)) { dock.destroy(); dock = null; } // player was re-created (miniplayer ↔ watch)
   if (!dock) {
@@ -109,10 +114,10 @@ function unmount() { dock?.destroy(); dock = null; }
 function park() {
   hidden = true;
   unmount();
-  if (audio) { audio.releaseLoop(); audio.apply({ ...DEFAULT_PARAMS, range: params.range, keyLock: params.keyLock }, true); }
+  audio?.park(true);   // loop released, neutral with key lock off, preservesPitch back to the element's own, no attach, no latch
 }
 /** The hide switch moved (options page, the dock's button, the toolbar icon): mount() hides or shows. */
-function syncHide() { if (!!settings?.hideOnYouTube !== hidden) mount(); }
+function syncHide() { if (hiddenNow() !== hidden) mount(); }
 
 function watchPlayerState(host: HTMLElement) {
   let wasMini = isMiniplayer();
@@ -127,7 +132,7 @@ function watchPlayerState(host: HTMLElement) {
 
 // keyboard commands from the service worker
 chrome.runtime.onMessage.addListener((m) => {
-  if (m?.type !== "kari:command" || !dock) return;
+  if (m?.type !== "kari:command" || !dock || hiddenNow()) return;
   const map: Record<string, () => Params> = { "pitch-up": () => stepSt(params, 1), "pitch-down": () => stepSt(params, -1), "tempo-up": () => stepTempo(params, 1), "tempo-down": () => stepTempo(params, -1) };
   const f = map[m.command]; if (f) { applyParams(f()); dock.react(); dock.render(); }
 });

@@ -2,6 +2,9 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
+## 0.9.0 · 2026-11-03
+On SoundCloud, her panel gets the bottom row it has on YouTube.
+
 ## 0.8.0 · 2026-11-03
 Two Karis on one page (a store copy beside an unpacked build) no longer fight for the audio in silence: the first to arrive owns the page, a later one stands down, and the panel says "two Karis are on this page — switch the other one off at chrome://extensions, then reload". An older copy that grabs the video first gets the same line instead of "couldn't reach the audio".
 

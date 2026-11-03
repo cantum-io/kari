@@ -56,6 +56,14 @@ button:active{transform:scale(.97)}
 .tro{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mute);white-space:nowrap}
 .tro[data-state="found"]{color:var(--bone-2)}
 .tro:empty{display:none}
+/* the take: one pill under the loop row (KARI_RECORD=1 builds; hidden where there is no record path). Rose is the take's
+   color as cyan is the loop's and amber the compare hold's; the dot breathes while frames are kept, holds still while held. */
+.take{display:flex;align-items:center;gap:6px}
+.loops[hidden],.take[hidden]{display:none}   /* an author display beats the UA's [hidden]; say it here (the dock probe caught the take row showing with no record path) */
+.pill.rec{display:inline-flex;align-items:center;gap:5px}
+.pill.rec .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.pill.rec[aria-pressed="true"]{background:var(--rose);color:var(--ink);border-color:var(--rose)}
+.pill.rec[data-held="1"] .dot{opacity:.35}
 .pill[data-arm="1"]{border-color:var(--amber);color:var(--amber)}
 button:disabled{opacity:.35;cursor:default}
 button:disabled:active{transform:none}
@@ -72,6 +80,9 @@ button:disabled:active{transform:none}
   /* the readout breathes while the detector listens (the six seconds after play), then holds still */
   .tro[data-state="learning"]{animation:kari-learn 1.6s ease-in-out infinite}
   @keyframes kari-learn{50%{opacity:.45}}
+  /* the record dot breathes while frames are kept (not while held, not under reduced motion) */
+  .pill.rec[aria-pressed="true"]:not([data-held="1"]) .dot{animation:kari-rec 1.2s ease-in-out infinite}
+  @keyframes kari-rec{50%{opacity:.2}}
 }
 .rowend{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .hidebtn{font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute);padding:2px 0;text-decoration:underline dotted}

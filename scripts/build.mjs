@@ -39,8 +39,12 @@ function sourceHash() {
   for (const f of ["scripts/build.mjs", "package-lock.json"]) { h.update(f); h.update(fs.readFileSync(path.join(root, f))); }
   return h.digest("hex").slice(0, 8);
 }
-const stamp = process.argv.includes("--watch") ? "dev" : `${pkgJson.version}+${sourceHash()}`;
-const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __KARI_BUILD__: JSON.stringify(stamp) } };
+// The take (record to WAV, docs/RECORD-2026-11-03.md) is compiled out of the public build: `KARI_RECORD=1 npm run build`
+// (or `npm run zip`) puts it in and marks the stamp "+rec". The committed extension/ is always the public build.
+const RECORD = process.env.KARI_RECORD === "1";
+const stamp = (process.argv.includes("--watch") ? "dev" : `${pkgJson.version}+${sourceHash()}`) + (RECORD ? "+rec" : "");
+if (RECORD) console.log("KARI_RECORD=1: the take is compiled in (local build, not for the store)");
+const common = { bundle: true, sourcemap: false, target: ["chrome120"], legalComments: "eof", logLevel: "info", define: { "process.env.NODE_ENV": '"production"', __KARI_BUILD__: JSON.stringify(stamp), __KARI_RECORD__: String(RECORD) } };
 const entries = [
   { entryPoints: [path.join(root, "src/content/index.ts")], outfile: path.join(out, "content.js"), format: "iife" },
   { entryPoints: [path.join(root, "src/worklet/processor.js")], outfile: path.join(out, "worklet.js"), format: "iife" },

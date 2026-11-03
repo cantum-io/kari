@@ -6,6 +6,8 @@ import { loadSettings, saveSettings, onSettingsChange, loadVideo, saveVideo, typ
 import { DEFAULT_PARAMS, type Params, isNeutral, stepSt, stepTempo } from "../shared/math";
 import { Midi, type MidiAction } from "./midi";
 import type { LoopBeats } from "./beat/grid";
+import { downloadTake, type Take } from "./audio/recorder";
+declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: the take is compiled out of the public build
 
 let audio: AudioController | null = null;
 let dock: Dock | null = null;
@@ -143,6 +145,14 @@ chrome.runtime.onMessage.addListener((m) => {
   get grid() { return audio?.getGrid() ?? null; }, get midi() { return midi; },
   tap: () => audio?.tap() ?? null, setBpm: (b: number) => audio?.setBpm(b), latch: (beats: LoopBeats) => audio?.latchLoop(beats), release: () => audio?.releaseLoop(),
   toggle: (beats: LoopBeats) => audio?.toggleLoop(beats), get tempo() { return audio?.detectorState ?? null; }, get estimate() { return audio?.lastEstimate ?? null; }, get tempoDebug() { return audio?.detectorDebug ?? null; },
+  // The take (no dock button yet; KARI_RECORD=1 builds only): __kari.record.start() … __kari.record.stop() → a Take;
+  // __kari.record.save(take) downloads the WAV and the moves. Null in the public build.
+  record: __KARI_RECORD__ ? {
+    start: () => audio ? audio.startRecording({ site: "yt", track: currentId, title: document.title.replace(/ - YouTube$/, "") }) : Promise.resolve(false),
+    stop: () => audio ? audio.stopRecording() : Promise.resolve(null),
+    save: (t: Take) => downloadTake(t),
+    get on() { return !!audio?.status.recording; },
+  } : null,
 };
 
 onSettingsChange(s => { settings = s; dock?.applySettings(s); audio?.setEnginePreference(s.engine); midi?.setMap(s.midiMap || {}); syncHide(); });

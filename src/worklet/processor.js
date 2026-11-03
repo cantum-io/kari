@@ -8,6 +8,7 @@ import { RubberBandInterface, RubberBandOption as O } from "rubberband-wasm";
 import SignalsmithFactory from "./generated/signalsmith-core.js";
 import { LoopStage, DelayLine } from "./loop.js";
 import { OnsetFeature } from "../content/beat/detect";
+import { RecorderStage } from "./recorder.js";
 
 const QUANTUM = 128;
 const RING = 1 << 15; // 32768 frames per channel, ~680 ms at 48k — plenty for pitch-ratio jitter
@@ -229,4 +230,39 @@ class KariProcessor extends AudioWorkletProcessor {
   }
 }
 
+/**
+ * The take: a second processor in the same bundle, hung off the chain's meeting point by the controller only while a
+ * take runs (src/content/audio/recorder.ts). No outputs: it copies what it is given and posts it on. Armed by
+ * processorOptions.on from its first render quantum (a "rec on" message would race the first quanta: an offline
+ * context renders thousands of frames before the port delivers it). Messages: { type: "rec", on } starts or stops
+ * (a stop flushes the partial chunk and answers { type: "flushed" }); { type: "close" } lets the node go.
+ */
+// Compiled out of the public build (scripts/build.mjs defines __KARI_RECORD__; KARI_RECORD=1 puts it in).
+if (__KARI_RECORD__) {
+  class KariRecorder extends AudioWorkletProcessor {
+    constructor(options) {
+      super(options);
+      const po = (options && options.processorOptions) || {};
+      this.alive = true;
+      this.stage = new RecorderStage(2, po.chunkFrames || undefined, (c) => {
+        try { this.port.postMessage({ type: "chunk", frame: c.frame, frames: c.frames, peak: c.peak, data: c.data }, c.data.map(d => d.buffer)); } catch (_) { /* port closed */ }
+      });
+      if (po.on) this.stage.start();
+      this.port.onmessage = (e) => {
+        const m = e.data || {};
+        if (m.type === "rec") {
+          if (m.on) this.stage.start();
+          else { this.stage.stop(); try { this.port.postMessage({ type: "flushed", frame: currentFrame, total: this.stage.total }); } catch (_) { /* port closed */ } }
+        } else if (m.type === "close") { this.stage.stop(); this.alive = false; }
+      };
+    }
+    process(inputs) {
+      if (!this.alive) return false;
+      const input = inputs[0] || [];
+      this.stage.push(input, input.length ? input[0].length : QUANTUM, currentFrame);
+      return true;
+    }
+  }
+  registerProcessor("kari-recorder", KariRecorder);
+}
 registerProcessor("kari-processor", KariProcessor);

@@ -201,8 +201,9 @@ test("accept: same window, same origin, namespace, direction and nonce; handshak
 });
 
 test("sanitizeStatus rebuilds a safe status from hostile input", () => {
-  const s = sanitizeStatus({ attached: "yes", engine: "evil", engineLatencyMs: 1e12, avOffsetMs: -5, underruns: NaN, load: "x", fault: "<img>", baseRate: Infinity, route: "late", ctxState: "running".repeat(10) });
-  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", route: "late", ctxState: "runningrunningru" });
+  const s = sanitizeStatus({ attached: "yes", engine: "evil", engineLatencyMs: 1e12, avOffsetMs: -5, underruns: NaN, load: "x", fault: "<img>", baseRate: Infinity, route: "late", ctxState: "running".repeat(10), recording: "yes", recFrames: -1 });
+  assert.deepEqual(s, { attached: false, engine: "bypass", engineLatencyMs: 5000, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", route: "late", ctxState: "runningrunningru", recording: false, recFrames: 0 });
+  assert.deepEqual([sanitizeStatus({ recording: true, recFrames: 48000 }).recording, sanitizeStatus({ recording: true, recFrames: 48000 }).recFrames, sanitizeStatus({ recFrames: 1e11 }).recFrames], [true, 48000, 1e10]);
   assert.equal(sanitizeStatus(null).engine, "bypass");
   assert.equal(sanitizeStatus({ attached: true, engine: "r3", fault: "drm-silent", route: 0 }).fault, "drm-silent");
 });

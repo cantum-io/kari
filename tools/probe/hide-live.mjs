@@ -75,8 +75,16 @@ try {
   // ---------- SoundCloud (test build: soundcloud.com is a static host there) ----------
   const sc = await ctx.newPage();
   await sc.goto(SC, { waitUntil: "domcontentloaded" });
-  await sc.click("#onetrust-accept-btn-handler", { timeout: 8000 }).catch(() => {});
-  await sc.click(".sound__header .playButton, .playButton", { timeout: 8000 }).catch(() => {});
+  // As soundcloud.mjs: the cookie banner's opt-out, the sign-in dialog closed, then play retried every 2 s until the bar
+  // says playing (a click before the player hydrates is dropped; a click while it loads would pause it).
+  await sc.locator("#onetrust-close-btn-handler").first().click({ timeout: 5000 }).catch(() => {});
+  await sc.locator(".modal__closeButton").first().click({ timeout: 3000 }).catch(() => {});
+  const barState = () => sc.evaluate(() => { const b = document.querySelector(".playControls__play"); return b ? (b.classList.contains("playing") ? "playing" : "idle") : "none"; }).catch(() => "none");
+  const playSel = [".playControls .playControls__play:not(.disabled)", ".sc-button-play.playButton", ".fullHero__playButton .sc-button-play", ".sc-button-play:not(.disabled)"];
+  for (const end = Date.now() + 25000; Date.now() < end && (await barState()) !== "playing";) {
+    for (const s of playSel) { const l = sc.locator(s).first(); if (await l.isVisible().catch(() => false)) { await l.click({ timeout: 3000 }).catch(() => {}); break; } }
+    await sleep(2000);
+  }
   const ds1 = await until(() => dockOn(sc, ".playControls"), 20000);
   await visible(sc, '[data-a="intro-ok"]').click({ timeout: 2000 }).catch(() => {});
   await sc.evaluate(() => { window.__b2h.length = 0; });

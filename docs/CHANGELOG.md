@@ -2,6 +2,9 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
+## 0.6.0 · 2026-11-03
+Hide Kari per site: a switch for YouTube and one for SoundCloud in her settings, and a "Hide Kari on …" button in her panel's gear. Hidden, she leaves the page and the audio plays as the site sends it; the key and speed she remembers for a song wait for her return, and her toolbar icon on that site's tab brings her back. The store listing and privacy policy now name SoundCloud and her current permissions.
+
 ## 0.5.0 · 2026-10-15
 The control panel stays while it is in use: a pointer parked on it, focus inside it, or a tap or click in the last 3 s holds it through YouTube's control fade, so a tap burst never pauses the video. Kari herself still never fades. Auto tempo reads onsets against a 30 ms memory instead of the previous frame alone, so a dense mix no longer reads as twelve onsets a second and the detector commits on tracks it used to give up on.
 

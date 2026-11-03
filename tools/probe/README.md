@@ -243,6 +243,19 @@ KARI_TEST_HOSTS=soundcloud npm run build
 node tools/probe/hide-live.mjs [youtube-url] [soundcloud-url] [--shots dir]
 ```
 
+### A take on the real site (`record-live.mjs`)
+
+The default build (record on) on a live youtube.com watch page: Rec pressed twice through the dock, and the two files
+the browser receives read back by ffprobe and ffmpeg, never by Kari's own writer. Rows LR1–LR5: the Rec pill is on the
+dock; one `.wav` and one `.moves.json` arrive, named `kari-…`; the WAV is 24-bit stereo PCM lasting the time between
+the presses (±1.5 s); it is not silence (max volume above −60 dB); the moves run `start … stop` and name the build.
+Needs ffprobe and ffmpeg on PATH. Exit `0` every row held · `1` a row failed.
+
+```
+npm run build
+node tools/probe/record-live.mjs [youtube-url] [--secs 6] [--out dir]
+```
+
 ## SoundCloud grant (`sc-grant.mjs`)
 
 How Kari gets onto soundcloud.com, on the **production** build, and the two orders that used to leave a blank page:

@@ -1,7 +1,7 @@
-# Chrome Web Store listing — Kari 0.6.0
+# Chrome Web Store listing — Kari 0.7.0
 
 Publisher: the Cantum Google account, display name **YGG HOMME**. Jesse pastes and clicks submit. The product name never
-contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.6.0 upload. The live listing (read
+contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.7.0 upload. The live listing (read
 2026-11-03) is 0.4.0 with the 0.1.x text (youtube.com only); this file replaces that text field by field.
 
 ## Title (≤45)

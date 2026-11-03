@@ -27,6 +27,7 @@ How it works
 • Slide left to slow the song down, right to speed it up. The pitch rides the speed, like a record, until you turn on key lock.
 • Tap Pitch − or + to change the key a semitone at a time, from −12 to +12.
 • Tap ½, 1, 1 bar or 2 bars to loop that much of the song. Tap it again and the song carries on where it would have been.
+• Tap Rec for a practice take: what Kari plays, at your key and speed, saved to your computer as a WAV file with every move you made as a marker. Tap it again to stop.
 • Kari reads the tempo herself after about six seconds. Tap tempo, or type a bpm, to override her.
 • Everything starts at zero, and one tap resets it.
 • Hide Kari on YouTube or on SoundCloud from her settings or the gear on her panel. Her toolbar icon brings her back.

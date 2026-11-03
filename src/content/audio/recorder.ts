@@ -12,12 +12,13 @@
 import { WavWriter, wavBlob, wavBytes } from "../../shared/wav";
 import type { Params } from "../../shared/math";
 
-export type MoveKind = "start" | "params" | "loop" | "seek" | "hold" | "resume" | "stop";
+export type MoveKind = "start" | "params" | "loop" | "seek" | "hold" | "resume" | "volume" | "stop";   // volume: the page's slider moved (data: volume, muted, gain)
 export type TakeMove = { frame: number; t: number; kind: MoveKind; data?: Record<string, unknown> };
-export type TakeMeta = { site?: string; track?: string; title?: string; build?: string; params: Params };
+export type TakeMeta = { site?: string; track?: string; title?: string; build?: string; volume?: number; muted?: boolean; params: Params };   // volume/muted: the element at the start (the tap undoes the slider, src/content/audio/takegain.ts)
 export type TakeLog = {
   version: 1; kari: string; startedAt: string; site?: string; track?: string; title?: string;
   sampleRate: number; channels: number; bits: number; frames: number; seconds: number; dropped: number; peak: number;
+  volume?: number; muted?: boolean;   // the page's slider at the start; the take is at the engine's level regardless
   params: Params; moves: TakeMove[];
 };
 export type Take = { wav: Blob; bytes: number; log: TakeLog; frames: number; seconds: number; sampleRate: number; channels: number; peak: number; dropped: number; startedAt: string };
@@ -145,6 +146,7 @@ export class Recorder {
     const log: TakeLog = {
       version: 1, kari: this.meta.build || "", startedAt: this.startedAt, site: this.meta.site, track: this.meta.track, title: this.meta.title,
       sampleRate: this.ctx.sampleRate, channels: 2, bits: 24, frames: w.frames, seconds: +w.seconds.toFixed(4), dropped: this._dropped, peak: +this._peak.toFixed(6),
+      ...(this.meta.volume !== undefined ? { volume: this.meta.volume, muted: !!this.meta.muted } : {}),
       params: this.meta.params, moves,
     };
     return { wav: wavBlob(parts), bytes: wavBytes(parts), log, frames: w.frames, seconds: w.seconds, sampleRate: this.ctx.sampleRate, channels: 2, peak: this._peak, dropped: this._dropped, startedAt: this.startedAt };

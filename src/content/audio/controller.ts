@@ -6,6 +6,7 @@ import { type BeatGrid, type LoopBeats, loopPlan, withBpm, nudgeBpm } from "../b
 import { TapTempo } from "../beat/tap";
 import { AutoBeatDetector, tempoPhase, type OnsetBatch, type DetectorState, type TempoEstimate, type TempoPhase } from "../beat/detect";
 import { Recorder, type Take, type TakeMeta } from "./recorder";
+import { takeGain } from "./takegain";
 declare const __KARI_RECORD__: boolean;   // scripts/build.mjs: the take is in by default; KARI_RECORD=0 compiles it out
 
 export type EngineName = "r3" | "ss" | "bypass";
@@ -312,6 +313,7 @@ export class AudioController {
   /* ---------------- the take ---------------- */
   private recorder: Recorder | null = null;
   private recEmit = 0;
+  private recTap: { comp: GainNode; off: () => void } | null = null;   // analyser → comp (1/slider) → the recorder
   get take() { return this.recorder; }
   /**
    * Start a take at the chain's meeting point: what reaches the output, at the pitch and speed in force, every move
@@ -326,12 +328,20 @@ export class AudioController {
       if (this.parked) return false;   // hidden on this site: nothing to record
       if (!this.src) await this.attach();
       if (!this.src || !this.ctx || !this.analyser || this._status.fault === "drm-silent") return false;
-      const sr = this.ctx.sampleRate;
-      const r = new Recorder(this.ctx, this.analyser, { ...meta, params: this.params }, {
+      const sr = this.ctx.sampleRate, ctx = this.ctx, video = this.video;
+      // The tap sits after the page's volume slider (Chrome scales the element's audio before Web Audio sees it), so a
+      // gain of 1/slider puts the take at the engine's level; it follows the slider for the whole take and every move
+      // is logged. src/content/audio/takegain.ts; the live check is tools/probe/record-live.mjs LR6.
+      const comp = ctx.createGain(); comp.gain.value = takeGain(video.volume, video.muted);
+      this.analyser.connect(comp);
+      const r = new Recorder(ctx, comp, { ...meta, params: this.params, volume: video.volume, muted: video.muted }, {
         onProgress: (frames) => { const now = performance.now(); if (now - this.recEmit > 250) { this.recEmit = now; this.emit({ recSeconds: Math.floor(frames / sr * 10) / 10 }); } },
         onHold: (held) => this.emit({ recHeld: held }),
       });
       this.recorder = r;
+      const onVolume = () => { const gain = takeGain(video.volume, video.muted); comp.gain.setValueAtTime(gain, ctx.currentTime); r.mark("volume", { volume: +video.volume.toFixed(4), muted: video.muted, gain: +gain.toFixed(4) }); };
+      video.addEventListener("volumechange", onVolume);
+      this.recTap = { comp, off: () => { video.removeEventListener("volumechange", onVolume); try { this.analyser?.disconnect(comp); } catch (_) { /* graph rebuilt */ } } };
       r.start();
       if (!AudioController.isPlaying(this.video) || this.adActive) r.hold();   // nothing to keep until it plays
       this.emit({ recording: true, recSeconds: 0, recHeld: r.holding });
@@ -343,7 +353,7 @@ export class AudioController {
   async stopRecording(): Promise<Take | null> {
     const r = this.recorder; if (!r) return null;
     this.recorder = null;
-    try { return await r.stop(); } finally { this.emit({ recording: false, recSeconds: 0, recHeld: false }); }
+    try { return await r.stop(); } finally { this.recTap?.off(); this.recTap = null; this.emit({ recording: false, recSeconds: 0, recHeld: false }); }
   }
 
   /** Hold-to-compare: true = hear the untouched (delay-matched) signal. */

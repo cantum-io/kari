@@ -103,6 +103,7 @@ try {
   row("Y4", !!d4 && Math.abs(r4a - 1.01) < 1e-6 && Math.abs(r4b - 1.02) < 1e-6, `dock back ${JSON.stringify(d4)} · playbackRate ${r4a} (memory restored) · Alt+→ now → ${r4b} · storage hideOnYouTube=${(await store()).hideOnYouTube}`);
 
   await visible(yt, '[data-el="gear"]').click();
+  await visible(yt, '.tab[data-tab="page"]').click();   // 0.11.0: the hide button lives on the settings' Page tab
   const btn = visible(yt, '[data-a="hide-site"]');
   const label = (await btn.textContent())?.trim();
   if (shots) await yt.screenshot({ path: path.join(shots, "yt-settings.png") });
@@ -137,6 +138,7 @@ try {
 
   await sc.evaluate(() => { window.__b2h.length = 0; });
   await visible(sc, '[data-el="gear"]').click();
+  await visible(sc, '.tab[data-tab="page"]').click();   // 0.11.0: the hide button lives on the settings' Page tab
   const scBtn = visible(sc, '[data-a="hide-site"]'); const scLabel = (await scBtn.textContent())?.trim();
   if (shots) await sc.screenshot({ path: path.join(shots, "sc-settings.png") });
   await scBtn.click();

@@ -2,6 +2,9 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
+## 0.10.0 · 2026-11-09
+Kari runs the same on Windows, Linux and Chromebooks as on a Mac. Her keyboard shortcuts there are Alt+Shift+arrows, because Alt+arrows alone are Chrome's own back, forward, page up and page down keys on those systems (the Mac keeps Alt+arrows); her settings page shows the keys Chrome has actually bound on your machine; her Full-control panel stays inside a small or scaled-up player (a 1366×768 laptop at 125 %) and scrolls instead of running off its bottom; a machine too slow for the engine now says so on the dock instead of quietly playing the song untouched; and the store turns away a Chrome older than 124 instead of installing a Kari that cannot run there.
+
 ## 0.9.0 · 2026-11-03
 On SoundCloud, her panel gets the bottom row it has on YouTube.
 

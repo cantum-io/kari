@@ -18,7 +18,7 @@ export type AudioStatus = {
   avOffsetMs: number;        // sound behind picture, total
   underruns: number;
   load: number;              // 0..1 of the audio budget
-  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late" | "duplicate";   // duplicate: another Kari holds this page (src/content/duplicate.ts)
+  fault: null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late" | "duplicate" | "busy";   // busy: the step-down ladder reached bypass (a slow machine)   // duplicate: another Kari holds this page (src/content/duplicate.ts)
   baseRate: number;          // YouTube's own speed menu, 1.0 normally
   loop: LoopBeats | 0;       // latched loop length in beats, 0 = none
   loopMs: number;            // its length in real-time ms
@@ -560,6 +560,8 @@ export class AudioController {
       this.hotBlocks = 0;
       if (this.tier === "r3") this.tier = "ss"; else if (this.tier === "ss") this.tier = "bypass";
       this.applyEngine();
+      // Bypass drops the key change: say so on the dock (she naps) instead of a silent wire (platform audit, 2026-11-09).
+      if (this.tier === "bypass" && !this._status.fault) this.emit({ fault: "busy" });
     }
   }
   private updateAv() {

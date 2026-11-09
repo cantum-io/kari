@@ -35,8 +35,8 @@ export type DockDeps = {
 };
 
 const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
-  yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page so Kari can reach the player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload" },
-  sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page once — Kari arrived after SoundCloud set up its player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload" },
+  yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page so Kari can reach the player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload", "busy": "this machine is busy — playing the song as it is; reload to try again" },
+  sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page once — Kari arrived after SoundCloud set up its player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload", "busy": "this machine is busy — playing the track as it is; reload to try again" },
 };
 const LOOP_ACTION: Record<string, MidiAction> = { "0.5": "loop-h", "1": "loop-1", "4": "loop-bar", "8": "loop-2bar", tap: "tap" };
 const LOOP_PILLS = LOOP_BEATS.map(b => `<button class="pill loop" data-a="loop" data-v="${b}" aria-pressed="false" aria-label="${loopAria(b)}" disabled>${loopLabel(b)}</button>`).join("");
@@ -207,6 +207,11 @@ export class Dock {
     host.appendChild(wrap);
     this.root = this.shadow.querySelector(".root") as HTMLElement;
     this.root.dataset.site = deps.site || "yt";
+    // The panel stays inside the player box. A 1366×768 laptop at Windows' default 125% scale gives YouTube a player
+    // about 348 px tall, and the Full-control panel (370 to 400 px) ran past its bottom with Hide and the toggle cut
+    // off (platform audit, 2026-11-09). The wrapper fills the host, so its height goes to the root as --host-h and
+    // .org .ctl caps itself at 90 % of it and scrolls (dock.css.ts). SoundCloud mounts on the page, not a box: exempt.
+    try { new ResizeObserver((es) => { const h = es[0]?.contentRect.height || 0; if (h) this.root.style.setProperty("--host-h", `${Math.round(h)}px`); }).observe(wrap); } catch (_) { /* no ResizeObserver */ }
     this.el("hidesite").textContent = `Hide Kari on ${SITE_NAME[deps.site || "yt"]}`;
     this.seedStars();
     this.wire();

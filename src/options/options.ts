@@ -34,6 +34,19 @@ document.addEventListener("click", (e) => {
   else if (el.id === "scPerm") (scGranted ? chrome.permissions.remove(SC) : chrome.permissions.request(SC)).then(renderSc, renderSc); // request needs this click's gesture
 });
 renderSc();
+
+// Shortcuts: the line shows what Chrome has bound on this machine. The manifest's defaults differ per platform
+// (Alt+Shift+arrows; Alt+arrows on a Mac, where Alt+Left/Right are not Chrome's back and forward keys) and the user
+// may have changed them at chrome://extensions/shortcuts; an unbound command reads "not set".
+async function renderShortcuts() {
+  const el = document.getElementById("shortcutList"); if (!el) return;
+  try {
+    const all = await chrome.commands.getAll();
+    const key = (n: string) => all.find(c => c.name === n)?.shortcut || "not set";
+    el.textContent = `${key("pitch-up")} / ${key("pitch-down")} pitch \u00b7 ${key("tempo-up")} / ${key("tempo-down")} speed.`;
+  } catch (_) { /* no commands API: the static line stays */ }
+}
+renderShortcuts();
 try { chrome.permissions.onAdded.addListener(renderSc); chrome.permissions.onRemoved.addListener(renderSc); } catch (_) { /* no permissions API */ }
 
 loadSettings().then(render);

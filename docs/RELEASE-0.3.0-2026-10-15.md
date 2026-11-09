@@ -19,8 +19,8 @@ one **Reload** on the card. Nothing pushed, no store update.
 
 ## The SoundCloud no-show, in order (the full record: `docs/LIVE-PROBE.md`, "If nothing appears on SoundCloud")
 
-1. **The permission had never been granted.** The live profile is Chrome's "Profile 16" (jesse@wdconstructions.com,
-   managed) — not "Default", which is the amaixamai@gmail.com YouTube profile also named Jesse. Its prefs showed the
+1. **The permission had never been granted.** The live profile is the managed work profile (Chrome Profile 16)
+   — not "Default", which is the amaixamai@gmail.com YouTube profile also named Jesse. Its prefs showed the
    unpacked Kari enabled, worker started, granted hosts youtube.com only, no dynamic scripts. No policy anywhere.
 2. **`ERR_BLOCKED_BY_CLIENT` on the options URL was a mistyped id** (31 characters, missing an "i"): Chromium answers
    exactly that for any id it does not have; the right id loads the page.
@@ -48,7 +48,7 @@ one **Reload** on the card. Nothing pushed, no store update.
 
 ## What only Jesse's Chrome can verify (in this order)
 
-1. `chrome://extensions` in the **jesse@wdconstructions.com** profile: Reload on the Kari card (0.3.0 shows on the
+1. `chrome://extensions` in **the managed work profile (Chrome Profile 16)**: Reload on the Kari card (0.3.0 shows on the
    card after the reload). The SoundCloud switch you turned on stays on across the reload.
 2. Open `soundcloud.com` → **new tab** (or reload the one that is open) → play any free track. Expect: the dock above
    the bottom bar at the right, Kari's blob at its bottom-right, gear at the left; the loop row (½ · 1 · 1 bar · 2 bars)

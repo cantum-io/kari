@@ -27,7 +27,7 @@ Load unpacked: `chrome://extensions` → Developer mode → Load unpacked → `e
 - **The one-pass rule is settled.** Speed rides the `<video>` element (`playbackRate`, `preservesPitch=false`); one engine applies only a pitch ratio. Never two lossy passes. Never SoundTouch or delay-line shifters.
 - **Silence is never acceptable.** Any engine failure falls back to a straight wire.
 - **Hook only the `<video>` and `#movie_player`.** Never YouTube's control-bar class names.
-- **Permissions stay at `storage` + the youtube.com host.** No remote code, no telemetry, no accounts.
+- **Permissions stay at `storage`, `scripting`, `activeTab` + the youtube.com host, with soundcloud.com optional and granted by the user.** No remote code, no telemetry, no accounts.
 - **Free, no paid tier, no gating.**
 - **Motion is transform/opacity only** and honours `prefers-reduced-motion`.
 

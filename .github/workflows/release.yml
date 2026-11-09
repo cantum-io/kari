@@ -17,6 +17,12 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      # The zip is built from the tag, so the tag must name the version the package carries.
+      - name: Tag is v + package.json version
+        run: |
+          tag="${{ github.event.release.tag_name }}"
+          want="v$(node -p "require('./package.json').version")"
+          test "$tag" = "$want" || { echo "release tag $tag, but package.json says $want"; exit 1; }
       - run: npm ci
       - run: npm run build
       - name: Committed extension/ matches a fresh build

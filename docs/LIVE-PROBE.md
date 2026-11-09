@@ -157,7 +157,7 @@ section). Row S13 had never been checked visually, only by DOM presence. Fixed i
 1440×900 and 1280×720 show the panel above the bar, blob bottom-right, gear left; the probe's B2/B3 rows now require
 visible + on screen + hit-tested, never DOM presence.
 
-The live profile that night was Chrome's "Profile 16" (jesse@wdconstructions.com, managed), not
+The live profile that night was the managed work profile (Chrome Profile 16), not
 "Default" (that is the amaixamai@gmail.com profile — the YouTube account — also named "Jesse"). In Profile 16 the
 unpacked Kari (`nljfopkjcihikbhbjfbggdemilelmokh`, which is exactly the id Chrome derives from
 `…/~:Projects:kari/kari/extension`) was installed at 00:45:47 PT, enabled, its service worker had run, and its

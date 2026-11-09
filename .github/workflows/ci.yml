@@ -25,8 +25,10 @@ jobs:
         run: npx tsc --noEmit -p .
       # The offline probes (tools/probe/README.md): headless Chromium through Playwright; youtube.com and soundcloud.com
       # are fixture pages, nothing is fetched. Playwright is not a dependency of the extension, so the harness installs
-      # it here the way the README does (tools/probe/package.json is gitignored). ffmpeg, ffprobe and python3 are on
-      # the runner image.
+      # it here the way the README does (tools/probe/package.json is gitignored). record.mjs and record-sc.mjs read
+      # the files back with ffprobe and ffmpeg, which the runner image no longer carries; python3 is on it.
+      - name: Install ffmpeg for the probes
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg
       - name: Install Playwright Chromium for the probes
         working-directory: tools/probe
         run: |

@@ -17,4 +17,38 @@ jobs:
       # build from this commit's source must match the committed files byte for byte.
       - name: Committed extension/ matches a fresh build
         run: git diff --exit-code --stat -- extension
+      # git diff sees tracked files only; a file the build added to extension/ that nobody committed shows up here.
+      - name: No stray files in extension/
+        run: test -z "$(git status --porcelain -- extension)"
       - run: npm test
+      - name: Typecheck
+        run: npx tsc --noEmit -p .
+      # The offline probes (tools/probe/README.md): headless Chromium through Playwright; youtube.com and soundcloud.com
+      # are fixture pages, nothing is fetched. Playwright is not a dependency of the extension, so the harness installs
+      # it here the way the README does (tools/probe/package.json is gitignored). ffmpeg, ffprobe and python3 are on
+      # the runner image.
+      - name: Install Playwright Chromium for the probes
+        working-directory: tools/probe
+        run: |
+          npm init -y >/dev/null
+          npm i --no-audit --no-fund playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Probe dock.mjs
+        run: node tools/probe/dock.mjs
+      - name: Probe record.mjs
+        run: node tools/probe/record.mjs
+      # From here on the builds rewrite extension/ (the same bytes: the build is reproducible) and add test-build/, so
+      # they come after the byte-match and stray-file checks above, and the last step puts the tree back.
+      - name: SoundCloud test build (test-build/soundcloud)
+        run: KARI_TEST_HOSTS=soundcloud npm run build
+      - name: Probe hide.mjs
+        run: node tools/probe/hide.mjs
+      - name: Probe record-sc.mjs
+        run: node tools/probe/record-sc.mjs
+      - name: KARI_RECORD=0 build carries no "Record a take" string
+        run: |
+          KARI_RECORD=0 npm run build
+          if grep -rl "Record a take" extension/; then echo "the string is in the KARI_RECORD=0 build"; exit 1; fi
+      - name: Restore the committed extension/
+        if: always()
+        run: git checkout -- extension && test -z "$(git status --porcelain -- extension)"

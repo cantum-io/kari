@@ -1,6 +1,6 @@
 # Chrome Web Store listing — Kari 0.9.0
 
-Publisher: the Cantum Google account, display name **YGG HOMME**. Jesse pastes and clicks submit. The product name never
+Publisher: the Cantum Google account; the store shows the account's verified trader name, **Cantum LLC**. Jesse pastes and clicks submit. The product name never
 contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.9.0 upload. The live listing (read
 2026-11-03 17:20 UTC) is 0.7.0 with the 0.7.0 text, its Rec bullet included; this file replaces that text field by field.
 
@@ -69,7 +69,7 @@ Change the pitch and speed of, and loop, the audio of the music playing on a you
 - **Host permission www.youtube.com** — the extension runs on youtube.com watch pages: it finds the page's video element, routes its audio through the pitch engine, and draws its controls on the player.
 - **Optional host permission soundcloud.com** — off until the user allows it. The user grants it from the toolbar icon on a SoundCloud tab, or from the switch in the settings page; it can be turned off there. Once granted, Kari registers its two bundled content scripts for soundcloud.com so it can hook the page's own Web Audio graph and draw the dock above the player bar.
 - **scripting** — registers those SoundCloud content scripts only after the optional permission is granted (they cannot be declared statically, because the permission is optional), and injects them into the tab the user granted from so the dock appears without a reload. Only Kari's own bundled scripts are ever registered or injected.
-- **activeTab** — when the user clicks Kari's icon on a SoundCloud tab, lets Kari act on that one tab for that click: inject its bundled scripts into the page that was already open. No other use; nothing is read from the tab.
+- **activeTab** — when the user clicks Kari's icon, lets Kari act on that one tab for that click: the service worker reads the clicked tab's URL to tell that it is a soundcloud.com tab before asking for the optional permission, then injects its bundled scripts into the page that was already open. No other use; the URL is the only thing read from the tab, never its content.
 
 No remote code. The worklet, the WebAssembly engine and both content scripts ship inside the package.
 
@@ -91,7 +91,7 @@ No remote code. The worklet, the WebAssembly engine and both content scripts shi
 
 - Support email: info@cantum.io
 - Homepage: https://cantum.io/kari
-- Security: security@cantum.io
+- Security: info@cantum.io
 
 ## Screenshots (1280×800, in `docs/store/`)
 

@@ -1,6 +1,6 @@
 # Kari
 
-Real-time pitch and speed for music on YouTube, with studio-grade accuracy, fronted by a small animated character.
+Real-time pitch and speed for music on YouTube and SoundCloud, with studio-grade accuracy, fronted by a small animated character.
 YGG HOMME · powered by Cantum. Free software under the GPL-2.0.
 Source: https://github.com/cantum-io/kari · Privacy: [docs/PRIVACY.md](docs/PRIVACY.md) · Contributing: [CONTRIBUTING.md](CONTRIBUTING.md) · Security: [SECURITY.md](SECURITY.md)
 
@@ -10,13 +10,11 @@ Source: https://github.com/cantum-io/kari · Privacy: [docs/PRIVACY.md](docs/PRI
 - YouTube `/watch` pages, and soundcloud.com once you switch it on in settings (an optional permission Chrome asks for once; Kari sits on the player bar and rides SoundCloud's own audio graph). No data leaves your browser. No accounts.
 - Hide Kari on YouTube or on SoundCloud, each on its own switch in settings (or the button in the dock's gear panel). Hidden, she leaves the page and the audio plays as the site sends it; the key and speed she remembers for a song wait for her return. Kari's toolbar icon on that site's tab brings her back.
 
-## Install (no building needed)
-1. Download **[kari-extension.zip](https://github.com/cantum-io/kari/releases/latest/download/kari-extension.zip)** and unzip it.
-   (Or use GitHub's green **Code → Download ZIP**: the ready-to-load folder is `extension/` inside it.)
-2. Open `chrome://extensions`, switch on **Developer mode** (top right), click **Load unpacked**, and pick the unzipped folder.
-3. Open any music video on youtube.com. The dock sits at the top right of the player.
+## Install
+1. Add Kari from the **[Chrome Web Store](https://chromewebstore.google.com/detail/lgadafnlojgiodajooadiljelhlkpaco)**.
+2. Open any music video on youtube.com. The dock sits at the top right of the player. On soundcloud.com, click Kari's toolbar icon once to allow her there.
 
-The Chrome Web Store listing comes later; until then this is the official way in.
+To build or test a change instead: download **[kari-extension.zip](https://github.com/cantum-io/kari/releases/latest/download/kari-extension.zip)** and unzip it (or GitHub's green **Code → Download ZIP**: the ready-to-load folder is `extension/` inside it), then open `chrome://extensions`, switch on **Developer mode** (top right), click **Load unpacked**, and pick that folder. Switch the store copy off while it runs: an unpacked copy next to the store copy puts two Karis on one page.
 
 ## How it works — the one-pass rule
 Tempo rides the `<video>` element (`playbackRate` with `preservesPitch=false`, so Chrome's resampler does the work and picture and sound share one clock). One engine applies only a pitch ratio: `2^(k/12) ÷ r` with key lock on, `2^(k/12)` with it off. Never two lossy passes.
@@ -36,11 +34,12 @@ Load unpacked: `chrome://extensions` → Developer mode → Load unpacked → pi
 
 ## Layout
 ```
-extension/        manifest, options page, icons, built bundles (content.js, worklet.js, sw.js, options.js, rubberband.wasm)
-src/shared/       math.ts (one-pass rule, readouts), storage.ts (settings + per-video memory)
-src/content/      index.ts (bootstrap), yt.ts (page plumbing), audio/controller.ts, ui/dock.ts + dock.css.ts
-src/worklet/      processor.js (R3 + Signalsmith host, bypass, watchdog)
-src/background/   sw.ts (defaults, commands)
+extension/        manifest, options page, icons, built bundles (content.js, worklet.js, sw.js, options.js, sc-hook.js, sc-bridge.js, rubberband.wasm)
+src/shared/       math.ts (one-pass rule, readouts), storage.ts (settings + per-video memory), sites.ts (hide per site)
+src/content/      index.ts (bootstrap), yt.ts (page plumbing), audio/controller.ts, ui/dock.ts + dock.css.ts, beat/ (tempo detection, grid, tap), midi.ts (Web MIDI pads), duplicate.ts (two Karis on one page)
+src/soundcloud/   hook.ts + hook-core.ts (MAIN world, SoundCloud's own audio graph), bridge.ts (isolated world, the dock on the bar), sc.ts, loops.ts, protocol.ts, track-key.ts
+src/worklet/      processor.js (R3 + Signalsmith host, bypass, watchdog), loop.js (beat loops)
+src/background/   sw.ts (defaults, commands, toolbar icon), soundcloud.ts (optional permission, script registration)
 src/options/      options.ts
 tests/            node --test
 bench/            Sprint 0 accuracy benches + bench/latency.mjs (stream delay, underruns)

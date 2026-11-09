@@ -12,7 +12,7 @@ export type Dir = "b2h" | "h2b"; // bridge → hook, hook → bridge
 
 export type Route = 0 | 1 | "late" | null;
 export type EngineName = "r3" | "ss" | "bypass";
-export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late" | "duplicate";
+export type Fault = null | "drm-silent" | "capture-failed" | "worklet-failed" | "hook-missing" | "late" | "duplicate" | "busy";
 
 /**
  * What the hook reports about the audio chain. Same shape the dock consumes on YouTube (AudioStatus, loop and tempo
@@ -68,7 +68,7 @@ export function accept(e: { source: unknown; origin: string; data: unknown }, wi
 }
 
 const ENGINES = new Set<EngineName>(["r3", "ss", "bypass"]);
-const FAULTS = new Set<Fault>([null, "drm-silent", "capture-failed", "worklet-failed", "hook-missing", "late", "duplicate"]);
+const FAULTS = new Set<Fault>([null, "drm-silent", "capture-failed", "worklet-failed", "hook-missing", "late", "duplicate", "busy"]);
 const GRID_SOURCES = new Set<GridSource>(["tap", "manual", "auto"]);
 const LOOP_BEATS: readonly LoopBeats[] = [0.5, 1, 4, 8];   // mirrors grid.ts LOOP_BEATS (no runtime import: Node runs the tests from this file)
 const num = (x: unknown, lo: number, hi: number, d = 0) => (typeof x === "number" && Number.isFinite(x) ? Math.min(hi, Math.max(lo, x)) : d);

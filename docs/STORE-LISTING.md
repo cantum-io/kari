@@ -1,8 +1,9 @@
-# Chrome Web Store listing — Kari 0.9.0
+# Chrome Web Store listing — Kari 0.10.0
 
 Publisher: the Cantum Google account; the store shows the account's verified trader name, **Cantum LLC**. Jesse pastes and clicks submit. The product name never
-contains the word YouTube. Drafted 2026-10-15, updated 2026-11-03 for the 0.9.0 upload. The live listing (read
-2026-11-03 17:20 UTC) is 0.7.0 with the 0.7.0 text, its Rec bullet included; this file replaces that text field by field.
+contains the word YouTube. Drafted 2026-10-15, updated 2026-11-09 for the 0.10.0 upload (0.8.0 and 0.9.0 were staged and never uploaded; one
+review carries #7, #8, #10 and #13). The live listing (read 2026-11-09 06:50 UTC via the update endpoint) is still 0.7.0 with
+the 0.7.0 text, its Rec bullet included; this file replaces that text field by field.
 
 ## Title (≤45)
 
@@ -43,7 +44,7 @@ Optional. Click Kari's icon on a SoundCloud tab and allow her once; she then sit
 Free and private
 Kari is free, with no paid tier and no account. She never sends your data to us or anyone else: no analytics, no servers, no network requests. The code is open source under the GPL-2.0 at https://github.com/cantum-io/kari.
 
-Works in desktop Chrome on youtube.com video pages and on soundcloud.com.
+Runs in Google Chrome 124 or newer (April 2024 on) on a Windows, Mac, Linux or ChromeOS computer, on youtube.com video pages and on soundcloud.com. Chrome on phones and tablets has no extensions, so not there. Keyboard: Alt+Shift+arrows for pitch and speed, Alt+arrows on a Mac; change them at chrome://extensions/shortcuts.
 
 Screenshots show "Ritual Fire Dance" performed by the Illinois Brass Band (Creative Commons Attribution) and music by AMAI on SoundCloud, used with permission.
 

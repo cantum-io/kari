@@ -110,6 +110,8 @@ button:disabled:active{transform:none}
 .skin > .org,.skin > .cons{pointer-events:none}
 .org > .ctl,.org > .body,.cons-ctl{pointer-events:auto}
 .org .ctl{grid-column:1;padding:10px 12px;background:rgba(3,3,8,.72);border-radius:12px;border:1px solid rgba(255,255,255,.08);backdrop-filter:blur(6px);--ax:100%;--ay:60%;--tx:30px;--ty:20px}
+/* inside the player box on a small or scaled screen (1366×768 at 125 %: a 348 px player): capped at 90 % of the host height from dock.ts, scrolling. SoundCloud mounts on the page, not a box. */
+.root:not([data-site="sc"]) .org .ctl{max-height:calc(var(--host-h,100000px) * .9);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
 .org .body svg{width:100%;height:100%;overflow:visible}
 .org{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}

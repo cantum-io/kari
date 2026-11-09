@@ -1,8 +1,8 @@
-# Chrome Web Store listing — Kari 0.10.0
+# Chrome Web Store listing — Kari 0.11.0
 
 Publisher: the Cantum Google account; the store shows the account's verified trader name, **Cantum LLC**. Jesse pastes and clicks submit. The product name never
-contains the word YouTube. Drafted 2026-10-15, updated 2026-11-09 for the 0.10.0 upload (0.8.0 and 0.9.0 were staged and never uploaded; one
-review carries #7, #8, #10 and #13). The live listing (read 2026-11-09 06:50 UTC via the update endpoint) is still 0.7.0 with
+contains the word YouTube. Drafted 2026-10-15, updated 2026-11-09 for the 0.11.0 upload (0.8.0, 0.9.0 and 0.10.0 were staged and never uploaded; one
+review carries #7, #8, #10, #13 and #15). The live listing (read 2026-11-09 06:50 UTC via the update endpoint) is still 0.7.0 with
 the 0.7.0 text, its Rec bullet included; this file replaces that text field by field.
 
 ## Title (≤45)
@@ -31,6 +31,7 @@ How it works
 • Kari reads the tempo herself after about six seconds. Tap tempo, or type a bpm, to override her.
 • Everything starts at zero, and one tap resets it.
 • Hide Kari on YouTube or on SoundCloud from her settings or the gear on her panel. Her toolbar icon brings her back.
+• Pick her form: Kari, Nebula, Medusa or her sisters Hex, Chrome and Hood, in blue, pink or black, with a cap, shades and sneakers.
 
 Measured, not promised
 The pitch engine is Rubber Band Library R3 in an audio worklet. On the audio that reaches your speakers, every step from −12 to +12 semitones lands within 0.02 cents, and key lock holds 440.00 Hz at ±16 % speed. The engine runs only when the key changes and never stacks a second pass. If it ever stalls, you hear the original sound, never silence.

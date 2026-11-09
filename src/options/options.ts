@@ -8,6 +8,7 @@ function render(s: Settings) {
   settings = s;
   $$("[data-skin]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.skin === s.skin)));
   $$("[data-kari]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kari === s.kariColor)));
+  $$("[data-form]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.form === s.form)));
   $$("[data-bool]").forEach(b => b.setAttribute("aria-pressed", String(!!(s as any)[b.dataset.bool!])));
   $$("[data-range]").forEach(b => b.setAttribute("aria-pressed", String(+b.dataset.range! === s.defaultRange)));
   $$("[data-engine]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.engine === s.engine)));
@@ -26,6 +27,7 @@ document.addEventListener("click", (e) => {
   const el = (e.target as HTMLElement).closest("button") as HTMLElement | null; if (!el) return;
   if (el.dataset.skin) set({ skin: el.dataset.skin as Settings["skin"] });
   else if (el.dataset.kari) set({ kariColor: el.dataset.kari as Settings["kariColor"] });
+  else if (el.dataset.form) set({ form: el.dataset.form as Settings["form"], skin: "org" });
   else if (el.dataset.bool) set({ [el.dataset.bool]: el.getAttribute("aria-pressed") !== "true" } as Partial<Settings>);
   else if (el.dataset.range) set({ defaultRange: +el.dataset.range as 8 | 16 | 50 });
   else if (el.dataset.engine) set({ engine: el.dataset.engine as Settings["engine"] });

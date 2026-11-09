@@ -114,25 +114,20 @@ button:disabled:active{transform:none}
 .root:not([data-site="sc"]) .org .ctl{max-height:calc(var(--host-h,100000px) * .9);overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}
 .org .body{grid-column:2;width:96px;height:110px;position:relative;align-self:end}
 .org .body svg{width:100%;height:100%;overflow:visible}
-.org{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75)}
-.org[data-kari="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
-.org[data-kari="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9)}
-.org .blob{fill:url(#kari-blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#kari-goo) drop-shadow(0 0 12px var(--mg))}
-.org .shine{fill:rgba(255,255,255,.55)}
-.org .eye{fill:#03141a}
-.org[data-kari="black"] .eye{fill:#0b0b10}
-.org .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))}
-.org .iris.lit{fill:#fff!important;filter:drop-shadow(0 0 8px #fff)!important}
+/* the colorway lives on the root (dock.ts sets data-kari there): the player character, her settings tiles and the shared
+   defs (forms.ts FORM_DEFS) all read it */
+.root{--m1:#bff9ff;--m2:#3ed8ea;--m3:#0a5b6e;--mg:rgba(92,242,255,.6);--iris:#5cf2ff;--rim:rgba(255,255,255,.75);--eye:#03141a}
+.root[data-kari="pink"]{--m1:#ffd6f3;--m2:#ff7ad9;--m3:#7a1f5c;--mg:rgba(255,122,217,.6);--iris:#ffa6e8}
+.root[data-kari="black"]{--m1:#4b4b57;--m2:#1a1a22;--m3:#050507;--mg:rgba(210,210,235,.4);--iris:#f4f4ff;--rim:rgba(255,255,255,.9);--eye:#0b0b10}
 .org .bubble{fill:rgba(160,255,255,.18);stroke:rgba(200,255,255,.7);stroke-width:1;opacity:0;transform-origin:118px 76px}
 .org .bubble.go{animation:kari-bub 1600ms var(--ease-out) forwards}
 @keyframes kari-bub{0%{opacity:0;transform:scale(.2)}15%{opacity:1}100%{opacity:0;transform:translate(26px,-70px) scale(1.4)}}
-.org .acc{display:none}
 .org[data-cap="1"] .acc.cap,.org[data-shades="1"] .acc.shades,.org[data-shoes="1"] .acc.shoes{display:block}
 .org .beat{transform-origin:80px 100px;transition:transform 90ms ease-out}
-.org[data-fault="1"] .blob{filter:url(#kari-goo) grayscale(.6) brightness(.7)}
+.org[data-fault="1"] .f-kari .blob{filter:url(#kari-goo) grayscale(.6) brightness(.7)}
+.org[data-fault="1"] .kf:not(.f-kari){filter:grayscale(.6) brightness(.7)}
 .org[data-fault="1"] .lid.r{transform:scaleY(.15);transform-origin:98px 86px}
-.org[data-fault="1"] .mouth{d:path("M70 116 q10 -6 20 0")}
-.org .zz{font-family:var(--mono);font-size:10px;fill:var(--bone-2);opacity:0}
+.org[data-fault="1"] :is(.f-kari,.f-nebula) .mouth{d:path("M70 116 q10 -6 20 0")}
 .org[data-fault="1"] .zz{opacity:1}
 @media (prefers-reduced-motion:no-preference){
   .org .body{animation:kari-bob 6s ease-in-out infinite}
@@ -140,7 +135,140 @@ button:disabled:active{transform:none}
   .org .lid{animation:kari-blink 5s ease-in-out infinite;transform-origin:center}
   @keyframes kari-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.08)}}
 }
-.org[data-fault="1"] .lid{animation:none}
+.org[data-fault="1"] :is(.lid,.lidf){animation:none}
+
+/* KARI'S FORMS (forms.ts): one 160×180 body, six looks. The base styles paint the character on the player and the
+   portraits on her settings tiles alike; every loop and reaction is scoped to the player (.org .body), so the tiles
+   stand still. The shared defs svg is 0×0, never display:none (gradients inside a display:none subtree stop painting). */
+.kdefs{position:absolute;width:0;height:0;overflow:hidden;pointer-events:none}
+.kf .blob{fill:url(#kari-blobfill);stroke:var(--rim);stroke-width:1.6;paint-order:stroke;filter:url(#kari-goo) drop-shadow(0 0 12px var(--mg))}
+.kf .shine{fill:rgba(255,255,255,.55)}
+.kf .eye{fill:var(--eye)}
+.kf .iris{fill:var(--iris);filter:drop-shadow(0 0 4px var(--iris))}
+.kf .iris.lit{fill:#fff!important;filter:drop-shadow(0 0 8px #fff)!important}
+.kf:not(.f-kari) .mouth{fill:none;stroke:var(--eye);stroke-width:2;stroke-linecap:round}
+.kf .lidf{transform-box:fill-box;transform-origin:center}
+.kf .zz{font-family:var(--mono);font-size:10px;fill:var(--bone-2);opacity:0}
+.kf .acc{display:none}
+/* Nebula: glass Kari, a galaxy turning inside, crescent-moon buns, a moon on an orbit (dock.ts moves it) */
+.f-nebula .neb{fill:url(#kari-nebula);stroke:rgba(255,255,255,.8);stroke-width:1.4;paint-order:stroke;filter:url(#kari-glass) drop-shadow(0 0 14px var(--mg))}
+.f-nebula .eye{fill:url(#kari-space)}
+.f-nebula .speck{fill:#fff}
+.f-nebula .swirl{transform-origin:80px 95px}
+.f-nebula .cres{fill:#eef4ff;filter:drop-shadow(0 0 6px rgba(255,255,255,.8))}
+.f-nebula .ring{fill:none;stroke:rgba(255,255,255,.55);stroke-width:1}
+.f-nebula .ring2{fill:none;stroke:var(--m1);stroke-opacity:.25;stroke-width:4}
+.f-nebula .moon{fill:#fff;filter:drop-shadow(0 0 5px #fff)}
+.org[data-cap="1"] .f-nebula .cres{display:none}   /* the cap sits where her crescent buns float, as it covers Kari's buns */
+/* Medusa: a jellyfish bell, tentacles (SMIL, paused under reduced motion by dock.ts), a ring of rim lights */
+.f-medusa .tent{fill:none;stroke:var(--m1);stroke-opacity:.75;stroke-width:3;stroke-linecap:round}
+.f-medusa .oral{fill:none;stroke:var(--m2);stroke-opacity:.55;stroke-width:6;stroke-linecap:round}
+.f-medusa .bio{fill:var(--iris);filter:drop-shadow(0 0 3px var(--iris))}
+.f-medusa .ripple{fill:none;stroke:var(--iris);stroke-width:1.2;opacity:0;transform-box:fill-box;transform-origin:center}
+.f-medusa .bell{transform-origin:80px 104px}
+/* the sisters keep their own colors: black goo with a pink rim (Hex, Hood) and holographic chrome (Chrome) */
+.kf.sis .blob{fill:url(#kari-hex);stroke:rgba(255,154,213,.6);filter:url(#kari-goo) drop-shadow(0 0 10px rgba(255,79,184,.38))}
+.sis .eye{fill:#050307}
+.sis .lash{fill:none;stroke:#000;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+.sis .pink{fill:#ff4fb8}
+.sis .slit{fill:#050307}
+.sis .smirk{fill:none;stroke:#ff9ad5;stroke-width:2;stroke-linecap:round}
+.sis .fang{fill:#f4f2ed}
+.sis .stud{fill:#e8e8f0}
+.f-hex .shine{fill:rgba(255,255,255,.28)}
+.f-hex .tail path{fill:#1a1220;stroke:rgba(255,154,213,.6);stroke-width:1}
+.f-hex .tail .rope{fill:none;stroke:#1a1220;stroke-width:5;stroke-linecap:round}
+.f-hex .tail .rope-rim{fill:none;stroke:rgba(255,154,213,.45);stroke-width:7;stroke-linecap:round}
+.f-hex .wink{fill:none;stroke:#ff4fb8;stroke-width:2.4;stroke-linecap:round;opacity:0}
+.f-hex .pop{fill:#ff4fb8;opacity:0;transform-box:fill-box;transform-origin:center}
+.kf.f-chrome .blob{fill:url(#kari-chrome);stroke:rgba(255,255,255,.9);filter:url(#kari-goo) drop-shadow(0 0 10px rgba(255,160,230,.45))}
+.f-chrome .sheen{fill:#fff;opacity:.5}
+.f-chrome .eye{fill:#1e0a24}
+.f-chrome .iris{fill:#ff6fcf;filter:drop-shadow(0 0 4px #ff6fcf)}
+.f-chrome .mouth{stroke:#3a1240;stroke-width:1.8;stroke-linejoin:round}
+.f-chrome .blush{fill:#ff8fd0;opacity:.45}
+.f-chrome .gem{fill:#fff}
+.f-chrome .wing-a{fill:#ff4fb8;stroke:#2a0f2e;stroke-width:.8}
+.f-chrome .wing-b{fill:#8f7bff;stroke:#2a0f2e;stroke-width:.8}
+.f-chrome .wing-body{stroke:#2a0f2e;stroke-width:1.6;stroke-linecap:round}
+.f-chrome .clip{fill:#ff9ad5;stroke:#fff;stroke-width:.6}
+.f-chrome .boot{fill:#0c0a10;stroke:#c9c2ff;stroke-width:.8}
+.f-chrome .boot-line{stroke:#ffb3e1;stroke-width:1.4}
+.f-chrome .ystar{fill:#ffb3e1;transform-box:fill-box;transform-origin:center}
+.f-chrome .ystar.b{fill:#c9c2ff}
+.f-chrome .gum{fill:#ff8fd0;stroke:#fff;stroke-width:.4;opacity:0;transform-box:fill-box;transform-origin:center}
+.f-chrome .bit{fill:#ff8fd0;opacity:0;transform-box:fill-box;transform-origin:center}
+.f-hood .hood{fill:url(#kari-hood);stroke:rgba(255,154,213,.6);stroke-width:1.2}
+.f-hood .hole{fill:#050307}
+.f-hood .stitch{fill:none;stroke:#ff9ad5;stroke-width:1.2;stroke-dasharray:3 3;stroke-linecap:round}
+.f-hood .glow{fill:#ff4fb8;filter:drop-shadow(0 0 5px #ff4fb8);transition:fill 150ms ease}
+.f-hood .glow.lit{fill:#fff}
+.f-hood .dot{fill:#f4f2ed}
+.f-hood .grin{fill:#000;stroke:#ff9ad5;stroke-width:1.2;stroke-linejoin:round;transform-box:fill-box;transform-origin:center}
+.f-hood .gem{fill:#f4f2ed}
+.f-hood .chain{stroke:#e8e8f0;stroke-width:.8}
+.f-hood .boot{fill:#0c0a10;stroke:rgba(255,154,213,.6);stroke-width:.8}
+.f-hood .boot-line{stroke:#ff4fb8;stroke-width:1.4}
+.f-hood .charm{transform-origin:80px 124px}
+/* the loops and the react moments: the player character only, never under reduced motion. Kari, Nebula and Medusa keep
+   Kari's 6 s bob on the body; the sisters move their own way instead. dock.ts react() sets .react for 1.7 s. */
+@media (prefers-reduced-motion:no-preference){
+  .org:is([data-form="hex"],[data-form="chrome"],[data-form="hood"]) .body{animation:none}
+  .org .body .f-nebula .swirl{animation:kari-spin 18s linear infinite}
+  .org .body .f-nebula .cres{animation:kari-float 5s ease-in-out infinite}
+  .org .body .f-nebula .cres.b{animation-delay:-2.5s}
+  .org .body .f-nebula .lidf{animation:kari-blink 6s ease-in-out infinite}
+  .org .body.react .f-nebula .ring{animation:kari-flare 1200ms var(--ease-out)}
+  .org .body .f-medusa .bell{animation:kari-swim 2.6s ease-in-out infinite}
+  .org .body .f-medusa .bio{animation:kari-glint 2.4s ease-in-out infinite}
+  .org .body .f-medusa .bio:nth-child(2n){animation-delay:-.8s}
+  .org .body .f-medusa .bio:nth-child(3n){animation-delay:-1.6s}
+  .org .body .f-medusa .lidf{animation:kari-blink 5.8s ease-in-out infinite}
+  .org .body.react .f-medusa .ripple{animation:kari-ripple 1200ms var(--ease-out)}
+  .org .body .f-hex .idle{animation:kari-slink 4.4s ease-in-out infinite;transform-origin:80px 150px}
+  .org .body .f-hex .tail{animation:kari-swish 2.4s ease-in-out infinite;transform-origin:118px 140px}
+  .org .body .f-hex .pupils{animation:kari-dart 7s ease-in-out infinite}
+  .org .body .f-hex .lidf{animation:kari-blink 6.2s ease-in-out -2s infinite}
+  .org .body.react .f-hex .eyeL{animation:kari-off 900ms steps(1)}
+  .org .body.react .f-hex .wink{animation:kari-on 900ms steps(1)}
+  .org .body.react .f-hex .pop{animation:kari-heart 1200ms var(--ease-out)}
+  .org .body .f-chrome .idle{animation:kari-hop 2.8s ease-in-out infinite;transform-origin:80px 170px}
+  .org .body .f-chrome .sheen{animation:kari-sheen 5s var(--ease-in-out) infinite}
+  .org .body .f-chrome .wings{animation:kari-flutter 1.1s ease-in-out infinite;transform-origin:40px 34px}
+  .org .body .f-chrome .lidf{animation:kari-blink 4.8s ease-in-out infinite}
+  .org .body .f-chrome .ystar{animation:kari-spin 6s linear infinite}
+  .org .body .f-chrome .ystar.b{animation:kari-spin 9s linear infinite reverse}
+  .org .body.react .f-chrome .gum{animation:kari-gum 1200ms var(--ease-out)}
+  .org .body.react .f-chrome .bit{animation:kari-bit 1200ms var(--ease-out)}
+  .org .body .f-hood .duck{animation:kari-duck 11s var(--ease-in-out) infinite}
+  .org .body .f-hood .idle{animation:kari-sneak 4.8s ease-in-out infinite;transform-origin:80px 160px}
+  .org .body .f-hood .charm{animation:kari-swing 2.2s ease-in-out infinite}
+  .org .body .f-hood .lid-a{animation:kari-blink 4.4s ease-in-out infinite}
+  .org .body .f-hood .lid-b{animation:kari-blink 4.4s ease-in-out -.25s infinite}
+  .org .body.react .f-hood .grin{animation:kari-grin 900ms var(--ease-out)}
+  .org[data-fault="1"] .body :is(.lid,.lidf){animation:none}
+  @keyframes kari-spin{to{transform:rotate(360deg)}}
+  @keyframes kari-float{50%{transform:translateY(-4px)}}
+  @keyframes kari-flare{0%{stroke-width:1;stroke:rgba(255,255,255,.55)}25%{stroke-width:2.4;stroke:#fff}100%{stroke-width:1;stroke:rgba(255,255,255,.55)}}
+  @keyframes kari-swim{0%,100%{transform:scale(1,1)}45%{transform:scale(1.06,.94)}}
+  @keyframes kari-glint{0%,100%{opacity:1}50%{opacity:.25}}
+  @keyframes kari-ripple{0%{opacity:.9;transform:scale(1)}100%{opacity:0;transform:scale(1.35)}}
+  @keyframes kari-slink{0%,100%{transform:translateX(-2px) rotate(-2deg)}50%{transform:translateX(2px) rotate(2deg)}}
+  @keyframes kari-swish{0%,100%{transform:rotate(-8deg)}50%{transform:rotate(10deg)}}
+  @keyframes kari-dart{0%,12%{transform:translateX(0)}18%,40%{transform:translateX(-3px)}46%,68%{transform:translateX(4px)}74%,100%{transform:translateX(0)}}
+  @keyframes kari-off{0%,99%{opacity:0}100%{opacity:1}}
+  @keyframes kari-on{0%,99%{opacity:1}100%{opacity:0}}
+  @keyframes kari-heart{0%{opacity:0;transform:translateY(0) scale(.4)}20%{opacity:1;transform:translateY(-4px) scale(1.2)}100%{opacity:0;transform:translateY(-26px) scale(1)}}
+  @keyframes kari-hop{0%,100%{transform:translateY(0) rotate(0)}30%{transform:translateY(-6px) rotate(-2deg)}60%{transform:translateY(0) rotate(1deg)}}
+  @keyframes kari-sheen{0%,40%{transform:translateX(-60px)}80%,100%{transform:translateX(200px)}}
+  @keyframes kari-flutter{0%,100%{transform:scaleX(1)}50%{transform:scaleX(.55)}}
+  @keyframes kari-gum{0%{opacity:0;transform:scale(1)}10%{opacity:.95}70%{opacity:.95;transform:scale(7)}74%{opacity:0;transform:scale(8)}100%{opacity:0;transform:scale(1)}}
+  @keyframes kari-bit{0%,70%{opacity:0;transform:translate(0,0)}74%{opacity:1}100%{opacity:0;transform:translate(var(--bx),var(--by))}}
+  @keyframes kari-duck{0%,78%,100%{transform:translateY(0)}84%,92%{transform:translateY(22px)}}
+  @keyframes kari-sneak{0%,100%{transform:translate(-5px,0) rotate(-3deg)}25%{transform:translate(-2px,-2px)}50%{transform:translate(5px,0) rotate(3deg)}75%{transform:translate(2px,-2px)}}
+  @keyframes kari-swing{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+  @keyframes kari-grin{0%{transform:scale(1)}35%{transform:scale(1.2,1.3)}100%{transform:scale(1)}}
+}
 
 /* VOID SIGNAL */
 .void{position:absolute;right:3%;top:8%;width:min(230px,42%);padding:12px 12px 10px;background:rgba(3,3,6,.92);border-radius:14px;border:1.5px solid var(--cyan);box-shadow:0 0 0 1px rgba(92,242,255,.25),0 0 24px rgba(92,242,255,.45),inset 0 0 40px rgba(92,242,255,.05);--ax:100%;--ay:0%}
@@ -199,31 +327,82 @@ button:disabled:active{transform:none}
 .gear{position:absolute;right:12px;bottom:58px;width:30px;height:30px;border-radius:50%;background:rgba(0,0,0,.55);border:1px solid var(--line);display:grid;place-items:center;transition:background 150ms ease;pointer-events:auto}
 .gear svg{width:16px;height:16px;fill:var(--bone-2)}
 .gear[aria-expanded="true"]{background:var(--bone)} .gear[aria-expanded="true"] svg{fill:var(--ink)}
-.settings{position:absolute;right:12px;bottom:96px;width:min(250px,80%);max-height:70%;overflow:auto;background:rgba(7,7,11,.94);border:1px solid var(--line);border-radius:12px;padding:12px;display:grid;gap:12px;box-shadow:0 20px 50px rgba(0,0,0,.6);backdrop-filter:blur(8px);pointer-events:auto}
+/* SETTINGS (0.11.0): a tab bar — Kari · Interface · MIDI · Page — over one pane at a time, in place of one long list
+   that ran past the panel's bottom. The panes share one grid cell, so the panel holds the tallest pane's height and the
+   tabs never move under the pointer when they switch; the bar stays put and only the panes scroll (a 348 px player).
+   Sans for what you choose, mono only for data (the MIDI status, the build). Text on the panel is 4.5:1 or better. */
+.settings{position:absolute;right:12px;bottom:96px;width:min(300px,80%);max-height:70%;display:flex;flex-direction:column;overflow:hidden;
+  background:#09090d;border:1px solid var(--line);border-radius:14px;box-shadow:0 20px 50px rgba(0,0,0,.6);pointer-events:auto;
+  font-family:"Instrument Sans",system-ui,-apple-system,"Helvetica Neue",sans-serif;font-size:12px;line-height:1.35;--mute-2:#9a98a2}
 .settings[hidden]{display:none!important}
-.settings .sh{display:flex;justify-content:space-between;align-items:center;font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--bone)}
-.settings .x{width:24px;height:24px;color:var(--bone-2)}
-.settings .sg{display:grid;gap:6px}
-.settings .sg>b{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--mute)}
-.settings .row{display:flex;flex-wrap:wrap;gap:6px}
-.settings .row.col{flex-direction:column;gap:2px}
-.chip{font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;padding:7px 10px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2);transition:color 150ms ease,border-color 150ms ease,background 150ms ease}
-.chip[aria-pressed="true"]{color:var(--ink);background:var(--bone);border-color:var(--bone)}
-.swatch{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;padding:5px 9px 5px 6px;border:1px solid var(--line);border-radius:999px;color:var(--bone-2)}
-.swatch::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c),inset 0 0 0 1px rgba(255,255,255,.35)}
-.swatch[aria-pressed="true"]{border-color:var(--bone);color:var(--bone)}
-.ul{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--bone);padding:5px 6px;border-radius:6px;cursor:pointer}
-.ul input{accent-color:var(--cyan);width:14px;height:14px;margin:0;pointer-events:auto}
-.settings .big{width:100%;text-align:center;padding:8px;border:1px solid var(--line);border-radius:8px;font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+.settings ::selection{background:rgba(92,242,255,.32);color:var(--bone)}
+.snav{flex:none;display:flex;align-items:center;gap:4px;padding:0 6px 0 4px;border-bottom:1px solid var(--line)}
+.tabs{display:flex;min-width:0}
+.tab{position:relative;padding:12px 9px 11px;font-size:12px;font-weight:500;color:var(--mute-2);white-space:nowrap;transition:color 150ms ease}
+.tab::after{content:"";position:absolute;left:9px;right:9px;bottom:-1px;height:2px;border-radius:1px;background:var(--bone);transform:scaleX(0);transition:transform 200ms var(--ease-out)}
+.tab[aria-selected="true"]{color:var(--bone)}
+.tab[aria-selected="true"]::after{transform:scaleX(1)}
+.tab[hidden]{display:none}
+.tab:active{transform:none}
+.tab:focus-visible{outline-offset:-5px;border-radius:8px}
+.snav .x{margin-left:auto;flex:none;width:28px;height:28px;display:grid;place-items:center;border-radius:8px;color:var(--bone-2);transition:background 150ms ease,color 150ms ease}
+.snav .x svg{width:12px;height:12px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round}
+@media (hover:hover) and (pointer:fine){
+  .tab:not([aria-selected="true"]):hover{color:var(--bone-2)}
+  .snav .x:hover{background:rgba(239,236,228,.08);color:var(--bone)}
+  .form:not([aria-pressed="true"]):not(:disabled):hover,.skinrow:not([aria-pressed="true"]):hover,.settings .chip:not([aria-pressed="true"]):not(:disabled):hover,
+  .swatch:not([aria-pressed="true"]):not(:disabled):hover,.settings .big:not(.pri):hover{border-color:rgba(239,236,228,.34);background:rgba(239,236,228,.04)}
+  .settings .more:hover{color:var(--bone)}
+}
+.panes{display:grid;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(239,236,228,.22) transparent}
+.pane{grid-area:1/1;display:grid;gap:12px;align-content:start;padding:12px}
+.pane[hidden]{display:grid!important;visibility:hidden}
+/* Kari: her six forms as portraits in the colorway she wears now, then color and wardrobe where the form takes them */
+.forms{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.form{display:grid;justify-items:center;gap:5px;padding:8px 4px 7px;border:1px solid var(--line);border-radius:8px;transition:border-color 150ms ease,background 150ms ease}
+.fthumb{display:block;width:40px;height:45px}
+.fthumb svg{display:block;width:100%;height:100%;overflow:visible}
+.fname{font-size:11px;line-height:14px;color:var(--bone-2)}
+.form[aria-pressed="true"]{border-color:var(--bone);background:rgba(239,236,228,.08)}
+.form[aria-pressed="true"] .fname{color:var(--bone)}
+.opt{display:grid;grid-template-columns:40px minmax(0,1fr);align-items:center;gap:8px}
+.ol{font-size:11px;color:var(--mute-2)}
+.settings .row{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.swatch{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px 0 7px;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--bone-2);transition:border-color 150ms ease,background 150ms ease,color 150ms ease}
+.swatch::before{content:"";width:12px;height:12px;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 1px rgba(255,255,255,.4)}
+.swatch[aria-pressed="true"]{border-color:var(--bone);color:var(--bone);background:rgba(239,236,228,.08)}
+.settings .chip{height:28px;padding:0 10px;white-space:nowrap;border:1px solid var(--line);border-radius:999px;font-size:12px;color:var(--bone-2);transition:color 150ms ease,border-color 150ms ease,background 150ms ease}
+.settings .chip[aria-pressed="true"]{color:var(--ink);background:var(--bone);border-color:var(--bone)}
+.note{margin:0;font-size:11px;color:var(--mute-2)}
+.note:empty{display:none}
+/* Interface: the four looks as rows, each with its mark and one line on what it is */
+.skins{display:grid;gap:6px}
+.skinrow{display:grid;grid-template-columns:20px minmax(0,1fr);gap:2px 10px;align-items:center;text-align:left;padding:9px 11px;border:1px solid var(--line);border-radius:8px;transition:border-color 150ms ease,background 150ms ease}
+.skinrow svg{grid-row:span 2;width:20px;height:20px;fill:none;stroke:var(--bone-2);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.skinrow b{font-weight:600;color:var(--bone-2)}
+.skinrow span{font-size:11px;color:var(--mute-2)}
+.skinrow[aria-pressed="true"]{border-color:var(--bone);background:rgba(239,236,228,.08)}
+.skinrow[aria-pressed="true"] b{color:var(--bone)}
+.skinrow[aria-pressed="true"] svg{stroke:var(--bone)}
+/* MIDI and Page */
+.settings .sg{display:grid;gap:8px}
+.settings .sg[hidden]{display:none}
+.settings .mst{font-family:inherit;font-size:11px;letter-spacing:0;color:var(--mute-2);align-self:auto}
+.settings .mst.data{font-family:var(--mono);font-size:11px;letter-spacing:.04em}
+.settings .big{width:100%;height:34px;border:1px solid var(--line);border-radius:8px;font-size:12px;font-weight:500;color:var(--bone);transition:border-color 150ms ease,background 150ms ease}
 .settings .big.pri{background:var(--bone);color:var(--ink);border-color:var(--bone)}
 .settings .showrow{display:none}
 .root[data-collapsed="1"] .settings .showrow{display:flex}
 .root[data-collapsed="1"] .settings .hiderow{display:none}
-.settings .more{font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--mute);text-decoration:underline;justify-self:start;pointer-events:auto}
+.pane[data-pane="page"]{grid-template-rows:auto auto 1fr}   /* the footer takes the last row, so it sits on the panel's bottom edge whatever the Kari pane's height */
+.sfoot{grid-row:-2;align-self:end;display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding-top:10px;border-top:1px solid var(--line)}
+.settings .more{font-size:11px;color:var(--bone-2);text-decoration:underline;text-underline-offset:3px;pointer-events:auto;transition:color 150ms ease}
+.settings .ver{font-family:var(--mono);font-size:11px;color:var(--mute-2);font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:no-preference){
   .settings{animation:kari-setin 200ms var(--ease-out)}
   @keyframes kari-setin{from{opacity:0;transform:translateY(6px) scale(.97)}}
 }
+@media (prefers-reduced-motion:reduce){.tab::after{transition:none}}
 /* small players: Kari alone */
 .root[data-small="1"] .org{width:auto;grid-template-columns:auto}
 .root[data-small="1"] .org .ctl{display:none}

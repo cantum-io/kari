@@ -2,11 +2,14 @@
 
 export type Skin = "org" | "void" | "weather" | "cons";
 export type KariColor = "blue" | "pink" | "black";
+/** How Kari herself looks on the Kari interface (src/content/ui/forms.ts). Absent in settings saved before 0.11.0: Kari. */
+export type KariForm = "kari" | "nebula" | "medusa" | "hex" | "chrome" | "hood";
 export type EngineTier = "auto" | "r3" | "signalsmith";
 
 export type Settings = {
   skin: Skin;
   kariColor: KariColor;
+  form: KariForm;
   cap: boolean; shades: boolean; shoes: boolean;
   collapsed: boolean;
   fullControl: boolean;
@@ -21,7 +24,7 @@ export type Settings = {
 };
 
 export const DEFAULT_SETTINGS: Settings = {
-  skin: "org", kariColor: "blue", cap: false, shades: false, shoes: false,
+  skin: "org", kariColor: "blue", form: "kari", cap: false, shades: false, shoes: false,
   collapsed: false, fullControl: false, engine: "auto",
   defaultRange: 50, keyLockDefault: false, rememberPerVideo: true, seenIntro: false,
   hideOnYouTube: false, hideOnSoundCloud: false,

@@ -4,7 +4,8 @@ import { takeReadout, fmtTake, NOTE_MS, type TakeNote } from "./take-readout";
 declare const __KARI_BUILD__: string; // stamped by scripts/build.mjs
 declare const __KARI_RECORD__: boolean; // scripts/build.mjs: the take's row is in by default; KARI_RECORD=0 compiles it out with the recorder
 import { type Params, keyName, fmtSpeed, fmtSigned, stepSt, stepTempo, setRange, isNeutral, DEFAULT_PARAMS } from "../../shared/math";
-import type { Settings, Skin, KariColor } from "../../shared/storage";
+import type { Settings, Skin, KariColor, KariForm } from "../../shared/storage";
+import { FORMS, FORM_DEFS, FORM_IDS, formInfo, formSvg, orbitAt } from "./forms";
 import type { AudioStatus } from "../audio/controller";
 import { type LoopBeats, LOOP_BEATS, fmtBpm, loopLabel, loopAria, BPM_MIN, BPM_MAX } from "../beat/grid";
 import type { Midi, MidiAction, MidiState } from "../midi";
@@ -73,55 +74,59 @@ const CTL = `
   <div class="rowend"><button class="hidebtn" data-a="hide">Hide</button><button class="fulltog" data-a="full" aria-pressed="false">Full control <span class="sw"></span></button></div>
 </div>`;
 
-const KARI_SVG = `
-<svg viewBox="0 0 160 180" aria-hidden="true">
-  <defs>
-    <radialGradient id="kari-blobfill" cx="40%" cy="30%" r="80%"><stop offset="0" style="stop-color:var(--m1)" stop-opacity=".95"/><stop offset=".5" style="stop-color:var(--m2)" stop-opacity=".6"/><stop offset="1" style="stop-color:var(--m3)" stop-opacity=".3"/></radialGradient>
-    <filter id="kari-goo"><feGaussianBlur stdDeviation="2" result="b"/><feColorMatrix in="b" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 18 -7" result="g"/><feComposite in="SourceGraphic" in2="g" operator="atop"/></filter>
-  </defs>
-  <g class="beat" data-el="beat">
-    <g class="blob" style="transform-origin:80px 90px">
-      <ellipse cx="80" cy="95" rx="54" ry="60"/><circle cx="40" cy="40" r="14"/><circle cx="118" cy="46" r="11"/>
-      <ellipse cx="34" cy="120" rx="22" ry="14" transform="rotate(-30 34 120)"/><ellipse cx="128" cy="126" rx="22" ry="14" transform="rotate(30 128 126)"/>
-      <ellipse cx="62" cy="158" rx="16" ry="12"/><ellipse cx="102" cy="158" rx="16" ry="12"/>
-    </g>
-    <ellipse class="shine" cx="52" cy="58" rx="12" ry="7" transform="rotate(-25 52 58)"/>
-    <g class="acc shoes">
-      <path d="M34 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
-      <path d="M30 176 h40 M32 172 l3 3 M38 171 l3 4 M44 171 l3 4 M50 171 l3 4 M56 171 l3 4 M62 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
-      <path d="M40 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
-      <path d="M90 160 c-6 4 -8 12 -2 16 h34 c8 0 10 -6 6 -12 c-4 -4 -10 -8 -18 -8 c-8 0 -14 0 -20 4z" fill="#111" stroke="#2c2c34" stroke-width="1.2"/>
-      <path d="M86 176 h40 M88 172 l3 3 M94 171 l3 4 M100 171 l3 4 M106 171 l3 4 M112 171 l3 4 M118 172 l3 3" stroke="#3d3d48" stroke-width="1.3"/>
-      <path d="M96 166 c6 -2 14 -2 20 0" fill="none" stroke="#8a8a96" stroke-width="1"/>
-    </g>
-    <g class="lid l"><ellipse class="eye" cx="62" cy="86" rx="10" ry="13"/></g>
-    <g class="lid r"><ellipse class="eye" cx="98" cy="86" rx="10" ry="13"/></g>
-    <g class="lid l"><circle class="iris" data-el="i1" cx="64" cy="88" r="4"/></g>
-    <g class="lid r"><circle class="iris" data-el="i2" cx="100" cy="88" r="4"/></g>
-    <path class="mouth" d="M70 112 q10 8 20 0" fill="none" stroke="#03141a" stroke-width="2" stroke-linecap="round"/>
-    <text class="zz" x="118" y="60">zz</text>
-    <g class="acc shades">
-      <rect x="47" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
-      <rect x="83" y="80" width="30" height="11" rx="5.5" fill="#050507" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
-      <path d="M77 85 h6" stroke="#050507" stroke-width="2"/><path d="M47 84 l-10 -4 M113 84 l10 -4" stroke="#050507" stroke-width="1.6"/>
-      <path d="M52 83 h10 M88 83 h10" stroke="rgba(255,255,255,.45)" stroke-width="1"/>
-    </g>
-    <g class="acc cap">
-      <path d="M46 46 q34 -30 68 0 v6 h-68z" fill="#0d0d12"/><path d="M40 52 h84 q-4 -6 -8 -6 h-68 q-4 0 -8 6z" fill="#0d0d12"/>
-      <path d="M104 50 q22 -2 30 6 q-14 0 -30 -2z" fill="#0d0d12"/><path d="M46 46 q34 -30 68 0" fill="none" stroke="rgba(255,255,255,.35)" stroke-width=".8"/>
-      <text x="80" y="40" font-size="8.5" text-anchor="middle" font-family="Space Mono,monospace" font-weight="700" fill="#efece4" letter-spacing="1">YGG</text>
-    </g>
-  </g>
-  <circle class="bubble" data-el="bubble" cx="118" cy="76" r="14"/>
-</svg>`;
+const X_ICON = `<svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7"/></svg>`;
 
+/* ---------- settings: a tab bar over one pane at a time (0.11.0) ---------- */
+const TABS: [string, string][] = [["kari", "Kari"], ["look", "Interface"], ["midi", "MIDI"], ["page", "Page"]];
+// each interface as a row: an authored mark (one 1.5 stroke, lit with the row) and one line on what it is
+const SKINS: [Skin, string, string, string][] = [
+  ["org", "Kari", "Kari beside the controls", `<path d="M10 3.5c3.6 0 6 2.9 6 6.6S13.6 16.5 10 16.5 4 13.8 4 10.1 6.4 3.5 10 3.5z"/><path d="M8 9.5v1M12 9.5v1"/>`],
+  ["void", "Void Signal", "A black panel that glows once you change the sound", `<rect x="3" y="4.5" width="14" height="11" rx="2.5"/><circle cx="14" cy="13" r="1.2"/>`],
+  ["weather", "Alien Weather", "A frosted pod under a small sun and a cloud", `<path d="M6.5 15.5h7.2a3 3 0 0 0 .3-6 4.2 4.2 0 0 0-8 1.2 2.4 2.4 0 0 0 .5 4.8z"/><path d="M4.5 4.5l1.2 1.2M8.5 2.5v1.6"/>`],
+  ["cons", "Constellation", "Drag the moon around its orbit to change key", `<ellipse cx="10" cy="11" rx="7" ry="3.6"/><circle cx="10" cy="11" r="1"/><circle cx="15.6" cy="8.8" r="1.6"/>`],
+];
+const SETTINGS_TPL = `
+  <aside class="settings" data-el="settings" hidden aria-label="Kari settings">
+    <div class="snav">
+      <div class="tabs" role="tablist" aria-label="Kari settings">${TABS.map(([id, label], i) =>
+        `<button class="tab" role="tab" id="kari-tab-${id}" aria-controls="kari-pane-${id}" data-tab="${id}" aria-selected="${i === 0}" tabindex="${i === 0 ? 0 : -1}"${id === "midi" ? ' data-el="miditab"' : ""}>${label}</button>`).join("")}</div>
+      <button class="x" data-s="close" aria-label="Close settings">${X_ICON}</button>
+    </div>
+    <div class="panes" data-el="panes">
+      <section class="pane" role="tabpanel" id="kari-pane-kari" aria-labelledby="kari-tab-kari" data-pane="kari">
+        <div class="forms" role="group" aria-label="Form">${FORMS.map(f =>
+          `<button class="form" data-form="${f.id}" aria-pressed="false" aria-label="${f.label}"><span class="fthumb">${formSvg(f.id, false)}</span><span class="fname" aria-hidden="true">${f.name}</span></button>`).join("")}</div>
+        <div class="opt"><span class="ol" id="kari-l-color">Color</span><div class="row" role="group" aria-labelledby="kari-l-color">
+          <button class="swatch" data-kari="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-kari="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-kari="black" style="--c:#2a2a33">Black</button></div></div>
+        <div class="opt"><span class="ol" id="kari-l-wear">Wear</span><div class="row" role="group" aria-labelledby="kari-l-wear">
+          <button class="chip" data-wear="cap" aria-pressed="false">YGG cap</button><button class="chip" data-wear="shades" aria-pressed="false" aria-label="Thin black sunglasses">Shades</button><button class="chip" data-wear="shoes" aria-pressed="false" aria-label="Chunky sneakers">Sneakers</button></div></div>
+        <p class="note" data-el="formnote" aria-live="polite"></p>
+      </section>
+      <section class="pane" role="tabpanel" id="kari-pane-look" aria-labelledby="kari-tab-look" data-pane="look" hidden>
+        <div class="skins" role="group" aria-label="Interface">${SKINS.map(([id, name, line, mark]) =>
+          `<button class="skinrow" data-skin="${id}" aria-pressed="false"><svg viewBox="0 0 20 20" aria-hidden="true">${mark}</svg><b>${name}</b><span>${line}</span></button>`).join("")}</div>
+      </section>
+      <section class="pane" role="tabpanel" id="kari-pane-midi" aria-labelledby="kari-tab-midi" data-pane="midi" hidden>
+        <div class="sg" data-el="midisg">
+          <div class="row"><button class="chip" data-m="connect">Connect</button><button class="chip" data-m="learn" aria-pressed="false">Learn</button><span class="mst data" data-el="midist">not connected</span></div>
+          <span class="mst">Learn: switch it on, click a loop length or Tap, then hit the pad. A pad on the lit length releases it.</span>
+        </div>
+      </section>
+      <section class="pane" role="tabpanel" id="kari-pane-page" aria-labelledby="kari-tab-page" data-pane="page" hidden>
+        <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
+        <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
+        <div class="sg"><button class="big" data-a="hide-site" data-el="hidesite">Hide Kari on YouTube</button><span class="mst">Back from Kari's toolbar icon or More settings.</span></div>
+        <div class="sfoot"><a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a><span class="ver" data-el="ver"></span></div>
+      </section>
+    </div>
+  </aside>`;
 
 const TEMPLATE = `
-<div class="root" data-collapsed="0" data-small="0">
+<div class="root" data-collapsed="0" data-small="0">${FORM_DEFS}
   <section class="skin" data-skin="org">
     <div class="org" data-kari="blue" data-cap="0" data-shades="0" data-shoes="0" data-fault="0">
       ${CTL}
-      <div class="body anchor" data-el="kari" data-a="show" role="button" tabindex="0" aria-label="Show or hide controls">${KARI_SVG}</div>
+      <div class="body anchor" data-el="kari" data-a="show" role="button" tabindex="0" aria-label="Show or hide controls"></div>
     </div>
   </section>
   <section class="skin" data-skin="void" hidden>
@@ -153,24 +158,7 @@ const TEMPLATE = `
   <div class="intro" data-el="intro" hidden>slide to slow down or speed up the music (pitch moves with it, like a record) · pitch buttons change the key<br><button data-a="intro-ok" style="margin-top:6px;text-decoration:underline">got it</button></div>
   <div class="fault" data-el="fault" hidden></div>
   <button class="gear" data-el="gear" aria-label="Kari settings" aria-expanded="false">${GEAR}</button>
-  <aside class="settings" data-el="settings" hidden>
-    <div class="sh"><span>Settings</span><button class="x" data-s="close" aria-label="Close">✕</button></div>
-    <div class="sg"><b>Interface</b><div class="row">
-      <button class="chip" data-skin="org">Kari</button><button class="chip" data-skin="void">Void Signal</button>
-      <button class="chip" data-skin="weather">Alien Weather</button><button class="chip" data-skin="cons">Constellation</button></div></div>
-    <div class="sg"><b>Kari</b><div class="row">
-      <button class="swatch" data-kari="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-kari="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-kari="black" style="--c:#2a2a33">Black</button></div>
-      <div class="row col">
-        <label class="ul"><input type="checkbox" data-set="cap"> <span>YGG cap</span></label>
-        <label class="ul"><input type="checkbox" data-set="shades"> <span>Thin black sunglasses</span></label>
-        <label class="ul"><input type="checkbox" data-set="shoes"> <span>Chunky sneakers</span></label></div></div>
-    <div class="sg" data-el="midisg"><b>MIDI</b><div class="row"><button class="chip" data-m="connect">Connect</button><button class="chip" data-m="learn" aria-pressed="false">Learn</button><span class="mst" data-el="midist">not connected</span></div>
-      <span class="mst">learn: switch it on, click a loop length or Tap, then hit the pad · a pad on the lit length releases</span></div>
-    <div class="row hiderow"><button class="big" data-a="hide">Hide dock · absorb into Kari</button></div>
-    <div class="row showrow"><button class="big pri" data-a="show">Show dock</button></div>
-    <div class="row col"><button class="big" data-a="hide-site" data-el="hidesite">Hide Kari on YouTube</button><span class="mst">back from Kari's toolbar icon or More settings</span></div>
-    <a class="more" data-el="more" href="#" target="_blank" rel="noopener">More settings</a>
-  </aside>
+  ${SETTINGS_TPL}
 </div>`;
 
 const CX = 330, CY = 200, RX = 120, RY = 52, BASE_KEY = 8; // A♭m shown as the reference key until detection exists
@@ -192,6 +180,11 @@ export class Dock {
   // the panel, the gear or the settings, while anything in the dock has focus, and for HOLD_MS after the last real
   // interaction. Kari's anchor never faded (his earlier ruling); this keeps the panel beside her while he uses it.
   private ytHidden = false; private over = new Set<Element>(); private keptUntil = 0; private keptTimer = 0;
+  // Kari's form (forms.ts): drawn into the body on the first applySettings, redrawn when it changes. Nebula's moon orbits
+  // in the pulse loop; Medusa's SMIL tentacles are paused under reduced motion (CSS media queries cannot reach SMIL).
+  private form: KariForm | null = null; private moons: SVGCircleElement[] = []; private theta = 0.9; private boostUntil = 0;
+  private reactTimer = 0; private tab = "kari";
+  private rm: MediaQueryList | null = null;
 
   constructor(private host: HTMLElement, private deps: DockDeps) {
     const wrap = document.createElement("div");
@@ -213,6 +206,8 @@ export class Dock {
     // .org .ctl caps itself at 90 % of it and scrolls (dock.css.ts). SoundCloud mounts on the page, not a box: exempt.
     try { new ResizeObserver((es) => { const h = es[0]?.contentRect.height || 0; if (h) this.root.style.setProperty("--host-h", `${Math.round(h)}px`); }).observe(wrap); } catch (_) { /* no ResizeObserver */ }
     this.el("hidesite").textContent = `Hide Kari on ${SITE_NAME[deps.site || "yt"]}`;
+    this.el("ver").textContent = __KARI_BUILD__.split("+")[0];
+    try { this.rm = matchMedia("(prefers-reduced-motion: reduce)"); this.rm.addEventListener?.("change", () => this.syncSmil()); } catch (_) { /* no matchMedia */ }
     this.seedStars();
     this.wire();
     this.applySettings(deps.settings);
@@ -220,7 +215,7 @@ export class Dock {
     this.startPulse();
   }
 
-  destroy() { cancelAnimationFrame(this.raf); clearTimeout(this.keptTimer); clearTimeout(this.noteTimer); this.host.querySelector("#kari-dock")?.remove(); }
+  destroy() { cancelAnimationFrame(this.raf); clearTimeout(this.keptTimer); clearTimeout(this.noteTimer); clearTimeout(this.reactTimer); this.host.querySelector("#kari-dock")?.remove(); }
 
   /* ---------- the take ---------- */
   private takeNote: TakeNote | null = null;
@@ -267,11 +262,13 @@ export class Dock {
   setSmall(small: boolean) { this.root.dataset.small = small ? "1" : "0"; }
   applySettings(s: Settings) {
     this.$$(".skin").forEach(sk => (sk as HTMLElement).hidden = sk.dataset.skin !== s.skin);
-    this.$$(".chip[data-skin]").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.skin === s.skin)));
+    this.$$(".skinrow[data-skin]").forEach(c => c.setAttribute("aria-pressed", String(c.dataset.skin === s.skin)));
     const org = this.shadow.querySelector(".org") as HTMLElement;
     org.dataset.kari = s.kariColor; org.dataset.cap = s.cap ? "1" : "0"; org.dataset.shades = s.shades ? "1" : "0"; org.dataset.shoes = s.shoes ? "1" : "0";
+    this.root.dataset.kari = s.kariColor;   // the colorway vars live on the root: the settings tiles wear it too
     this.$$("[data-kari]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.kari === s.kariColor)));
-    (this.$$("input[data-set]") as HTMLInputElement[]).forEach(i => i.checked = !!(s as any)[i.dataset.set!]);
+    this.$$("[data-wear]").forEach(b => b.setAttribute("aria-pressed", String(!!(s as any)[b.dataset.wear!])));
+    this.applyForm(FORM_IDS.includes(s.form) ? s.form : "kari");
     if (s.collapsed && this.root.dataset.collapsed !== "1") { this.over.clear(); this.syncHidden(); }   // absorbed under the pointer: no leave event comes
     this.root.dataset.collapsed = s.collapsed ? "1" : "0";
     this.$$(".ctl").forEach(c => c.dataset.full = s.fullControl ? "1" : "0");
@@ -280,9 +277,58 @@ export class Dock {
     (this.el("more") as HTMLAnchorElement).href = this.deps.optionsUrl;
     this.deps.settings = s;
   }
-  react() { // eyes light + bubble; called on every parameter change
-    const b = this.el("bubble"); b.classList.remove("go"); void (b as any).getBBox?.(); b.classList.add("go");
-    ["i1", "i2"].forEach(id => { const e = this.el(id); e.classList.add("lit"); setTimeout(() => e.classList.remove("lit"), 700); });
+  react() { // eyes light + the form's own moment (Kari's bubble, Nebula's ring, Hex's wink...); called on every parameter change
+    const body = this.el("kari");
+    body.classList.remove("react"); void body.offsetWidth; body.classList.add("react");
+    clearTimeout(this.reactTimer); this.reactTimer = window.setTimeout(() => body.classList.remove("react"), 1700);
+    const b = this.el("bubble"); if (b) { b.classList.remove("go"); void (b as any).getBBox?.(); b.classList.add("go"); }
+    this.$$(".org .body .iris, .org .body .glow").forEach(e => { e.classList.add("lit"); setTimeout(() => e.classList.remove("lit"), 700); });
+    if (this.form === "nebula") this.boostUntil = performance.now() + 1400;   // her moon speeds round once
+  }
+
+  /* ---------- Kari's form ---------- */
+  private applyForm(form: KariForm) {
+    const org = this.shadow.querySelector(".org") as HTMLElement, info = formInfo(form);
+    if (form !== this.form) {
+      const first = this.form === null; this.form = form;
+      const body = this.el("kari"); body.innerHTML = formSvg(form, true);
+      this.moons = Array.from(body.querySelectorAll("[data-moon]")) as SVGCircleElement[];
+      this.placeMoons();
+      this.syncSmil();
+      if (!first) requestAnimationFrame(() => this.react());   // a new form says hello once; the first draw on load does not
+    }
+    org.dataset.form = form;
+    this.$$(".form[data-form]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.form === form)));
+    // color and wardrobe only where the form takes them; the note says why a row is off
+    (this.$$(".swatch[data-kari]") as HTMLButtonElement[]).forEach(b => b.disabled = !info.colorway);
+    (this.$$(".chip[data-wear]") as HTMLButtonElement[]).forEach(b => b.disabled = !info.wear);
+    const note = !info.colorway ? "The sisters keep their own colors and clothes." : !info.wear ? "The wardrobe fits Kari and Nebula." : "";
+    const n = this.el("formnote"); if (n.textContent !== note) n.textContent = note;
+  }
+  private motionOK() { return !this.rm?.matches; }
+  /** Medusa's tentacles are SMIL: run them only where motion is welcome. */
+  private syncSmil() {
+    const svg = this.el("kari")?.querySelector("svg") as SVGSVGElement | null; if (!svg) return;
+    try { this.motionOK() ? svg.unpauseAnimations() : svg.pauseAnimations(); } catch (_) { /* no SMIL */ }
+  }
+  /** Nebula's moon: behind her on the back half of the orbit, in front of her on the front half. */
+  private placeMoons() {
+    if (!this.moons.length) return;
+    const o = orbitAt(this.theta);
+    for (const m of this.moons) {
+      m.setAttribute("cx", o.x.toFixed(1)); m.setAttribute("cy", o.y.toFixed(1));
+      const show = (m.dataset.moon === "back") === o.back; m.style.opacity = show ? "1" : "0";
+    }
+  }
+
+  /* ---------- settings tabs ---------- */
+  private selectTab(id: string, focus = false) {
+    const tabs = this.$$(".tab[data-tab]").filter(t => !t.hidden);
+    if (!tabs.some(t => t.dataset.tab === id)) id = "kari";
+    this.tab = id;
+    for (const t of this.$$(".tab[data-tab]")) { const on = t.dataset.tab === id; t.setAttribute("aria-selected", String(on)); t.tabIndex = on ? 0 : -1; if (on && focus) t.focus(); }
+    for (const p of this.$$(".pane[data-pane]")) p.hidden = p.dataset.pane !== id;
+    this.el("panes").scrollTop = 0;
   }
 
   /* ---------- render ---------- */
@@ -319,6 +365,7 @@ export class Dock {
       });
     }
     const midiGroup = this.shadow.querySelector('[data-el="midisg"]') as HTMLElement | null; if (midiGroup) midiGroup.hidden = !this.deps.midi;
+    const midiTab = this.el("miditab"); if (midiTab && midiTab.hidden !== !this.deps.midi) { midiTab.hidden = !this.deps.midi; if (midiTab.hidden && this.tab === "midi") this.selectTab("kari"); }
     (this.$$('[data-a="loop"]') as HTMLButtonElement[]).forEach(b => { const on = loop > 0 && +b.dataset.v! === loop; b.setAttribute("aria-pressed", String(on)); b.disabled = !bpm; if (on) b.style.setProperty("--loop-ms", `${s!.loopMs}ms`); });
     (this.$$('[data-a="bpm-"],[data-a="bpm+"]') as HTMLButtonElement[]).forEach(b => { b.disabled = !bpm; });
     (this.$$('input[data-a="bpm"]') as HTMLInputElement[]).forEach(i => { if (this.shadow.activeElement === i) return; const v = bpm ? fmtBpm(bpm) : ""; if (i.value !== v) i.value = v; });
@@ -394,6 +441,8 @@ export class Dock {
       const t = ke.target as HTMLElement;
       if (t.matches('input[type="number"]')) return true;   // the bpm field owns every key while it has focus, nothing outside it
       if (t.matches('input[type="range"]')) return ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"].includes(ke.key);
+      if (t.matches('[role="tab"]')) return ["ArrowLeft", "ArrowRight", "Home", "End", "Enter", " "].includes(ke.key);
+      if (ke.key === "Escape" && t.closest(".settings")) return true;
       if (t.matches('button, [role="button"], input[type="checkbox"], a')) return ke.key === "Enter" || ke.key === " ";
       return false;
     };
@@ -401,6 +450,14 @@ export class Dock {
       const ke = e as KeyboardEvent; const el = (ke.target as HTMLElement).closest('[role="button"][data-a]') as HTMLElement | null;
       if (el && (ke.key === "Enter" || ke.key === " ")) { ke.preventDefault(); el.click(); }
       if ((ke.target as HTMLElement).matches('input[data-a="bpm"]') && (ke.key === "Enter" || ke.key === "Escape")) { ke.preventDefault(); (ke.target as HTMLInputElement).blur(); }
+      const tab = (ke.target as HTMLElement).closest('[role="tab"]') as HTMLElement | null;
+      if (tab && ["ArrowLeft", "ArrowRight", "Home", "End"].includes(ke.key)) {
+        ke.preventDefault();
+        const tabs = this.$$(".tab[data-tab]").filter(t => !t.hidden), i = tabs.indexOf(tab);
+        const j = ke.key === "Home" ? 0 : ke.key === "End" ? tabs.length - 1 : (i + (ke.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        this.selectTab(tabs[j].dataset.tab!, true);
+      }
+      if (ke.key === "Escape" && (ke.target as HTMLElement).closest(".settings")) { ke.preventDefault(); this.closeSettings(true); }
       if (consumes(ke)) ke.stopPropagation();
     });
     sh.addEventListener("keyup", (e: Event) => { if (consumes(e as KeyboardEvent)) e.stopPropagation(); });
@@ -411,7 +468,6 @@ export class Dock {
       const t = e.target as HTMLInputElement;
       if (t.matches('input[data-a="tempo"]')) this.react();
       if (t.matches('input[data-a="bpm"]')) { const v = parseFloat(t.value); if (Number.isFinite(v)) { this.deps.loop?.setBpm(v); this.react(); } this.render(); }
-      if (t.dataset.set) this.deps.saveSettings({ [t.dataset.set]: t.checked } as Partial<Settings>);
     });
     // hold-to-compare
     sh.addEventListener("pointerdown", (e) => { const b = (e.target as HTMLElement).closest('[data-a="compare"]') as HTMLElement | null; if (b) { this.hold(true); b.setPointerCapture?.((e as PointerEvent).pointerId); } });
@@ -421,9 +477,13 @@ export class Dock {
     // settings
     const gear = this.el("gear"), settings = this.el("settings");
     gear.addEventListener("click", () => { const open = settings.hidden; settings.hidden = !open; gear.setAttribute("aria-expanded", String(open)); });
-    settings.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest('[data-s="close"]')) { settings.hidden = true; gear.setAttribute("aria-expanded", "false"); } });
-    this.$$("[data-skin].chip").forEach(c => c.addEventListener("click", () => this.deps.saveSettings({ skin: c.dataset.skin as Skin })));
-    this.$$("[data-kari]").forEach(b => b.addEventListener("click", () => { this.deps.saveSettings({ kariColor: b.dataset.kari as KariColor }); this.react(); }));
+    settings.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest('[data-s="close"]')) this.closeSettings(false); });
+    this.$$(".tab[data-tab]").forEach(t => t.addEventListener("click", () => this.selectTab(t.dataset.tab!)));
+    this.$$(".skinrow[data-skin]").forEach(c => c.addEventListener("click", () => this.deps.saveSettings({ skin: c.dataset.skin as Skin })));
+    // Kari's look: a form, a color or a piece of her wardrobe brings her own interface back, so the change shows at once
+    this.$$(".form[data-form]").forEach(b => b.addEventListener("click", () => this.deps.saveSettings({ form: b.dataset.form as KariForm, skin: "org" })));
+    this.$$("[data-kari]").forEach(b => b.addEventListener("click", () => { this.deps.saveSettings({ kariColor: b.dataset.kari as KariColor, skin: "org" }); this.react(); }));
+    this.$$("[data-wear]").forEach(b => b.addEventListener("click", () => { const k = b.dataset.wear as "cap" | "shades" | "shoes"; this.deps.saveSettings({ [k]: !this.deps.settings[k], skin: "org" } as Partial<Settings>); }));
     // constellation drag
     const svg = this.el("consSvg") as unknown as SVGSVGElement;
     const toSt = (e: PointerEvent) => { const r = svg.getBoundingClientRect(); const x = (e.clientX - r.left) / r.width * 640, y = (e.clientY - r.top) / r.height * 360; const ang = Math.atan2((x - CX) / RX, -(y - CY) / RY); return Math.max(-12, Math.min(12, Math.round(ang / Math.PI * 12))); };
@@ -444,17 +504,24 @@ export class Dock {
     // shadow tree: events bubble through the dock's own handlers first, then retarget to the host, then we stop them.
     ["click", "dblclick", "pointerdown", "pointerup", "mousedown", "mouseup", "wheel", "contextmenu"].forEach(t => this.wrap.addEventListener(t, (e) => e.stopPropagation()));
   }
+  private closeSettings(focusGear: boolean) {
+    const gear = this.el("gear"); this.el("settings").hidden = true; gear.setAttribute("aria-expanded", "false");
+    if (focusGear) gear.focus();
+  }
   private holding = false;
   private hold(on: boolean) { this.holding = on; this.deps.setCompare(on); this.$$('[data-a="compare"]').forEach(b => b.dataset.held = on ? "1" : "0"); }
 
   /* ---------- Kari pulse from the audio level ---------- */
   private startPulse() {
-    let last = 0; let peak = 0;
+    let last = 0; let peak = 0; let prev = performance.now();
     const tick = (t: number) => {
       this.raf = requestAnimationFrame(tick);
-      if (document.hidden || t - last < 33) return; last = t; // ~30 fps
+      const dt = Math.min(100, t - prev); prev = t;
+      if (document.hidden) return;
       const orgVisible = !(this.shadow.querySelector('.skin[data-skin="org"]') as HTMLElement).hidden;
       if (!orgVisible) return;
+      if (this.moons.length && this.motionOK()) { this.theta += dt / 1000 * (t < this.boostUntil ? 3.2 : 0.9); this.placeMoons(); }
+      if (t - last < 33) return; last = t; // ~30 fps
       const lvl = this.deps.level();                       // 0..~0.5
       peak = Math.max(lvl, peak * 0.85);                   // fast attack, slow release
       const sx = 1 + Math.min(0.08, peak * 0.35), sy = 1 - Math.min(0.06, peak * 0.25);

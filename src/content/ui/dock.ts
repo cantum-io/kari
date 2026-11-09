@@ -156,7 +156,7 @@ const TEMPLATE = `
   <aside class="settings" data-el="settings" hidden>
     <div class="sh"><span>Settings</span><button class="x" data-s="close" aria-label="Close">✕</button></div>
     <div class="sg"><b>Interface</b><div class="row">
-      <button class="chip" data-skin="org">Organism</button><button class="chip" data-skin="void">Void Signal</button>
+      <button class="chip" data-skin="org">Kari</button><button class="chip" data-skin="void">Void Signal</button>
       <button class="chip" data-skin="weather">Alien Weather</button><button class="chip" data-skin="cons">Constellation</button></div></div>
     <div class="sg"><b>Kari</b><div class="row">
       <button class="swatch" data-kari="blue" style="--c:#5cf2ff">Blue</button><button class="swatch" data-kari="pink" style="--c:#ff7ad9">Pink</button><button class="swatch" data-kari="black" style="--c:#2a2a33">Black</button></div>

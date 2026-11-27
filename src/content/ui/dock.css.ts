@@ -44,21 +44,35 @@ button:active{transform:scale(.97)}
 .rng{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
 .rng button{padding:4px 7px;font-family:var(--mono);font-size:9px;color:var(--bone-2)}
 .rng button[aria-pressed="true"]{background:var(--bone);color:var(--ink)}
-.meta{font-size:9px;color:var(--mute);display:flex;justify-content:space-between;gap:8px;letter-spacing:.06em;flex-wrap:wrap;gap:2px 12px}
+/* the status rows never re-wrap (0.12.0): a two-column grid, every cell one line, so a longer reading ("2081 ms", a
+   latched loop's length) is clipped with an ellipsis instead of adding a row. On SoundCloud the panel hangs from its
+   bottom edge, so one more row pushed every control above it up under the pointer. */
+.meta{font-size:9px;color:var(--mute);display:grid;grid-template-columns:max-content minmax(0,1fr);gap:2px 12px;letter-spacing:.06em}
+.meta > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.meta > span:nth-child(even){text-align:right}
+/* SoundCloud has no picture, so "sound behind picture" says nothing there: the a/v cell is gone and the loop reading takes the row */
+.root[data-site="sc"] .meta .m-av{display:none}
+.root[data-site="sc"] .meta .m-loop{grid-column:1 / -1;text-align:left}
 .meta em{font-style:normal;color:var(--bone-2)}
 .meta em.warn{color:var(--amber)}
 /* beat loops: four length toggles (½ · 1 · 1 bar · 2 bars) and the tempo readout, directly under the steppers with Full
    control on or off; tap tempo, the bpm field and MIDI stay in the full panel. Lengths are disabled until a tempo exists. */
-.loops,.tempo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tempo{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+/* four columns sized to their labels and the readout on its own reserved line: the row is the same height whatever the readout says,
+   whatever monospace font the machine has (the pills used to wrap by text width, the readout to vanish when empty) */
+.loops{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,.8fr) minmax(0,1.1fr) minmax(0,1.3fr);gap:6px;align-items:center}
+.loops .tro{grid-column:1 / -1;justify-self:end;display:block;min-height:12px;line-height:12px;margin:0;max-width:100%;overflow:hidden;text-overflow:ellipsis}
 .tempo .lab{font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-.pill.loop{min-width:30px;text-align:center;font-size:11px;letter-spacing:0;padding:4px 7px;white-space:nowrap;position:relative;overflow:hidden}
+.pill.loop{min-width:0;text-align:center;font-size:11px;letter-spacing:0;padding:4px 3px;white-space:nowrap;position:relative;overflow:hidden}
 .pill.loop[aria-pressed="true"]{background:var(--cyan);color:var(--ink);border-color:var(--cyan)}
 .tro{margin-left:auto;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--mute);white-space:nowrap}
 .tro[data-state="found"]{color:var(--bone-2)}
 .tro:empty{display:none}
+.loops .tro:empty{display:block}   /* the loop row keeps its readout line when there is nothing to say */
 /* the take: one pill under the loop row (KARI_RECORD=1 builds; hidden where there is no record path). Rose is the take's
    color as cyan is the loop's and amber the compare hold's; the dot breathes while frames are kept, holds still while held. */
 .take{display:flex;align-items:center;gap:6px}
+.take .tro{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .loops[hidden],.take[hidden]{display:none}   /* an author display beats the UA's [hidden]; say it here (the dock probe caught the take row showing with no record path) */
 .pill.rec{display:inline-flex;align-items:center;gap:5px}
 .pill.rec .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}

@@ -1,4 +1,4 @@
-# Chrome Web Store listing — Kari 0.11.0
+# Chrome Web Store listing — Kari 0.12.0
 
 Publisher: the Cantum Google account; the store shows the account's verified trader name, **Cantum LLC**. Jesse pastes and clicks submit. The product name never
 contains the word YouTube. Drafted 2026-10-15, updated 2026-11-09 for the 0.11.0 upload (0.8.0, 0.9.0 and 0.10.0 were staged and never uploaded; one

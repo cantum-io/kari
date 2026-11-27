@@ -5,7 +5,7 @@
 //      and Speed steppers, pills disabled until a tempo exists; with Full control ON the same row is still there and
 //      Tap / bpm / MIDI sit in the full panel.
 //   2. The readout: "play to learn" / "click to learn" before the detector runs, "learning…" while it listens, "128 bpm"
-//      once a tempo exists, "tap" only when it listened and found nothing, hidden where there is no detector.
+//      once a tempo exists, "tap" only when it listened and found nothing, empty (its line kept) where there is no detector.
 //   3. A latched length is lit; clicking it calls release(); clicking another length calls latch(other).
 //   4. YouTube's controls hidden (data-hidden-with-controls=1): the panel and the gear are invisible, Kari's blob
 //      (.anchor) stays visible and clickable — on every skin's anchor. Miniplayer (data-small) and collapsed too.
@@ -14,6 +14,8 @@
 //   5. prefers-reduced-motion: no animation on the pills, the readout or the body.
 //   6. The take row (record pill) and, on a first run, the intro hint covering none of the panel's controls.
 //   7. Two Karis on one page: the fault line names the fix.
+//   8. The panel never changes height with its readings (0.12.0): every status the controller can report, Full control
+//      off and on, YouTube and SoundCloud. On SoundCloud the a/v cell is gone and the panel's top edge stays put.
 import { build } from "esbuild";
 import { chromium } from "playwright";
 import fs from "node:fs";
@@ -61,7 +63,7 @@ const ORG = '.skin[data-skin="org"] ';
   const ctl = await q(ORG + ".ctl"), btns = await q(ORG + ".btns"), loops = await q(ORG + ".loops"), full = await q(ORG + ".full"), tempo = await q(ORG + ".tempo");
   const pills = []; for (const v of ["0.5", "1", "4", "8"]) pills.push(await q(ORG + `[data-a="loop"][data-v="${v}"]`));
   const labels = []; for (const v of ["0.5", "1", "4", "8"]) labels.push(await q(ORG + `[data-a="loop"][data-v="${v}"]`, "text"));
-  row("loop row under the steppers, Full control off", !loops.hidden && loops.display === "flex" && loops.top >= btns.bottom && loops.top - btns.bottom <= 12 && full.display === "none" && tempo.w === 0,
+  row("loop row under the steppers, Full control off", !loops.hidden && loops.display === "grid" && loops.top >= btns.bottom && loops.top - btns.bottom <= 12 && full.display === "none" && tempo.w === 0,
     `btns bottom ${btns.bottom.toFixed(0)}, loops top ${loops.top.toFixed(0)}, full panel ${full.display}, tempo row laid out ${tempo.w > 0}`);
   row("four pills ½ · 1 · 1 bar · 2 bars, one line, inside the panel", labels.join("|") === "½|1|1 bar|2 bars" && pills.every(p => Math.abs(p.top - pills[0].top) < 1) && pills[3].right <= ctl.right && (await q(ORG + '[data-a="loop"][data-v="0.25"]')) === null && (await q(ORG + '[data-a="loop-off"]')) === null,
     `${labels.join(" · ")}; right edge ${pills[3].right.toFixed(0)} vs panel ${ctl.right.toFixed(0)}; no ¼, no ×`);
@@ -84,8 +86,9 @@ const ORG = '.skin[data-skin="org"] ';
   const none = await ro();
   await page.evaluate(() => window.__status({ tempo: "off" }));
   const off = await q(ORG + '[data-b="tempo"]');
-  row("tempo readout: play to learn → click to learn → learning… → 128 bpm → tap → (hidden)", idle === "play to learn" && gesture === "click to learn" && learning === "learning…" && found === "128 bpm" && none === "tap" && enabled && off.display === "none",
-    `"${idle}" → "${gesture}" → "${learning}" (anim ${learnAnim}) → "${found}" (pills enabled ${enabled}) → "${none}" → off display ${off.display}`);
+  const offText = await ro();   // no detector: the readout says nothing but keeps its line, so the row below never moves (0.12.0)
+  row("tempo readout: play to learn → click to learn → learning… → 128 bpm → tap → (empty, line kept)", idle === "play to learn" && gesture === "click to learn" && learning === "learning…" && found === "128 bpm" && none === "tap" && enabled && offText === "" && off.display === "block" && off.h >= 12,
+    `"${idle}" → "${gesture}" → "${learning}" (anim ${learnAnim}) → "${found}" (pills enabled ${enabled}) → "${none}" → off "${offText}" display ${off.display} h ${off.h}`);
   await page.evaluate(() => window.__status({}));
 }
 // 3. toggle semantics
@@ -254,6 +257,56 @@ const ORG = '.skin[data-skin="org"] ';
   await page.evaluate(() => window.__status({}));
   const cleared = await q('[data-el="fault"]');
   row("fault cleared: the line hides again", !!cleared && cleared.hidden, `hidden ${cleared?.hidden}`);
+}
+// 8. The panel is the same height whatever it reads. 0.11.0 let the status line and the loop row wrap by text width, so
+//    "2081 ms" or a latched loop's length added a row; SoundCloud hangs the panel from its bottom edge, so every
+//    control above moved under the pointer. Each state below is one the controller really reports.
+{
+  const STATES = [
+    ["before play", { attached: false }],
+    ["learning", { tempo: "learning", engine: "r3", avOffsetMs: 97 }],
+    ["no beat found", { tempo: "none", engine: "r3", avOffsetMs: 97 }],
+    ["tempo found", { bpm: 92, tempo: "found", engine: "r3", avOffsetMs: 97 }],
+    ["no detector", { tempo: "off", engine: "bypass" }],
+    ["slow output device", { tempo: "idle", engine: "r3", avOffsetMs: 2081 }],
+    ["slow device + tempo", { bpm: 92, tempo: "found", engine: "r3", avOffsetMs: 2081 }],
+    ["loop latched", { bpm: 92, tempo: "found", engine: "r3", avOffsetMs: 97, loop: 4, loopMs: 2609 }],
+    ["loop latched, slow device", { bpm: 92, tempo: "found", engine: "r3", avOffsetMs: 2081, loop: 8, loopMs: 5217 }],
+    ["loop at the ceiling", { bpm: 92.5, tempo: "found", engine: "ss", avOffsetMs: 10000, loop: 8, loopMs: 5217, loopClamped: true }],
+    ["engine dropped", { bpm: 92, tempo: "found", engine: "bypass", fault: "busy" }],
+    ["recording", { bpm: 92, tempo: "found", engine: "r3", avOffsetMs: 97, recording: true, recSeconds: 754 }],
+  ];
+  const measure = async (site, full) => page.evaluate(async ([site, full, STATES]) => {
+    const host = document.createElement("div"); host.style.cssText = "position:fixed;left:0;top:0;width:1280px;height:720px"; document.body.appendChild(host);
+    const base = window.__dock.deps, settings = { ...base.settings, fullControl: full, seenIntro: true };
+    const deps = { ...base, site, settings, saveSettings() {}, record: { start: () => Promise.resolve(true), stop() {} } };
+    const d = new KariDock.Dock(host, deps);
+    const sr = host.querySelector("#kari-dock") ? host.querySelector("#kari-dock").shadowRoot : [...host.children].map(c => c.shadowRoot).find(Boolean);
+    const ctl = sr.querySelector('.skin[data-skin="org"] .ctl');
+    const empty = { attached: true, engine: "bypass", engineLatencyMs: 0, outputLatencyMs: 0, avOffsetMs: 0, underruns: 0, load: 0, fault: null, baseRate: 1, loop: 0, loopMs: 0, loopClamped: false, bpm: null, gridSource: null, tempo: "idle", recording: false, recSeconds: 0, recHeld: false };
+    const out = [];
+    for (const [name, patch] of STATES) {
+      d.setStatus({ ...empty, ...patch }); await new Promise(r => requestAnimationFrame(() => r()));
+      const r = ctl.getBoundingClientRect(), av = sr.querySelector('.skin[data-skin="org"] .m-av');
+      out.push({ name, h: Math.round(r.height * 10) / 10, top: Math.round(r.top * 10) / 10, av: av ? getComputedStyle(av).display : "missing", scroll: ctl.scrollWidth > ctl.clientWidth + 1 });
+    }
+    const clipped = [...sr.querySelectorAll('.skin[data-skin="org"] .pill.loop')].filter(b => b.scrollWidth > b.clientWidth).map(b => b.textContent);
+    const amber = (sel) => getComputedStyle(sr.querySelector('.skin[data-skin="org"] ' + sel)).color;
+    d.setStatus({ ...empty, engine: "bypass", fault: "busy" }); const engBusy = amber('[data-b="engine"]');
+    d.setStatus({ ...empty, engine: "r3" }); const engOk = amber('[data-b="engine"]');
+    host.remove();
+    return { out, engBusy, engOk, clipped };
+  }, [site, full, STATES]);
+  for (const site of ["yt", "sc"]) for (const full of [false, true]) {
+    const m = await measure(site, full), hs = [...new Set(m.out.map(o => o.h))], tops = [...new Set(m.out.map(o => o.top))];
+    const odd = m.out.filter(o => o.h !== m.out[0].h || o.top !== m.out[0].top).map(o => `${o.name} ${o.h}@${o.top}`);
+    row(`${site}, Full control ${full ? "on" : "off"}: the panel keeps one height and one top edge across ${STATES.length} statuses`, hs.length === 1 && tops.length === 1 && !m.out.some(o => o.scroll), hs.length === 1 && tops.length === 1 ? `${hs[0]} px, top ${tops[0]}` : `first ${m.out[0].h}@${m.out[0].top}; differs: ${odd.join(", ")}`);
+    if (full) {
+      row(`${site}: no loop pill clips its label`, !m.clipped.length, m.clipped.length ? `clipped: ${m.clipped.join(", ")}` : "all four fit");
+      row(`${site}: the a/v cell is ${site === "sc" ? "gone (no picture to be behind)" : "shown"}`, m.out.every(o => (o.av === "none") === (site === "sc")), `display ${m.out[0].av}`);
+      row(`${site}: the engine cell is amber only when the key change was dropped`, m.engBusy !== m.engOk, `dropped ${m.engBusy}, running ${m.engOk}`);
+    }
+  }
 }
 const w = Math.max(...rows.map(r => r[1].length));
 console.log(rows.map(([s, n, d]) => `${s}  ${n.padEnd(w)}  ${d}`).join("\n"));

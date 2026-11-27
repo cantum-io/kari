@@ -2,6 +2,9 @@
 
 The public record, one line per build; the full notes are the `docs/RELEASE-*.md` files.
 
+## 0.12.0 · 2026-11-26
+Her panel holds still. The readings at the bottom of Full control (key, engine, a/v, loop) and the tempo line under the loop buttons no longer change the panel's height when they change, so on SoundCloud, where the panel sits on the player bar, the buttons stop moving under the pointer. On SoundCloud the a/v reading is gone (there is no picture for the sound to be behind), the engine reading turns amber only when a key change was dropped, and on YouTube the a/v figure moves only when the delay really changed.
+
 ## 0.11.0 · 2026-11-09
 Kari has six forms: herself, Nebula, Medusa and her three sisters Hex, Chrome and Hood. Pick one from her settings, which now open as four tabs (Kari, Interface, MIDI, Page) instead of one long list, so every option sits in reach and the panel no longer runs off a small player.
 

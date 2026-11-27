@@ -39,6 +39,7 @@ const FAULT_COPY: Record<"yt" | "sc", Record<string, string>> = {
   yt: { "drm-silent": "this video's audio is protected — Kari can't touch it", "capture-failed": "couldn't reach the audio on this page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page so Kari can reach the player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload", "busy": "this machine is busy — playing the song as it is; reload to try again" },
   sc: { "drm-silent": "this track's audio is protected — speed only", "capture-failed": "couldn't reach SoundCloud's player — reload the page", "worklet-failed": "engine hiccup — playing untouched audio", "hook-missing": "reload this page so Kari can reach the player", "late": "reload this page once — Kari arrived after SoundCloud set up its player", "duplicate": "two Karis are on this page — switch the other one off at chrome://extensions, then reload", "busy": "this machine is busy — playing the track as it is; reload to try again" },
 };
+const AV_STEP_MS = 20;
 const LOOP_ACTION: Record<string, MidiAction> = { "0.5": "loop-h", "1": "loop-1", "4": "loop-bar", "8": "loop-2bar", tap: "tap" };
 const LOOP_PILLS = LOOP_BEATS.map(b => `<button class="pill loop" data-a="loop" data-v="${b}" aria-pressed="false" aria-label="${loopAria(b)}" disabled>${loopLabel(b)}</button>`).join("");
 
@@ -69,7 +70,7 @@ const CTL = `
       <span class="bpmbox"><button data-a="bpm-" aria-label="BPM down">−</button><input class="bpm ro" type="number" min="${BPM_MIN}" max="${BPM_MAX}" step="0.1" data-a="bpm" inputmode="decimal" aria-label="BPM" placeholder="bpm"><button data-a="bpm+" aria-label="BPM up">+</button></span>
       <button class="pill" data-a="midi" aria-pressed="false" aria-label="Connect MIDI">MIDI</button>
     </div>
-    <div class="meta"><span>key <em class="ro" data-b="keypair"></em></span><span>engine <em data-b="engine">—</em></span><span>a/v <em class="ro" data-b="av">—</em></span><span>loop <em class="ro" data-b="loopinfo">—</em></span></div>
+    <div class="meta"><span class="m-key">key <em class="ro" data-b="keypair"></em></span><span class="m-engine">engine <em data-b="engine">—</em></span><span class="m-av">a/v <em class="ro" data-b="av">—</em></span><span class="m-loop">loop <em class="ro" data-b="loopinfo">—</em></span></div>
   </div>
   <div class="rowend"><button class="hidebtn" data-a="hide">Hide</button><button class="fulltog" data-a="full" aria-pressed="false">Full control <span class="sw"></span></button></div>
 </div>`;
@@ -331,6 +332,11 @@ export class Dock {
     this.el("panes").scrollTop = 0;
   }
 
+  /* The a/v figure is re-measured on every engine report and the device's share settles over the first seconds of
+     playback, so the raw number flickers. Show a new reading only once it has moved by more than AV_STEP_MS. */
+  private avShown = 0;
+  private steadyAv(ms: number): number { if (Math.abs(ms - this.avShown) > AV_STEP_MS) this.avShown = ms; return this.avShown; }
+
   /* ---------- render ---------- */
   render() {
     const p = this.deps.getParams();
@@ -345,7 +351,7 @@ export class Dock {
       tempo: tempoText,
       keypair: `${keyName(BASE_KEY, 0)} → ${keyName(BASE_KEY, p.st)}`,
       engine: s ? (s.engine === "r3" ? "R3" : s.engine === "ss" ? "SS" : "wire") : "—",
-      av: s ? (s.attached ? `${s.avOffsetMs} ms` : "0 ms") : "—",
+      av: s ? (s.attached ? `${this.steadyAv(s.avOffsetMs)} ms` : "0 ms") : "—",
       loopinfo: !this.deps.loop ? "—" : loop ? `${loopLabel(loop)} · ${s!.loopMs} ms${s!.loopClamped ? " · at the ring's ceiling" : ""}` : bpm ? "—" : "no tempo yet",
     };
     this.$$("[data-b]").forEach(el => { const v = map[el.dataset.b!]; if (v !== undefined && el.textContent !== v) el.textContent = v; });
@@ -372,7 +378,11 @@ export class Dock {
     const m = this.midiState;
     this.$$('[data-a="midi"]').forEach(b => { b.setAttribute("aria-pressed", String(!!m?.connected)); });
     this.$$('[data-m="learn"]').forEach(b => b.setAttribute("aria-pressed", String(this.learnOn)));
-    this.$$('[data-b="av"]').forEach(el => el.classList.toggle("warn", !!s && s.avOffsetMs > 125));
+    this.$$('[data-b="av"]').forEach(el => el.classList.toggle("warn", !!s && s.attached && this.avShown > 125));
+    // the engine cell turns amber only when the key change was dropped (the worklet failed, or the machine was too busy)
+    this.$$('[data-b="engine"]').forEach(el => el.classList.toggle("warn", s?.fault === "worklet-failed" || s?.fault === "busy"));
+    // a clipped cell still reads in full on hover
+    this.$$('.meta > span').forEach(el => { const t = el.textContent || ""; if (el.title !== t) el.title = t; });
     (this.$$('input[data-a="tempo"]') as HTMLInputElement[]).forEach(r => { r.min = String(-p.range); r.max = String(p.range); if (+r.value !== p.tempo) r.value = String(p.tempo); });
     this.$$('[data-a="lock"]').forEach(b => b.setAttribute("aria-pressed", String(p.keyLock)));
     this.$$('[data-a="vinyl"]').forEach(b => b.setAttribute("aria-pressed", String(!p.keyLock)));
